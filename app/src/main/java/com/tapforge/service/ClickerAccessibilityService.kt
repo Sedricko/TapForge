@@ -94,7 +94,8 @@ class ClickerAccessibilityService : AccessibilityService(), GestureDispatcher {
         ).apply { gravity = Gravity.TOP or Gravity.START; x = 40; y = 300 }
 
         var sx = 0f; var sy = 0f; var ox = 0; var oy = 0; var moved = false
-        row.setOnTouchListener { _, ev ->
+        // No botão (não na linha): ele cobre o painel e consumiria o toque; arrastar não vira clique.
+        playBtn.setOnTouchListener { _, ev ->
             when (ev.action) {
                 MotionEvent.ACTION_DOWN -> { sx = ev.rawX; sy = ev.rawY; ox = lp.x; oy = lp.y; moved = false }
                 MotionEvent.ACTION_MOVE -> {
