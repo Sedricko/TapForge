@@ -283,9 +283,9 @@ class MainActivity : AppCompatActivity() {
     private fun settingsPage() {
         toolbar.subtitle = "Ajustes"
         content.section("Execução")
-        content.setting("Parar com volume para baixo", "Durante a execução, a tecla de volume para baixo para o macro na hora.", settings.volumeStop) { settings.volumeStop = it }
-        content.setting("Parar ao chacoalhar", "Chacoalhe o aparelho para parar o macro.", settings.shakeStop) { settings.shakeStop = it }
-        content.setting("Mostrar alvos na tela", "Desenha um círculo onde o macro toca e um quadro onde achou imagens. Pode atrapalhar a busca de imagens.", settings.showTargets) { settings.showTargets = it }
+        content.setting("Parar com volume para baixo", "Durante a execução, a tecla de volume para baixo para o macro na hora.", settings.volumeStop, onToggle = { settings.volumeStop = it })
+        content.setting("Parar ao chacoalhar", "Chacoalhe o aparelho para parar o macro.", settings.shakeStop, onToggle = { settings.shakeStop = it })
+        content.setting("Mostrar alvos na tela", "Desenha um círculo onde o macro toca e um quadro onde achou imagens. Pode atrapalhar a busca de imagens.", settings.showTargets, onToggle = { settings.showTargets = it })
         content.setting("Transparência do painel", "Quanto o painel flutuante aparece. Vale ao reativar o serviço.")
         content.addView(Slider(this).apply {
             valueFrom = 30f; valueTo = 100f; stepSize = 5f; value = settings.panelAlpha.toFloat().coerceIn(30f, 100f)
@@ -298,7 +298,7 @@ class MainActivity : AppCompatActivity() {
         content.setting("Apps bloqueados", if (blocked.isEmpty()) "Nenhum. O macro pausa sozinho enquanto um destes apps estiver aberto (ex.: banco, senhas)."
             else blocked.joinToString(", ") { appLabel(it) }) { pickApps(blocked) { settings.blocked = it; render() } }
         content.setting("Permitir outros apps", "Deixa apps como Tasker e Automate iniciarem macros com a ação com.tapforge.RUN (extra \"macro\" = id do macro). Atalhos criados pelo TapForge funcionam sempre.",
-            settings.allowExternal) { settings.allowExternal = it }
+            settings.allowExternal, onToggle = { settings.allowExternal = it })
 
         content.section("Dados")
         content.setting("Fazer backup", "Salva todos os macros e imagens recortadas num único arquivo.") { backupLauncher.launch("tapforge-backup.json") }
@@ -328,7 +328,7 @@ class MainActivity : AppCompatActivity() {
                 adjustViewBounds = true; maxHeight = dp(56); maxWidth = dp(96); contentDescription = id
             })
             row.addView(TextView(this).apply { text = id; setPadding(dp(12), 0, dp(12), 0) }, LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(MaterialButton(this, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
+            row.addView(MaterialButton(this, null, androidx.appcompat.R.attr.borderlessButtonStyle).apply {
                 text = "Apagar"; setOnClickListener { Templates.delete(this@MainActivity, id); row.visibility = android.view.View.GONE }
             })
             box.addView(row)

@@ -104,7 +104,7 @@ class EditorActivity : AppCompatActivity() {
                         text = "↳ ${row.label}"
                         setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_LabelLarge)
                     }, LinearLayout.LayoutParams(0, -2, 1f))
-                    r.addView(MaterialButton(this, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
+                    r.addView(MaterialButton(this, null, androidx.appcompat.R.attr.borderlessButtonStyle).apply {
                         text = "Adicionar aqui"; setIconResource(R.drawable.ic_add); setOnClickListener { catalog(row.list) }
                     })
                     content.addView(r)
@@ -220,7 +220,7 @@ class EditorActivity : AppCompatActivity() {
                     1 -> v.takeIf { it.isNotEmpty() }?.let { Trigger.AppOpened(it) }
                     2 -> Trigger.Charging
                     3 -> v.takeIf { com.tapforge.service.Scheduler.next(it) != null }?.let { Trigger.Schedule(it) }
-                        ?: null.also { info("Horário inválido", "Use o formato HH:mm, por exemplo 08:30.") }
+                        ?: run { info("Horário inválido", "Use o formato HH:mm, por exemplo 08:30."); null }
                     else -> null
                 }
                 change(m.copy(trigger = trigger))

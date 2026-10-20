@@ -165,7 +165,7 @@ class ActionForm(private val ctx: Context, action: Action, private val onSave: (
                     else -> null
                 }
                 val et = box.field(label(k), v.content, listOfNotNull(help(k), extra).joinToString("\n").ifEmpty { null }) { set(p, JsonPrimitive(it)) }
-                if (k == "packageName") box.addView(MaterialButton(ctx, null, com.google.android.material.R.attr.borderlessButtonStyle).apply {
+                if (k == "packageName") box.addView(MaterialButton(ctx, null, androidx.appcompat.R.attr.borderlessButtonStyle).apply {
                     text = "Escolher app (${ctx.appLabel(v.content)})"
                     setOnClickListener { ctx.pickApp { pkg -> et.setText(pkg); text = "Escolher app (${ctx.appLabel(pkg)})" } }
                 })
@@ -197,7 +197,7 @@ class ActionForm(private val ctx: Context, action: Action, private val onSave: (
     private fun condPicker(p: List<String>, v: JsonElement, nullable: Boolean) {
         val current = (v as? JsonObject)?.let { json.decodeFromJsonElement(Condition.serializer(), it) }
         val options = (if (nullable) listOf("Nenhuma" to null) else emptyList()) + CONDITIONS
-        val b = MaterialButton(ctx, null, com.google.android.material.R.attr.materialButtonTonalStyle)
+        val b = MaterialButton(ctx, null, com.google.android.material.R.attr.materialButtonOutlinedStyle)
         b.text = "${label(p.last())}: ${current?.let { describe(it) } ?: "nenhuma"}"
         help(p.last())?.let { sub(it) }
         b.setOnClickListener {
