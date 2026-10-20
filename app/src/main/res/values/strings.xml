@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">TapForge</string>
+    <string name="accessibility_description">Executa toques e gestos que você configurar. Não lê o conteúdo das telas.</string>
+</resources>
