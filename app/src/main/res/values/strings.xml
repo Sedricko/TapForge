@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">TapForge</string>
-    <string name="accessibility_description">Executa toques e gestos que você configurar. Não lê o conteúdo das telas.</string>
+    <string name="accessibility_description">Executa os toques e gestos dos seus macros, detecta qual app está aberto (para gatilhos e apps bloqueados), digita texto quando o macro pede e permite parar com a tecla de volume. Nada sai do aparelho: o TapForge não tem acesso à internet.</string>
+    <string name="tile_label">Executar macro</string>
 </resources>

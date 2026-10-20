@@ -1,0 +1,33 @@
+<resources>
+    <!-- Material 3, cor de marca laranja ("forja"). Modo escuro em values-night. -->
+    <style name="Theme.TapForge" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#9C4400</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorPrimaryContainer">#FFDBCA</item>
+        <item name="colorOnPrimaryContainer">#331100</item>
+        <item name="colorSecondary">#765849</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="colorSecondaryContainer">#FFDBCA</item>
+        <item name="colorOnSecondaryContainer">#2B160B</item>
+        <item name="colorTertiary">#656031</item>
+        <item name="colorTertiaryContainer">#EBE4A9</item>
+        <item name="colorOnTertiaryContainer">#1F1C00</item>
+        <item name="colorError">#BA1A1A</item>
+        <item name="colorErrorContainer">#FFDAD6</item>
+        <item name="colorOnErrorContainer">#410002</item>
+        <item name="android:colorBackground">#FFF8F5</item>
+        <item name="colorSurface">#FFF8F5</item>
+        <item name="colorSurfaceContainerLow">#FFF1EB</item>
+        <item name="colorSurfaceContainer">#FCEAE2</item>
+        <item name="colorSurfaceContainerHigh">#F6E5DC</item>
+        <item name="android:statusBarColor">#FFF8F5</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">#FCEAE2</item>
+    </style>
+
+    <style name="Theme.TapForge.NoDisplay" parent="@android:style/Theme.NoDisplay" />
+
+    <style name="TextAppearance.TapForge.Section" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textColor">?attr/colorPrimary</item>
+    </style>
+</resources>

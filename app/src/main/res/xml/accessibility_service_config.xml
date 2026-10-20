@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Só gestos: não lê o conteúdo de outras telas. -->
+<!-- Gestos, app em primeiro plano, campo em foco (digitar) e tecla de volume (parada de emergência). -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagRequestFilterKeyEvents"
     android:canPerformGestures="true"
+    android:canRequestFilterKeyEvents="true"
+    android:canRetrieveWindowContent="true"
     android:description="@string/accessibility_description"
     android:notificationTimeout="100" />

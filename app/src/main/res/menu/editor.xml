@@ -1,0 +1,7 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item android:id="@+id/act_test" android:icon="@drawable/ic_play" android:title="Testar macro" app:showAsAction="ifRoom" />
+    <item android:id="@+id/act_save" android:icon="@drawable/ic_check" android:title="Salvar" app:showAsAction="ifRoom" />
+    <item android:id="@+id/act_json" android:title="Editar JSON completo" app:showAsAction="never" />
+    <item android:id="@+id/act_history" android:title="Versões anteriores" app:showAsAction="never" />
+    <item android:id="@+id/act_templates" android:title="Imagens recortadas" app:showAsAction="never" />
+</menu>

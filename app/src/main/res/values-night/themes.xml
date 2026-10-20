@@ -1,0 +1,26 @@
+<resources>
+    <style name="Theme.TapForge" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#FFB690</item>
+        <item name="colorOnPrimary">#552100</item>
+        <item name="colorPrimaryContainer">#783200</item>
+        <item name="colorOnPrimaryContainer">#FFDBCA</item>
+        <item name="colorSecondary">#E6BEAC</item>
+        <item name="colorOnSecondary">#432B1E</item>
+        <item name="colorSecondaryContainer">#5C4033</item>
+        <item name="colorOnSecondaryContainer">#FFDBCA</item>
+        <item name="colorTertiary">#CFC890</item>
+        <item name="colorTertiaryContainer">#4C481C</item>
+        <item name="colorOnTertiaryContainer">#EBE4A9</item>
+        <item name="colorError">#FFB4AB</item>
+        <item name="colorErrorContainer">#93000A</item>
+        <item name="colorOnErrorContainer">#FFDAD6</item>
+        <item name="android:colorBackground">#1A120D</item>
+        <item name="colorSurface">#1A120D</item>
+        <item name="colorSurfaceContainerLow">#231A15</item>
+        <item name="colorSurfaceContainer">#271E19</item>
+        <item name="colorSurfaceContainerHigh">#322823</item>
+        <item name="android:statusBarColor">#1A120D</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#271E19</item>
+    </style>
+</resources>

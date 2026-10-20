@@ -1,0 +1,11 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/m_run" android:title="Executar" />
+    <item android:id="@+id/m_edit" android:title="Editar" />
+    <item android:id="@+id/m_select" android:title="Usar no painel flutuante" />
+    <item android:id="@+id/m_fav" android:title="Favoritar / desfavoritar" />
+    <item android:id="@+id/m_dup" android:title="Duplicar" />
+    <item android:id="@+id/m_shortcut" android:title="Criar atalho na tela inicial" />
+    <item android:id="@+id/m_share" android:title="Compartilhar" />
+    <item android:id="@+id/m_export" android:title="Exportar arquivo" />
+    <item android:id="@+id/m_delete" android:title="Excluir" />
+</menu>

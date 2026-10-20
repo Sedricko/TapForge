@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    style="?attr/materialCardViewElevatedStyle"
+    android:layout_width="wrap_content" android:layout_height="wrap_content"
+    android:layout_margin="6dp" app:cardCornerRadius="28dp" app:cardElevation="6dp">
+
+    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="vertical">
+        <LinearLayout
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:gravity="center_vertical" android:orientation="horizontal" android:padding="4dp">
+
+            <ImageView
+                android:id="@+id/drag"
+                android:layout_width="36dp" android:layout_height="44dp" android:padding="8dp"
+                android:contentDescription="Arrastar painel" android:src="@drawable/ic_drag" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/play"
+                style="@style/Widget.Material3.Button.IconButton.Filled"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:contentDescription="Executar" app:icon="@drawable/ic_play" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/pause"
+                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:contentDescription="Pausar" android:visibility="gone" app:icon="@drawable/ic_pause" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/step"
+                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:contentDescription="Próxima ação" android:visibility="gone" app:icon="@drawable/ic_skip" />
+
+            <LinearLayout
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:orientation="vertical" android:paddingStart="6dp" android:paddingEnd="6dp">
+                <TextView
+                    android:id="@+id/name"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:ellipsize="end" android:maxWidth="130dp" android:singleLine="true"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+                <TextView
+                    android:id="@+id/status"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:ellipsize="end" android:maxWidth="150dp" android:singleLine="true"
+                    android:textAppearance="?attr/textAppearanceLabelSmall"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/add"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:contentDescription="Marcar na tela" app:icon="@drawable/ic_add" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/rec"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:contentDescription="Gravar toques" app:icon="@drawable/ic_record" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/collapse"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:contentDescription="Recolher painel" app:icon="@drawable/ic_minimize" />
+        </LinearLayout>
+
+        <HorizontalScrollView
+            android:id="@+id/add_row"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:scrollbars="none" android:visibility="gone">
+            <com.google.android.material.chip.ChipGroup
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingBottom="8dp" app:singleLine="true">
+                <com.google.android.material.chip.Chip android:id="@+id/chip_tap" style="@style/Widget.Material3.Chip.Assist"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="👆 Toque" />
+                <com.google.android.material.chip.Chip android:id="@+id/chip_swipe" style="@style/Widget.Material3.Chip.Assist"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="↕️ Deslizar" />
+                <com.google.android.material.chip.Chip android:id="@+id/chip_image" style="@style/Widget.Material3.Chip.Assist"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🖼️ Imagem" />
+                <com.google.android.material.chip.Chip android:id="@+id/chip_text" style="@style/Widget.Material3.Chip.Assist"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🔤 Texto" />
+                <com.google.android.material.chip.Chip android:id="@+id/chip_color" style="@style/Widget.Material3.Chip.Assist"
+                    android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🎨 Cor" />
+            </com.google.android.material.chip.ChipGroup>
+        </HorizontalScrollView>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
