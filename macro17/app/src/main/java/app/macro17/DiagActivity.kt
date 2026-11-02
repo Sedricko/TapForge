@@ -67,7 +67,8 @@ class DiagActivity : Activity() {
                 setPadding(0, dp(4), 0, dp(4))
                 addView(pillBtn("Copiar", C.BLUE) { copy(visibleText()) })
                 addView(pillBtn("Compartilhar", C.PURPLE) { share(visibleText()) })
-                addView(pillBtn("Relatório", C.TEAL) { reportMenu() })
+                addView(pillBtn("Salvar relatório", C.TEAL) { saveReport() })
+                addView(pillBtn("Enviar tudo", C.DARK) { reportMenu() })
                 addView(pillBtn("Limpar", C.RED) { Diag.feed.clear(); Diag.clear() })
                 addView(pillBtn("Painel flutuante", C.DARK) { MacroService.instance?.toggleLog() ?: toast("Ative o serviço de acessibilidade primeiro") })
                 addView(pillBtn("Opções", C.DARK) { options() })
@@ -160,9 +161,21 @@ class DiagActivity : Activity() {
             .setPositiveButton("OK", null).show()
     }
 
+    /** Gera o relatório completo e abre o seletor do sistema para escolher onde guardar (pasta e nome). */
+    private fun saveReport() = build { r ->
+        pending = r
+        val name = "macro17-relatorio-" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".txt"
+        startActivityForResult(
+            Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/plain")
+                .putExtra(Intent.EXTRA_TITLE, name)
+                // Sugere Downloads; o usuário pode navegar para qualquer outra pasta.
+                .putExtra("android.provider.extra.INITIAL_URI", Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload")),
+            SAVE,
+        )
+    }
+
     private fun reportMenu() {
         val acts = listOf<Pair<String, () -> Unit>>(
-            "Salvar relatório em arquivo" to { build { r -> pending = r; startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/plain").putExtra(Intent.EXTRA_TITLE, "macro17-relatorio-${System.currentTimeMillis() / 1000}.txt"), SAVE) } },
             "Compartilhar relatório completo" to { build { share(it) } },
             "Copiar relatório completo" to { build { copy(it) } },
         )
@@ -180,9 +193,10 @@ class DiagActivity : Activity() {
 
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
         super.onActivityResult(req, res, data)
+        if (req != SAVE) return
+        if (res != RESULT_OK) { pending = null; return toast("Salvar cancelado") }
         val uri: Uri = data?.data ?: return
         val text = pending ?: return
-        if (req != SAVE || res != RESULT_OK) return
         try {
             contentResolver.openOutputStream(uri, "wt")!!.use { it.write(text.toByteArray()) }
             toast("Relatório salvo")
