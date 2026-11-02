@@ -131,7 +131,8 @@ class Runner(private val p: Ports) {
         val probe = TemplateMatcher.Probe()
         var streak = 0
         var last: TemplateMatcher.Hit? = null
-        val th = s.thr / 100f
+        // Método 0 = o do app de referência (correlação, limiar max(A,20) com teto 99, sucesso estritamente maior); 1 = diferença de pixels.
+        val th = if (s.method == 1) s.thr / 100f else TemplateMatcher.baseThreshold(s.thr)
         val hit = poll(s) {
             val frame = p.screen() ?: return@poll null
             val whole = s.x1 == 0 && s.y1 == 0 && s.x2 == 0 && s.y2 == 0
@@ -139,7 +140,7 @@ class Runner(private val p: Ports) {
             val oy = if (whole) 0 else s.y1.coerceIn(0, frame.h)
             val hay = if (whole) frame else frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1)
             // Dentro da área, compara os pixels com o modelo e confere com a % configurada.
-            val find = { n: Gray -> if (s.method == 1) TemplateMatcher.findNcc(hay, n, th, probe) else TemplateMatcher.findSqdiff(hay, n, th, s.mono, probe) }
+            val find = { n: Gray -> if (s.method == 1) TemplateMatcher.findSqdiff(hay, n, th, s.mono, probe) else TemplateMatcher.findNcc(hay, n, th, probe) }
             val h = (if (s.scales) TemplateMatcher.scaled(needle, find) else find(needle))?.let { it.copy(x = it.x + ox, y = it.y + oy) }
             val prev = last
             if (h == null) { streak = 0; last = null; return@poll null }

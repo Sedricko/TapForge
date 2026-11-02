@@ -219,10 +219,11 @@ class RunnerTest {
     @Test fun imageFoundOnADimmerScreen() {
         // a mesma tela com brilho e contraste menores: o SAD perderia o recorte, a correlação não
         val dimmed = screenWith(50, 60).let { f -> Gray(f.w, f.h, IntArray(f.d.size) { (f.d[it] * 5 / 10 + 40).coerceIn(0, 255) }) }
-        val (_, f) = run(macro(image().copy(method = 1)), fakeWith(dimmed))
+        // o método padrão é o do app de referência (correlação): acha mesmo com brilho e contraste menores
+        val (_, f) = run(macro(image()), fakeWith(dimmed))
         assertEquals(listOf("g:65,70>65,70@50"), gestures(f))
-        // o método padrão é o do app de referência, sensível a brilho: a mesma tela mais escura não conta
-        assertTrue(gestures(run(macro(image()), fakeWith(dimmed)).second).isEmpty())
+        // a diferença de pixels (método 1) exige a tela idêntica: a mesma tela mais escura não conta
+        assertTrue(gestures(run(macro(image().copy(method = 1)), fakeWith(dimmed)).second).isEmpty())
     }
 
     @Test fun imageSuccessFollowsGotoAndFailureFollowsFail() {
@@ -362,7 +363,7 @@ class RunnerTest {
 
     // --- fidelidade ao app de referência e confirmação em quadros seguidos ---
     @Test fun imageFollowsTheConfiguredPercentage() {
-        // 10% dos pixels do modelo diferentes: com 75% configurado acha, com 99% não
+        // 10% dos pixels do modelo bem diferentes: correlação ~0,85. Com 75% configurado acha, com 90% não
         val tpl = noise(20, 20, 31)
         val frame = noise(60, 60, 32).also { plant(it, tpl, 20, 20) }          // fundo texturizado: sem outra janela idêntica
         for (i in 0 until 40) { val k = (20 + i / 20) * 60 + 20 + i % 20; frame.d[k] = (frame.d[k] + 128) % 256 }
@@ -371,7 +372,7 @@ class RunnerTest {
             run(macro(Step(Type.IMAGE, ms = 100, text = "t", thr = thr, cycle = 100)), f)
             return gestures(f).isNotEmpty()
         }
-        assertTrue(hits(75)); assertTrue(!hits(99))
+        assertTrue(hits(75)); assertTrue(!hits(90)); assertTrue(!hits(100))
     }
 
     @Test fun imageFailureReportsHowCloseItGot() {

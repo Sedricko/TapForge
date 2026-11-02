@@ -109,12 +109,12 @@ class VisionTest {
         assertNull(TemplateMatcher.findSqdiff(hay, needle, 0.99f, mono = true))      // configurado em 99%: recusa
     }
 
-    @Test fun sqdiffFollowsTheOriginalAndRejectsADimmedCopy() {
+    @Test fun sqdiffRejectsADimmedCopyWhileCorrelationFindsIt() {
         val hay = noise(200, 150, 23)
         val needle = noise(30, 20, 24)
         plant(hay, dim(needle), 80, 60)
-        assertNull(TemplateMatcher.findSqdiff(hay, needle, 0.95f, mono = true))       // o método original é sensível a brilho
-        assertNotNull(TemplateMatcher.findNcc(hay, needle, 0.95f))                    // a alternativa tolerante acha
+        assertNull(TemplateMatcher.findSqdiff(hay, needle, 0.95f, mono = true))       // a diferença de pixels é sensível a brilho
+        assertNotNull(TemplateMatcher.findNcc(hay, needle, 0.95f))                    // a correlação (método do app de referência) acha
     }
 
     @Test fun sqdiffThresholdIsStrictlyGreaterAndHundredMeansIdentical() {
@@ -160,5 +160,22 @@ class VisionTest {
         val same = Gray(30, 20, needle.d.copyOf())
         assertNotNull(TemplateMatcher.findSqdiff(same, needle, 0.99f, mono = true))
         assertNull(TemplateMatcher.findSqdiff(noise(30, 20, 29), needle, 0.9f, mono = true))
+    }
+
+    @Test fun baseThresholdFollowsTheReferenceApp() {
+        assertEquals(0.95f, TemplateMatcher.baseThreshold(95), 1e-6f)
+        assertEquals(0.20f, TemplateMatcher.baseThreshold(20), 1e-6f)
+        assertEquals(0.20f, TemplateMatcher.baseThreshold(5), 1e-6f)      // mínimo de 20%
+        assertEquals(0.99f, TemplateMatcher.baseThreshold(99), 1e-6f)
+        assertEquals(0.99f, TemplateMatcher.baseThreshold(100), 1e-6f)    // 100 equivale a 99: teto do original
+    }
+
+    @Test fun nccAcceptsOnlyStrictlyAboveTheThreshold() {
+        val hay = noise(120, 90, 51)
+        val needle = noise(24, 16, 52)
+        plant(hay, needle, 40, 30)
+        val exact = TemplateMatcher.findNcc(hay, needle, 0.5f)
+        assertNotNull(exact)
+        assertNull(TemplateMatcher.findNcc(hay, needle, exact!!.score))   // exatamente igual ao limiar não conta
     }
 }

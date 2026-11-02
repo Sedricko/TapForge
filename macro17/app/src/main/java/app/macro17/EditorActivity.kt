@@ -42,7 +42,7 @@ class EditorActivity : Activity() {
         DELAY to "Atraso antes da ação (ms)", RND to "Atraso aleatório: máximo (ms, 0 = desligado)", RMIN to "Atraso aleatório: mínimo (ms)",
         JIT to "Jitter (px)", GOTO to "Ir para o passo (0 = seguir)", CNT to "Contador (1 a $MAX_COUNTERS)",
         THR to "Semelhança mínima (20 a 100%): % de pixels que precisam bater com o modelo", CYC to "Intervalo entre tentativas (ms)", FAIL to "Se não achar, ir para o passo (0 = seguir)",
-        METH to "Método (0 = do app original, 1 = tolerante a brilho)", CONF to "Confirmações seguidas, no mesmo lugar (1 a 5; 1 = como o original)", CMP to "Condição (0 ≥, 1 ≤, 2 =, 3 entre)", LO to "Valor (ou o mínimo, se “entre”)", HI to "Máximo (só para “entre”)",
+        METH to "Método (0 = correlação, como o app original; 1 = diferença de pixels)", CONF to "Confirmações seguidas, no mesmo lugar (1 a 5; 1 = como o original)", CMP to "Condição (0 ≥, 1 ≤, 2 =, 3 entre)", LO to "Valor (ou o mínimo, se “entre”)", HI to "Máximo (só para “entre”)",
     )
     private val common = intArrayOf(DELAY, RMIN, RND)
     private val fields = mapOf(
@@ -178,7 +178,7 @@ class EditorActivity : Activity() {
                 " · até ${s.ms} ms · vale → " + (if (s.goto == 0) "seguir" else s.goto) + " · não → " + (if (s.fail == 0) "seguir" else s.fail)
             Type.NODE -> "“${s.text}”" + (if (s.exact) " (igual)" else "") + " · até ${s.ms} ms · achou → " + (if (s.goto == 0) "seguir" else s.goto) +
                 " · não → " + (if (s.fail == 0) "seguir" else s.fail) + if (s.tap) " · toca" else ""
-            Type.IMAGE -> "≥ ${s.thr}%" + (if (s.method == 1) " tolerante" else "") + (if (s.mono) " cinza" else "") + (if (s.confirm > 1) " ×${s.confirm}" else "") + (if (s.scales) " (escalas)" else "") + " · até ${s.ms} ms · " + (if (s.x2 > s.x1) "área (${s.x1}, ${s.y1})–(${s.x2}, ${s.y2}) · " else "tela toda · ") +
+            Type.IMAGE -> "≥ ${s.thr}%" + (if (s.method == 1) " pixels" else "") + (if (s.mono) " cinza" else "") + (if (s.confirm > 1) " ×${s.confirm}" else "") + (if (s.scales) " (escalas)" else "") + " · até ${s.ms} ms · " + (if (s.x2 > s.x1) "área (${s.x1}, ${s.y1})–(${s.x2}, ${s.y2}) · " else "tela toda · ") +
                 "achou → " + (if (s.goto == 0) "seguir" else s.goto) + " · não → " + (if (s.fail == 0) "seguir" else s.fail) + if (s.tap) " · toca" else ""
             Type.CALL -> (store.get(s.text)?.name ?: "macro removida") + if (s.ret) " · volta ao terminar" else " · substitui esta"
         } + skip
@@ -265,7 +265,7 @@ class EditorActivity : Activity() {
         val exactSw = if (type == Type.NODE)
             Switch(this).apply { isChecked = s.exact; contentDescription = "Texto inteiro igual" }.also { col.addView(labeled("Texto inteiro igual (desligado = contém)", it)) } else null
         val monoSw = if (type == Type.IMAGE)
-            Switch(this).apply { isChecked = s.mono; contentDescription = "Comparar em cinza" }.also { col.addView(labeled("Comparar em cinza (ignora a cor)", it)) } else null
+            Switch(this).apply { isChecked = s.mono; contentDescription = "Comparar em cinza" }.also { col.addView(labeled("Comparar em cinza (só no método 1)", it)) } else null
         val scalesSw = if (type == Type.IMAGE)
             Switch(this).apply { isChecked = s.scales; contentDescription = "Tolerar variação de escala" }.also { col.addView(labeled("Tolerar variação de escala (mais lento)", it)) } else null
         val tapSw = if (type == Type.IMAGE || type == Type.NODE)

@@ -30,7 +30,7 @@ Toque, deslizar, esperar e tecla global (voltar, início, recentes, notificaçõ
 Passo **Buscar imagem**: procura um recorte na tela a cada intervalo, até o prazo. Achou: toca no centro (opcional) e segue o destino "se achar". Não achou no prazo: segue o destino "se não achar". Área de busca opcional.
 - **Criar:** deixe a macro na lista como selecionada, abra o leque do orbe e toque na lupa. Em 2 s a tela congela; arraste sobre o que quer achar e confirme. O passo entra no fim da macro.
 - **Captura de tela** pelo próprio serviço de acessibilidade (`takeScreenshot`), sem a janela de consentimento de gravação de tela. Intervalo mínimo do sistema entre capturas: ~0,3 s.
-- **Como compara:** correlação normalizada (ZNCC) em tons de cinza: não se engana com brilho ou contraste diferentes. Opção de tolerar escala (mais lenta). Recorte liso (uma cor só) cai para comparação de diferença absoluta.
+- **Como compara (igual ao app de referência):** dentro da área escolhida, compara os pixels com o modelo por **correlação normalizada** (`TM_CCOEFF_NORMED`, conferido no bytecode do app base) e aceita se a semelhança em % for **maior** que a configurada (mínimo 20%; 100 vale 99%). Tolera brilho e contraste diferentes. Alternativa: **diferença de pixels** (método 1), que exige a tela idêntica. Opção de tolerar escala (mais lenta).
 - **Limites:** a busca grossa reduz a imagem, então texturas muito finas e desalinhadas podem passar batido; ícones e botões comuns, não. Sem medição de velocidade no aparelho. Telas protegidas (`FLAG_SECURE`) não podem ser capturadas. Os recortes ficam no aparelho e **não vão junto na exportação** da macro.
 - **Sem OCR**, de propósito (ver `THIRD_PARTY.md`).
 

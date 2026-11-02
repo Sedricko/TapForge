@@ -175,17 +175,22 @@ object TemplateMatcher {
         return out
     }
 
+    /**
+     * Limiar do app de referência (TM_CCOEFF_NORMED): configurado ≤ 99 vale max(A, 20)%; 100 vale 99%. Sucesso: score ESTRITAMENTE maior.
+     * Confirmado no bytecode dele (constante de método 5 em matchTemplate; 99,0 no ramo A > 99).
+     */
+    fun baseThreshold(percent: Int): Float = if (percent <= 99) maxOf(percent, 20) / 100f else 0.99f
+
     /** Medidas da busca, para dizer ao usuário o quanto faltou quando não achou. */
     class Probe { var best = 0f }
 
     /**
-     * Sucesso como no app de referência: semelhança ESTRITAMENTE maior que o limiar configurado.
-     * Melhoria: 100% passa a significar "pixel idêntico"; no original, 100% nunca aceitaria nada.
+     * Sucesso da diferença de pixels: semelhança ESTRITAMENTE maior que o limiar; 100% significa "pixel idêntico".
      */
     fun meets(sim: Float, threshold: Float) = sim > threshold || (threshold >= 1f && sim >= 0.9999f)
 
-    // ---- método do app de referência: TM_SQDIFF_NORMED (distância; semelhança = 1 − distância) ----
-    // Dentro da área, compara os pixels com o modelo: semelhança = 1 − Σ(T−I)² / sqrt(ΣT²·ΣI²).
+    // ---- alternativa: diferença de pixels (TM_SQDIFF_NORMED). NÃO é o método do app de referência (que usa correlação, ver baseThreshold);
+    // é sensível a brilho, útil quando se quer a tela idêntica ao modelo. Semelhança = 1 − Σ(T−I)² / sqrt(ΣT²·ΣI²).
 
     /**
      * Semelhança exata da janela de [hay] em (x,y) com [needle]. Em cor soma os canais R, G, B e A (como o OpenCV
@@ -244,7 +249,7 @@ object TemplateMatcher {
         return nms(all, ns, k)
     }
 
-    /** Procura [needle] em [hay] pelo método do app de referência. Score = semelhança 0..1. */
+    /** Procura [needle] em [hay] por diferença de pixels. Score = semelhança 0..1. */
     fun findSqdiff(hay: Gray, needle: Gray, threshold: Float, mono: Boolean, probe: Probe? = null): Hit? {
         if (needle.w == 0 || needle.h == 0 || needle.w > hay.w || needle.h > hay.h) return null
         val s = step(needle)
@@ -276,7 +281,7 @@ object TemplateMatcher {
 
     // ---- alternativa tolerante a brilho: correlação normalizada (ZNCC) ----
 
-    /** Como [find], mas por correlação normalizada: acha o recorte mesmo com brilho e contraste diferentes. Score = ZNCC. */
+    /** Método do app de referência: correlação normalizada (TM_CCOEFF_NORMED). Acha o recorte mesmo com brilho e contraste diferentes. Score = ZNCC. */
     fun findNcc(hay: Gray, needle: Gray, threshold: Float, probe: Probe? = null): Hit? {
         if (needle.w == 0 || needle.h == 0 || needle.w > hay.w || needle.h > hay.h) return null
         if (flat(needle)) return find(hay, needle, threshold)
@@ -294,7 +299,7 @@ object TemplateMatcher {
                 }
             }
             probe?.let { it.best = maxOf(it.best, bs) }
-            if (bs >= threshold && (best == null || bs > best.score)) best = Hit(bx + needle.w / 2, by + needle.h / 2, bs, needle.w, needle.h)
+            if (bs > threshold && (best == null || bs > best.score)) best = Hit(bx + needle.w / 2, by + needle.h / 2, bs, needle.w, needle.h)
         }
         return best
     }

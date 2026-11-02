@@ -46,8 +46,8 @@ data class Step(
     val cmp: Int = 0,
     val lo: Int = 0,
     val hi: Int = 0,
-    // IMAGE: method 0 = o do app de referência (diferença de pixels, sensível a brilho); 1 = tolerante a brilho (correlação).
-    // mono compara só o cinza; confirm = quadros seguidos no mesmo lugar antes de agir (1 = como o original).
+    // IMAGE: method 0 = o do app de referência (correlação normalizada, tolera brilho e contraste); 1 = diferença de pixels (exige a tela idêntica).
+    // mono (só no método 1) compara em cinza; confirm = quadros seguidos no mesmo lugar antes de agir (1 = como o original).
     val method: Int = 0,
     val mono: Boolean = false,
     val confirm: Int = 1,
@@ -72,7 +72,7 @@ data class Step(
         type == Type.IMAGE && text.isBlank() -> "passo sem imagem: capture pelo orbe"
         type == Type.IMAGE && thr !in 20..100 -> "semelhança deve ser de 20 a 100%"
         type == Type.IMAGE && confirm !in 1..5 -> "confirmações seguidas devem ser de 1 a 5"
-        type == Type.IMAGE && method !in 0..1 -> "método deve ser 0 (do app original) ou 1 (tolerante a brilho)"
+        type == Type.IMAGE && method !in 0..1 -> "método deve ser 0 (correlação, como o app original) ou 1 (diferença de pixels)"
         type == Type.IMAGE && (cycle !in 50..MAX_MS || ms < 100) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de pelo menos 100 ms"
         type == Type.IMAGE && !(listOf(x1, y1, x2, y2).all { it == 0 } || (x2 > x1 && y2 > y1)) -> "área de busca inválida: use tudo 0 ou X/Y finais maiores que os iniciais"
         type == Type.IMAGE && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
