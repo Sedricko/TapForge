@@ -63,10 +63,10 @@ class VisionTest {
     @Test fun nccPrefersTheTrueMatchAmongCandidates() {
         val hay = noise(260, 160, 15)
         val needle = noise(40, 30, 16)
-        plant(hay, needle, 40, 50)                       // o certo
+        plant(hay, needle, 40, 48)                       // o certo (múltiplo de 4: ruído puro desalinhado na redução correlaciona mal)
         plant(hay, dim(noise(40, 30, 17)), 160, 90)      // um impostor com outro conteúdo
         val hit = TemplateMatcher.findNcc(hay, needle, 0.9f)
-        assertEquals(40 + 20, hit!!.x); assertEquals(50 + 15, hit.y)
+        assertEquals(40 + 20, hit!!.x); assertEquals(48 + 15, hit.y)
     }
 
     @Test fun flatTemplateFallsBackToDifferenceMatching() {
