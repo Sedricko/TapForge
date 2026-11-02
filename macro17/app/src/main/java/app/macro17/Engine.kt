@@ -27,6 +27,8 @@ class Engine(
     private val svc: AccessibilityService,
     private val report: (String) -> Unit,
     private val say: (String) -> Unit,
+    // Esconde o painel de registro durante a captura; devolve true se escondeu (então esperamos o redesenho).
+    private val hideOverlay: ((Boolean) -> Boolean)? = null,
 ) {
     @Volatile private var thread: Thread? = null
     val running get() = thread?.isAlive == true
@@ -137,6 +139,12 @@ class Engine(
 
         /** Captura a tela como Bitmap ARGB_8888 (o chamador faz recycle); null só no intervalo mínimo entre capturas. */
         private fun capture(): Bitmap? {
+            val hid = hideOverlay?.invoke(true) == true
+            if (hid) Thread.sleep(90) // dá um quadro para o painel sumir antes de a captura ser tirada
+            try { return captureRaw() } finally { if (hid) hideOverlay?.invoke(false) }
+        }
+
+        private fun captureRaw(): Bitmap? {
             val t0 = SystemClock.elapsedRealtime()
             val latch = CountDownLatch(1)
             var shot: AccessibilityService.ScreenshotResult? = null

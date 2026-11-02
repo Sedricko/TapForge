@@ -69,7 +69,7 @@ fun Context.label(s: String, sp: Float = 14f, color: Int = C.TEXT, bold: Boolean
 
 // --- ícones desenhados em Canvas: sem drawables, sem glifos Unicode (que viram emoji em alguns aparelhos) ---
 
-enum class Ic { PLAY, STOP, REC, ADD, BACK, MOVE, OK, TAP, SWIPE, WAIT, KEY, WARN, GEAR, IMPORT, SEARCH, CHEVRON, EDIT, NUM, MENU, HOME, BOX, INFO, FOLDER, LOCK }
+enum class Ic { PLAY, STOP, REC, ADD, BACK, MOVE, OK, TAP, SWIPE, WAIT, KEY, WARN, GEAR, IMPORT, SEARCH, CHEVRON, EDIT, NUM, MENU, HOME, BOX, INFO, FOLDER, LOCK, EYE, PAUSE, MINUS, CLOSE }
 
 class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
@@ -123,6 +123,10 @@ class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
                         c.drawLine(cx - s * .35f, cy - s, cx - s * .35f, cy + s, p); c.drawLine(cx + s * .35f, cy - s, cx + s * .35f, cy + s, p)
                         c.drawLine(cx - s, cy - s * .35f, cx + s, cy - s * .35f, p); c.drawLine(cx - s, cy + s * .35f, cx + s, cy + s * .35f, p)
                     }
+                    Ic.EYE -> { c.drawOval(cx - s, cy - s * .6f, cx + s, cy + s * .6f, p); p.style = Paint.Style.FILL; c.drawCircle(cx, cy, s * .3f, p) }
+                    Ic.PAUSE -> { c.drawLine(cx - s * .45f, cy - s, cx - s * .45f, cy + s, p); c.drawLine(cx + s * .45f, cy - s, cx + s * .45f, cy + s, p) }
+                    Ic.MINUS -> c.drawLine(cx - s, cy, cx + s, cy, p)
+                    Ic.CLOSE -> { c.drawLine(cx - s * .8f, cy - s * .8f, cx + s * .8f, cy + s * .8f, p); c.drawLine(cx - s * .8f, cy + s * .8f, cx + s * .8f, cy - s * .8f, p) }
                     Ic.MENU -> for (k in -1..1) c.drawLine(cx - s, cy + k * s * .7f, cx + s, cy + k * s * .7f, p)
                     Ic.HOME -> c.drawPath(Path().apply {
                         moveTo(cx - s, cy); lineTo(cx, cy - s); lineTo(cx + s, cy)

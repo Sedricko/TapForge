@@ -23,6 +23,7 @@ import java.util.concurrent.Executors
 object Diag {
     @Volatile private var log: DiagLog? = null
     @Volatile var enabled = true
+    val feed = LogFeed() // painel ao vivo (LogPanel): últimas entradas em memória
     private val io = Executors.newSingleThreadExecutor { r -> Thread(r, "macro17-diag").apply { isDaemon = true } }
     private val fmt = DateTimeFormatter.ofPattern("MM-dd HH:mm:ss.SSS")
 
@@ -39,6 +40,7 @@ object Diag {
         if (!enabled) return
         val l = log ?: return
         Log.d("Macro17/$tag", msg)
+        feed.add(Entry(System.currentTimeMillis(), tag, msg, LogRules.level(tag, msg)))
         val s = line(tag, msg)
         io.execute { runCatching { l.append(s) } } // E/S fora da thread de quem chamou (pode ser a principal)
     }

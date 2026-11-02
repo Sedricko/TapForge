@@ -45,7 +45,8 @@ class DiagActivity : Activity() {
             isHorizontalScrollBarEnabled = false
             addView(LinearLayout(this@DiagActivity).apply {
                 setPadding(0, dp(8), 0, dp(8))
-                addView(pillBtn("Atualizar", C.BLUE) { refresh() })
+                addView(pillBtn("Painel ao vivo", C.BLUE) { MacroService.instance?.toggleLog() ?: Toast.makeText(this@DiagActivity, "Ative o serviço de acessibilidade primeiro", Toast.LENGTH_LONG).show() })
+                addView(pillBtn("Atualizar", C.DARK) { refresh() })
                 addView(pillBtn("Salvar relatório", C.TEAL) { saveReport() })
                 addView(pillBtn("Compartilhar", C.PURPLE) { shareReport() })
                 addView(pillBtn("Copiar", C.ORANGE) { copyReport() })

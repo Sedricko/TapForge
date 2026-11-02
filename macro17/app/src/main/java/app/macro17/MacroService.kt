@@ -35,6 +35,7 @@ class MacroService : AccessibilityService() {
     private lateinit var wm: WindowManager
     private lateinit var store: Store
     private lateinit var engine: Engine
+    private lateinit var logPanel: LogPanel
     private var bubble: View? = null
     private var recView: View? = null
     private val rec = ArrayList<Step>()
@@ -45,7 +46,8 @@ class MacroService : AccessibilityService() {
         wm = getSystemService(WindowManager::class.java)
         store = Store(this)
         // Ao terminar (qualquer motivo) a tela volta a poder apagar.
-        engine = Engine(this, { toast(it); ui.post { awake(false) } }, ::toast)
+        logPanel = LogPanel(this, wm) { engine.stop() }
+        engine = Engine(this, { toast(it); ui.post { awake(false) }; logPanel.setThrough(false) }, ::toast, logPanel::captureHide)
         instance = this
         Diag.d("serviço", "acessibilidade conectada (gestos/captura/janelas conforme accessibility_config)")
         showBubble()
@@ -62,6 +64,7 @@ class MacroService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         Diag.d("serviço", "acessibilidade desconectada")
+        logPanel.hide()
         engine.stop()
         stopRecording(save = false)
         lock?.let { runCatching { unregisterReceiver(it) } }
@@ -71,6 +74,9 @@ class MacroService : AccessibilityService() {
         instance = null
         return super.onUnbind(intent)
     }
+
+    /** Abre ou fecha o painel de registro ao vivo. Chamável de qualquer thread. */
+    fun toggleLog() { ui.post { if (logPanel.shown) logPanel.hide() else logPanel.show() } }
 
     fun stopMacro() { Diag.d("serviço", "parar macro pedido"); engine.stop() }
 
@@ -87,7 +93,7 @@ class MacroService : AccessibilityService() {
             else -> {
                 // awake(true) entra na fila antes de a thread da macro poder postar o awake(false) do fim.
                 ui.post { awake(true) }
-                if (engine.start(m)) toast("Executando: ${m.name}") else ui.post { awake(false) }
+                if (engine.start(m)) { toast("Executando: ${m.name}"); logPanel.setThrough(true) } else ui.post { awake(false) }
             }
         }
     }
