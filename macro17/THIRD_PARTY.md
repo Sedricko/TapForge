@@ -1,7 +1,7 @@
 # Terceiros no Macro17
 
-Regra do projeto: **nenhuma biblioteca externa como dependência**. Quando algo externo é necessário, ele é **copiado para este repositório**
-(com origem, versão, licença e checksum) e o build usa a cópia. O build não baixa nenhuma biblioteca de repositório remoto.
+Regra do projeto: o que vem de terceiros é **copiado para este repositório** (com origem, versão e licença) e o build usa a cópia: o build não baixa
+biblioteca de repositório remoto. (A restrição "sem bibliotecas externas" do pedido original foi suspensa; a de ter tudo no repositório continua.)
 
 ## Código copiado para o repositório
 | Item | Onde | Origem | Licença |
@@ -21,10 +21,24 @@ Textos completos das licenças: https://www.apache.org/licenses/LICENSE-2.0 · h
 
 Para conferir: `sha1sum libs/*.jar` e comparar com a tabela.
 
+## Repositório Maven local `maven-repo/` (OpenCV e ML Kit)
+Montado por `tools/resolve-deps.py` a partir do Maven Central e do Maven do Google, com POM e Gradle Module Metadata de cada módulo. O Gradle lê
+os 39 grupos listados em `settings.gradle.kts` **somente daqui** (`exclusiveContent`): faltando qualquer peça, o build falha. Isso é o que prova que a cópia está completa.
+Para regenerar: `python3 tools/resolve-deps.py maven-repo org.opencv:opencv:4.9.0 com.google.mlkit:text-recognition:16.0.1`.
+
+Os AARs foram **reempacotados**: só a arquitetura `arm64-v8a` e, no OpenCV, sem o pacote C++ `prefab/` (cabeçalhos e bibliotecas de todas as arquiteturas, que o app não usa). Por isso os checksums deles diferem dos do Maven.
+
+| Módulo | Uso | Licença |
+|---|---|---|
+| `org.opencv:opencv:4.9.0` | busca de imagem (`matchTemplate`) | Apache-2.0 |
+| `com.google.mlkit:text-recognition:16.0.1` e dependências (`com.google.mlkit`, `com.google.android.gms`, `com.google.android.odml`, `com.google.firebase`, `com.google.android.datatransport`) | texto na tela (OCR) | **Termos do ML Kit / Google APIs** (proprietário; não é código aberto) |
+| `androidx.*`, `com.google.guava:listenablefuture`, `javax.inject` | dependências transitivas | Apache-2.0 |
+
+**Atenção sobre o ML Kit:** os módulos `com.google.mlkit` e `com.google.android.gms` são distribuídos pelo Google sob termos próprios, não sob licença de código aberto.
+Guardar cópias deles no repositório é uma escolha sua; confira se os termos permitem isso para o seu uso, principalmente se o repositório for público ou for distribuído.
+
 ## O que continua vindo de fora (ferramentas, não código do app)
 Gradle (baixado pelo wrapper), plugin Android do Gradle, compilador do Kotlin e Android SDK. São a cadeia de build: nada disso entra no APK além do que
 o compilador gera. Copiar a cadeia de build inteira para o repositório (centenas de MB) não vale o custo; fixar as versões já está feito.
 
-## Não usado, de propósito
-OpenCV, ML Kit e OCR de terceiros: fora, pela regra acima. A busca de imagem usa o buscador em Kotlin puro. OCR só entraria como código-fonte copiado
-para o repositório (ex.: uma implementação própria ou open source com licença compatível), e hoje não está no escopo.
+
