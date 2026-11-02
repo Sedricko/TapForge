@@ -29,9 +29,10 @@ Campos lidos pelo executor: tipo, coordenadas `(i,j)` e `(k,l)`, duração `n` (
    - *pinça para dentro* (4): dois dedos, de cada ponta até o ponto médio.
    - *pinça para fora* (5): dois dedos, do ponto médio até cada ponta.
    - *tecla* (15): Home, Voltar, Recentes e captura de tela por ação global.
-   - *alerta de status* (3): mostra mensagem e espera `n` ms.
+   - *gesto bruto* (3): reproduz um arquivo de eventos de toque gravado (caminho nativo); a duração `n` limita a espera. **[corrigido: antes eu tinha anotado "3 = alerta"]**
+   - *alerta de status* (14): som, vibração e/ou diálogo com mensagem; assíncrono (código 9) e espera o retorno por até `n` ms. **[corrigido]**
    - *arquivo de macro* (13): troca de arquivo; sinaliza código 6.
-   - *OCR* (14): assíncrono; sinaliza código 9 e espera retorno.
+   - *texto/OCR* (17): tratado no laço (estado de busca), não neste método; ao achar, toca no centro do texto. **[corrigido: antes anotado como 14]**
    - tipos 10/11/19: não são ação; o laço trata.
    - tipo desconhecido: erro.
 5. **Códigos de retorno:** 0 ok · 1 pulado/sem ação · 6 trocar arquivo · 9 aguardar assíncrono · `-2` tipo desconhecido · `-4` gesto rejeitado · `-5` exceção · `-6` falha ao abrir arquivo · `-7` tipo não suportado.
@@ -78,3 +79,5 @@ mover para o item  →  [busca, se o item tem imagem/texto]  →  atraso antes d
 | Licença, limites de assinatura | **Fora** |
 
 Itens **[?]**: ordem exata dos casos do contador; semântica de `x ≤ 0` na duração da busca; o significado dos tipos 12 e 16 (grupo e captura).
+
+> Correção (análises por frente; ver `docs/FUNCOES_TOUCHMACRO.md` quando existir): tipo 3 = gesto bruto, 14 = alerta de status, 17 = texto (OCR), 19 = mudança/grupo de imagem. A tabela completa de tipos vem do relatório do modelo de macro.
