@@ -1,0 +1,154 @@
+package app.macro17
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PixelFormat
+import android.graphics.Rect
+import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
+import android.view.WindowManager
+import android.widget.ImageView
+
+/**
+ * Gravação por marcadores, como no app base: pontos arrastáveis sobre o app (que continua usável por baixo) e o botão "+"
+ * do painel acrescenta o item na posição atual. Tocar = 1 ponto; Deslizar = ponto inicial e seta final com uma linha;
+ * Imagem = caixa de área com uma alça no canto para redimensionar. Aqui só ficam as janelas e as posições; quem grava é o serviço.
+ */
+class Recorder(private val ctx: Context, private val wm: WindowManager) {
+    enum class Mode(val label: String, val ic: Ic) {
+        TAP("Tocar", Ic.TAP), SWIPE("Deslizar", Ic.SWIPE), IMAGE("Imagem", Ic.FRAME);
+        fun next() = values()[(ordinal + 1) % values().size]
+    }
+
+    var mode = Mode.TAP; private set
+    private class Win(val view: View, val lp: WindowManager.LayoutParams)
+    private val wins = ArrayList<Win>()
+    private val dot = ctx.dp(56)
+    private val screen = wm.maximumWindowMetrics.bounds
+    private var p1: Win? = null; private var p2: Win? = null; private var box: Win? = null; private var handle: Win? = null
+
+    private fun params(w: Int, h: Int, touchable: Boolean) = WindowManager.LayoutParams(
+        w, h, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+            (if (touchable) 0 else WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE),
+        PixelFormat.TRANSLUCENT,
+    ).apply { gravity = Gravity.TOP or Gravity.START }
+
+    private fun add(v: View, lp: WindowManager.LayoutParams): Win { wm.addView(v, lp); return Win(v, lp).also { wins += it } }
+
+    private fun marker(ic: Ic, x: Int, y: Int, onMove: () -> Unit): Win {
+        val v = ImageView(ctx).apply {
+            setImageDrawable(Icon(ic, 0xFFF5F5F5.toInt()))
+            setPadding(ctx.dp(10), ctx.dp(10), ctx.dp(10), ctx.dp(10))
+            background = ctx.rounded(0xCCAD1457.toInt(), 28)
+        }
+        val lp = params(dot, dot, true).apply { this.x = x - dot / 2; this.y = y - dot / 2 }
+        val w = add(v, lp)
+        drag(w, onMove)
+        return w
+    }
+
+    /** Arrasta a janela inteira pelo próprio corpo; os limites mantêm o marcador visível na tela. */
+    private fun drag(w: Win, onMove: () -> Unit) {
+        var dx = 0f; var dy = 0f; var sx = 0; var sy = 0
+        w.view.setOnTouchListener { _, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { dx = e.rawX; dy = e.rawY; sx = w.lp.x; sy = w.lp.y }
+                MotionEvent.ACTION_MOVE -> {
+                    w.lp.x = (sx + (e.rawX - dx).toInt()).coerceIn(0, screen.width() - w.lp.width.coerceAtLeast(dot))
+                    w.lp.y = (sy + (e.rawY - dy).toInt()).coerceIn(0, screen.height() - w.lp.height.coerceAtLeast(dot))
+                    runCatching { wm.updateViewLayout(w.view, w.lp) }
+                    onMove()
+                }
+            }
+            true
+        }
+    }
+
+    private fun center(w: Win) = (w.lp.x + w.lp.width / 2) to (w.lp.y + w.lp.height / 2)
+
+    /** Linha entre o ponto inicial e a seta final; janela sem toque, só desenha. */
+    private inner class LineView : View(ctx) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x99AD1457.toInt(); strokeWidth = ctx.dp(6).toFloat(); strokeCap = Paint.Cap.ROUND }
+        override fun onDraw(c: Canvas) {
+            val a = p1 ?: return; val b = p2 ?: return
+            val (x1, y1) = center(a); val (x2, y2) = center(b)
+            c.drawLine(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat(), paint)
+        }
+    }
+
+    private inner class BoxView : View(ctx) {
+        private val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFAD1457.toInt(); style = Paint.Style.STROKE; strokeWidth = ctx.dp(3).toFloat() }
+        private val fill = Paint().apply { color = 0x33000000 }
+        override fun onDraw(c: Canvas) {
+            c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
+            c.drawRect(edge.strokeWidth / 2, edge.strokeWidth / 2, width - edge.strokeWidth / 2, height - edge.strokeWidth / 2, edge)
+        }
+    }
+
+    fun show(m: Mode) {
+        hide()
+        mode = m
+        val cx = screen.width() / 2; val cy = screen.height() / 2
+        when (m) {
+            Mode.TAP -> p1 = marker(Ic.TARGET, cx, cy) {}
+            Mode.SWIPE -> {
+                val line = LineView().also { add(it, params(-1, -1, false)) }
+                p1 = marker(Ic.TARGET, cx, cy - ctx.dp(110)) { line.invalidate() }
+                p2 = marker(Ic.ARROW, cx, cy + ctx.dp(110)) { line.invalidate() }
+                line.invalidate()
+            }
+            Mode.IMAGE -> {
+                val side = ctx.dp(150)
+                val b = add(BoxView(), params(side, side, true).apply { x = cx - side / 2; y = cy - side / 2 })
+                box = b
+                val h = marker(Ic.MOVE, 0, 0) {}
+                handle = h
+                fun place() { h.lp.x = b.lp.x + b.lp.width; h.lp.y = b.lp.y + b.lp.height; runCatching { wm.updateViewLayout(h.view, h.lp) } }
+                drag(b) { place() } // arrastar o corpo move a caixa e leva a alça junto
+                // A alça redimensiona: o canto da caixa acompanha a alça, com o mínimo de RegionPicker.MIN px.
+                var sx = 0f; var sy = 0f; var sw = 0; var sh = 0
+                h.view.setOnTouchListener { _, e ->
+                    when (e.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> { sx = e.rawX; sy = e.rawY; sw = b.lp.width; sh = b.lp.height }
+                        MotionEvent.ACTION_MOVE -> {
+                            b.lp.width = (sw + (e.rawX - sx).toInt()).coerceIn(RegionPicker.MIN * 2, screen.width() - b.lp.x - dot)
+                            b.lp.height = (sh + (e.rawY - sy).toInt()).coerceIn(RegionPicker.MIN * 2, screen.height() - b.lp.y - dot)
+                            runCatching { wm.updateViewLayout(b.view, b.lp) }
+                            place()
+                        }
+                    }
+                    true
+                }
+                place()
+            }
+        }
+    }
+
+    fun hide() {
+        wins.forEach { runCatching { wm.removeView(it.view) } }
+        wins.clear(); p1 = null; p2 = null; box = null; handle = null
+    }
+
+    /** Esconde os marcadores um instante (captura de tela) sem perder as posições. */
+    fun setVisible(v: Boolean) = wins.forEach { it.view.visibility = if (v) View.VISIBLE else View.INVISIBLE }
+
+    fun cycle() = show(mode.next())
+
+    /** Item de toque ou deslize na posição atual dos marcadores; null no modo Imagem (ver [region]). */
+    fun step(delay: Int): Step? {
+        val a = p1 ?: return null
+        val (x1, y1) = center(a)
+        return when (mode) {
+            Mode.TAP -> Step(Type.TAP, x1, y1, ms = 50, delay = delay)
+            Mode.SWIPE -> p2?.let { val (x2, y2) = center(it); Step(Type.SWIPE, x1, y1, x2, y2, ms = 400, delay = delay) }
+            Mode.IMAGE -> null
+        }
+    }
+
+    /** Área da caixa em pixels da tela (modo Imagem). */
+    fun region(): Rect? = box?.let { Rect(it.lp.x, it.lp.y, it.lp.x + it.lp.width, it.lp.y + it.lp.height) }
+}

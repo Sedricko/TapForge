@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Bitmap
+import android.graphics.drawable.GradientDrawable
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
@@ -26,6 +28,9 @@ import java.util.Locale
 import java.util.UUID
 import kotlin.math.hypot
 
+// Atraso padrão antes de cada item gravado por marcadores (ajustável no editor).
+private const val DEFAULT_DELAY = 1000
+
 class MacroService : AccessibilityService() {
     companion object {
         @Volatile var instance: MacroService? = null
@@ -37,9 +42,9 @@ class MacroService : AccessibilityService() {
     private lateinit var engine: Engine
     private lateinit var logPanel: LogPanel
     private var bubble: View? = null
-    private var recView: View? = null
+    private var recording = false
     private val rec = ArrayList<Step>()
-    private lateinit var recBtn: ImageView
+    private lateinit var recorder: Recorder
     private var lock: BroadcastReceiver? = null
 
     override fun onServiceConnected() {
@@ -47,7 +52,7 @@ class MacroService : AccessibilityService() {
         store = Store(this)
         // Ao terminar (qualquer motivo) a tela volta a poder apagar.
         logPanel = LogPanel(this, wm) { engine.stop() }
-        engine = Engine(this, { toast(it); ui.post { awake(false) }; logPanel.setThrough(false) }, ::toast, logPanel::captureHide)
+        engine = Engine(this, { toast(it); ui.post { awake(false) }; logPanel.setThrough(false); setPlayIcon(false) }, ::toast, logPanel::captureHide)
         instance = this
         Diag.d("serviço", "acessibilidade conectada (gestos/captura/janelas conforme accessibility_config)")
         showBubble()
@@ -80,7 +85,7 @@ class MacroService : AccessibilityService() {
     /** INICIAR da Home: mostra a bolha de controle com o leque aberto (gravar, executar, parar, capturar). */
     fun showControls() {
         Diag.d("serviço", "controles abertos pela Home")
-        ui.post { bubble?.visibility = View.VISIBLE; setOrb(true) }
+        ui.post { bubble?.visibility = View.VISIBLE; openPanel(true) }
     }
 
     /** Abre ou fecha o painel de registro ao vivo. Chamável de qualquer thread. */
@@ -93,15 +98,15 @@ class MacroService : AccessibilityService() {
     /** Chamável de qualquer thread (alarme, app). */
     fun runMacro(id: String) {
         val m = store.get(id)
-        Diag.d("serviço", "executar macro id=$id -> ${m?.name ?: "NÃO ENCONTRADA"} (rodando=${engine.running}, gravando=${recView != null})")
+        Diag.d("serviço", "executar macro id=$id -> ${m?.name ?: "NÃO ENCONTRADA"} (rodando=${engine.running}, gravando=$recording)")
         when {
             m == null -> toast("Macro não encontrada")
-            recView != null -> toast("Termine a gravação primeiro")
+            recording -> toast("Termine a gravação primeiro")
             engine.running -> toast("Já existe uma macro em execução")
             else -> {
                 // awake(true) entra na fila antes de a thread da macro poder postar o awake(false) do fim.
                 ui.post { awake(true) }
-                if (engine.start(m)) { toast("Executando: ${m.name}"); logPanel.setThrough(true) } else ui.post { awake(false) }
+                if (engine.start(m)) { toast("Executando: ${m.name}"); logPanel.setThrough(true); setPlayIcon(true) } else ui.post { awake(false) }
             }
         }
     }
@@ -118,82 +123,136 @@ class MacroService : AccessibilityService() {
         wm.updateViewLayout(v, lp)
     }
 
-    // --- bolha ---------------------------------------------------------------------------
+    // --- bolha e painel --------------------------------------------------------------------
 
-    // Orbe que abre em leque (opção D). Fechado, a janela é só o orbe: uma janela de overlay captura todo o toque na sua área.
-    private var orbOpen = false
+    // Como no app base: a janela é um orbe pequeno (fechado) ou o painel de controle (aberto). Uma janela de overlay
+    // captura todo o toque na sua área, então fechada ela é só o orbe. O painel tem duas linhas; a segunda abre pela seta.
+    private lateinit var bubbleLp: WindowManager.LayoutParams
     private lateinit var orbBtn: View
-    private var fan = emptyList<View>()
+    private lateinit var panel: android.widget.LinearLayout
+    private lateinit var row1: android.widget.LinearLayout
+    private lateinit var row2: android.widget.LinearLayout
+    private var playBtn: ImageView? = null
+    private var expanded = false
+    private val teal = 0xFF00796B.toInt()
 
-    private fun <T : View> T.placed(size: Int, x: Int, y: Int): T {
-        layoutParams = FrameLayout.LayoutParams(dp(size), dp(size)).also { it.leftMargin = dp(x); it.topMargin = dp(y) }
-        return this
+    private fun pbtn(ic: Ic, desc: String, click: () -> Unit) = ImageView(this).apply {
+        setImageDrawable(Icon(ic, teal))
+        setPadding(dp(8), dp(8), dp(8), dp(8))
+        foreground = ripple(22, 0x2200796B)
+        contentDescription = desc
+        layoutParams = android.widget.LinearLayout.LayoutParams(dp(46), dp(46))
+        setOnClickListener { click() }
     }
 
-    private fun setOrb(open: Boolean) {
-        val f = bubble ?: return
-        if (open == orbOpen) return
-        orbOpen = open
-        (orbBtn.layoutParams as FrameLayout.LayoutParams).topMargin = dp(if (open) 44 else 0)
-        orbBtn.requestLayout()
-        fan.forEach { it.visibility = if (open) View.VISIBLE else View.GONE }
-        // Aberto, o leque ocupa 44dp acima do orbe; sobe a janela na mesma medida para o orbe não pular.
-        val lp = f.layoutParams as WindowManager.LayoutParams
-        lp.y += dp(if (open) -44 else 44)
-        wm.updateViewLayout(f, lp)
+    /** "REC" em disco, como no base. */
+    private fun recBadge(click: () -> Unit) = label("REC", 11f, Color.WHITE, bold = true).apply {
+        gravity = Gravity.CENTER
+        background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(teal) }
+        contentDescription = "Gravar"
+        layoutParams = android.widget.LinearLayout.LayoutParams(dp(38), dp(38)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) }
+        setOnClickListener { click() }
+    }
+
+    private fun fillRow1() {
+        row1.removeAllViews()
+        row1.addView(pbtn(Ic.MOVE, "Mover o painel") {}.also { dragger(it) })
+        if (recording) {
+            row1.addView(pbtn(Ic.STOP, "Encerrar a gravação (segure para descartar)") { stopRecording(save = true) }.also {
+                it.setOnLongClickListener { stopRecording(save = false); toast("Gravação descartada"); true }
+            })
+            row1.addView(pbtn(Ic.ADDLIST, "Adicionar o item na posição dos marcadores") { addItem() })
+            val lbl = label(recorder.mode.label, 15f, B.TEXT, bold = true).apply { setPadding(dp(4), 0, dp(10), 0) }
+            row1.addView(android.widget.LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                foreground = ripple(22, 0x2200796B)
+                contentDescription = "Trocar o tipo do item"
+                addView(ImageView(this@MacroService).apply { setImageDrawable(Icon(recorder.mode.ic, teal)); layoutParams = android.widget.LinearLayout.LayoutParams(dp(40), dp(40)); setPadding(dp(8), dp(8), dp(8), dp(8)) })
+                addView(lbl)
+                setOnClickListener { recorder.cycle(); fillRow1() }
+            })
+        } else {
+            val pb = pbtn(if (engine.running) Ic.STOP else Ic.PLAY, "Executar ou parar a macro") { togglePlay() }
+            playBtn = pb
+            row1.addView(pb)
+            row1.addView(recBadge { startRecording() })
+            row1.addView(pbtn(Ic.FRAME, "Capturar imagem para a macro") { captureImage() })
+            row1.addView(pbtn(Ic.CHEVRON, if (expanded) "Recolher" else "Mais opções") { expanded = !expanded; row2.visibility = if (expanded) View.VISIBLE else View.GONE; fillRow1() }.also { it.rotation = if (expanded) -90f else 90f })
+        }
+    }
+
+    private fun togglePlay() {
+        if (engine.running) { engine.stop(); return }
+        store.selected?.let { runMacro(it) } ?: toast("Crie ou selecione uma macro no app")
+    }
+
+    /** Atualiza o ▶/■ do painel; chamável de qualquer thread. */
+    private fun setPlayIcon(running: Boolean) = ui.post { playBtn?.setImageDrawable(Icon(if (running) Ic.STOP else Ic.PLAY, teal)) }
+
+    private fun openPanel(open: Boolean) {
+        if (!::panel.isInitialized) return
+        panel.visibility = if (open) View.VISIBLE else View.GONE
+        orbBtn.visibility = if (open) View.GONE else View.VISIBLE
+        bubble?.let { runCatching { wm.updateViewLayout(it, bubbleLp) } }
+    }
+
+    /** Arrasta a janela da bolha inteira por [v]; toque curto continua sendo clique. */
+    private fun dragger(v: View) {
+        val slop = ViewConfiguration.get(this).scaledTouchSlop
+        var dx = 0f; var dy = 0f; var sx = 0; var sy = 0; var drag = false
+        v.setOnTouchListener { view, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { dx = e.rawX; dy = e.rawY; sx = bubbleLp.x; sy = bubbleLp.y; drag = false; false }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!drag && hypot(e.rawX - dx, e.rawY - dy) > slop) drag = true
+                    if (drag) {
+                        bubbleLp.x = sx + (e.rawX - dx).toInt(); bubbleLp.y = sy + (e.rawY - dy).toInt()
+                        bubble?.let { wm.updateViewLayout(it, bubbleLp) }
+                    }
+                    drag
+                }
+                MotionEvent.ACTION_UP -> { if (drag) view.isPressed = false; drag }
+                else -> false
+            }
+        }
     }
 
     private fun showBubble() {
-        val lp = WindowManager.LayoutParams(
+        bubbleLp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
             // TYPE_ACCESSIBILITY_OVERLAY dispensa a permissão "exibir sobre outros apps".
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.TOP or Gravity.START; x = 0; y = 360 }
+        recorder = Recorder(this, wm)
 
-        val play = circleBtn(Ic.PLAY, C.BLUE, 38, "Executar macro selecionada") {
-            store.selected?.let { runMacro(it) } ?: toast("Selecione uma macro no app")
-            setOrb(false)
-        }.placed(38, 57, 15)
-        // Um botão para o que estiver acontecendo: gravando, salva a gravação (segurar descarta); senão, para a macro.
-        val stop = circleBtn(Ic.STOP, C.DARK, 38, "Parar macro ou gravação (segure para descartar a gravação)") {
-            if (recView != null) stopRecording(save = true) else engine.stop()
-            setOrb(false)
-        }.placed(38, 77, 49).apply {
-            setOnLongClickListener {
-                if (recView == null) return@setOnLongClickListener false
-                stopRecording(save = false); toast("Gravação descartada"); setOrb(false); true
-            }
+        row1 = android.widget.LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        row2 = android.widget.LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+            addView(pbtn(Ic.EDIT, "Abrir o editor da macro") {
+                startActivity(Intent(this@MacroService, EditorActivity::class.java).putExtra("id", store.selected ?: "new").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            })
+            addView(pbtn(Ic.GEAR, "Configurações") { startActivity(Intent(this@MacroService, OptionsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
+            addView(pbtn(Ic.INFO, "Registro ao vivo") { toggleLog() })
+            addView(pbtn(Ic.CLOSE, "Fechar o painel") { openPanel(false) })
         }
-        recBtn = circleBtn(Ic.REC, C.DARK, 38, "Gravar", C.RED) { if (recView == null) startRecording() else stopRecording(save = true) }.placed(38, 57, 83)
-        val capture = circleBtn(Ic.SEARCH, C.DARK, 38, "Capturar imagem para a macro selecionada") { captureImage() }.placed(38, 5, 100)
-        fan = listOf(play, stop, recBtn, capture)
-        fan.forEach { it.visibility = View.GONE }
-        orbBtn = circleBtn(Ic.TAP, C.BLUE, 48, "Controle de macros") { setOrb(!orbOpen) }.placed(48, 0, 0)
-
-        // Arrastar pelo próprio orbe; toque curto abre/fecha. Consumir só o arrasto deixa o clique (e o TalkBack) funcionando.
-        val slop = ViewConfiguration.get(this).scaledTouchSlop
-        var dx = 0f; var dy = 0f; var sx = 0; var sy = 0; var drag = false
-        orbBtn.setOnTouchListener { v, e ->
-            when (e.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { dx = e.rawX; dy = e.rawY; sx = lp.x; sy = lp.y; drag = false; false }
-                MotionEvent.ACTION_MOVE -> {
-                    if (!drag && hypot(e.rawX - dx, e.rawY - dy) > slop) drag = true
-                    if (drag) {
-                        lp.x = sx + (e.rawX - dx).toInt(); lp.y = sy + (e.rawY - dy).toInt()
-                        bubble?.let { wm.updateViewLayout(it, lp) }
-                    }
-                    drag
-                }
-                MotionEvent.ACTION_UP -> { if (drag) v.isPressed = false; drag }
-                else -> false
-            }
+        panel = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            background = rounded(0xF2F5F5F5.toInt(), 14, 0x22000000)
+            elevation = dp(6).toFloat()
+            setPadding(dp(4), dp(4), dp(8), dp(4))
+            visibility = View.GONE
+            addView(row1); addView(row2)
         }
+        fillRow1()
+        orbBtn = circleBtn(Ic.TAP, C.BLUE, 48, "Abrir o painel de controle") { openPanel(true) }
+        dragger(orbBtn)
 
-        val frame = FrameLayout(this).apply { fan.forEach { addView(it) }; addView(orbBtn) }
+        val frame = FrameLayout(this).apply { addView(orbBtn); addView(panel) }
         bubble = frame
         frame.alpha = store.opacity / 100f
-        wm.addView(frame, lp)
+        wm.addView(frame, bubbleLp)
     }
 
     // --- captura de imagem ---------------------------------------------------------------
@@ -201,8 +260,7 @@ class MacroService : AccessibilityService() {
     /** Orbe → Capturar: congela a tela, deixa recortar e acrescenta um passo IMAGE ao fim da macro selecionada. */
     private fun captureImage() {
         val m = store.selected?.let { store.get(it) } ?: return toast("Selecione uma macro no app antes de capturar")
-        if (recView != null || engine.running) return toast("Pare a gravação ou a macro antes de capturar")
-        setOrb(false)
+        if (recording || engine.running) return toast("Pare a gravação ou a macro antes de capturar")
         Diag.d("captura", "iniciada para \"${m.name}\"")
         bubble?.visibility = View.INVISIBLE // o orbe não pode aparecer no quadro
         // O aviso tem de sumir antes do quadro: um toast ainda na tela entra na imagem capturada (visto em aparelho).
@@ -288,64 +346,84 @@ class MacroService : AccessibilityService() {
         toast("Arraste sobre a área e escolha: Imagem, Número ou Amostra")
     }
 
-    // --- gravação ------------------------------------------------------------------------
-    // Captura sem repassar o toque ao app de baixo (injeção de volta reentraria no overlay).
+    // --- gravação por marcadores ---------------------------------------------------------
 
     private fun startRecording() {
-        Diag.d("gravação", "início")
+        Diag.d("gravação", "início (marcadores)")
         if (engine.running) return toast("Pare a macro antes de gravar")
+        if (recording) return
         rec.clear()
-        val slop = ViewConfiguration.get(this).scaledTouchSlop
-        var downX = 0f; var downY = 0f; var downT = 0L; var lastUp = 0L; var moved = 0f
-        val v = object : View(this) {
-            override fun onTouchEvent(e: MotionEvent): Boolean {
-                when (e.actionMasked) { // só o primeiro dedo
-                    MotionEvent.ACTION_DOWN -> { downX = e.rawX; downY = e.rawY; downT = e.eventTime; moved = 0f }
-                    MotionEvent.ACTION_MOVE -> moved = maxOf(moved, hypot(e.rawX - downX, e.rawY - downY))
-                    MotionEvent.ACTION_UP -> {
-                        // post: não remover a janela dentro do próprio dispatch de toque.
-                        if (rec.size >= MAX_STEPS) { ui.post { stopRecording(save = true) }; return true }
-                        val dur = (e.eventTime - downT).toInt().coerceIn(1, MAX_MS)
-                        // Atraso ANTES da ação: o intervalo desde o último toque pertence ao passo novo.
-                        val gap = if (rec.isEmpty()) 0 else (downT - lastUp).toInt().coerceIn(0, MAX_MS)
-                        lastUp = e.eventTime
-                        rec += if (moved > slop) Step(Type.SWIPE, downX.toInt(), downY.toInt(), e.rawX.toInt(), e.rawY.toInt(), dur, delay = gap)
-                        else Step(Type.TAP, downX.toInt(), downY.toInt(), ms = dur, delay = gap)
-                        rec.last().let { Diag.d("gravação", "gravado: ${it.type} ${it.x1},${it.y1}" + (if (it.type == Type.SWIPE) ">${it.x2},${it.y2}" else "") + " duração ${it.ms}ms espera antes ${it.delay}ms") }
-                    }
+        recording = true
+        recorder.show(Recorder.Mode.TAP)
+        expanded = false; row2.visibility = View.GONE
+        fillRow1()
+        toast("Gravando: arraste o marcador e toque em + para adicionar. Toque no tipo para trocar.")
+    }
+
+    /** Acrescenta o item na posição atual dos marcadores. Atraso padrão de 1 s antes de cada item (ajustável no editor). */
+    private fun addItem() {
+        if (!recording) return
+        if (rec.size >= MAX_STEPS) return toast("Limite de $MAX_STEPS passos")
+        if (recorder.mode == Recorder.Mode.IMAGE) return addImage()
+        val st = recorder.step(DEFAULT_DELAY) ?: return toast("Marcadores indisponíveis")
+        rec += st
+        Diag.d("gravação", "item ${rec.size}: ${st.type} ${st.x1},${st.y1}" + (if (st.type == Type.SWIPE) ">${st.x2},${st.y2}" else ""))
+        toast("Item ${rec.size} adicionado: ${recorder.mode.label}")
+    }
+
+    /** Modo Imagem: esconde painel e marcadores, tira o quadro e guarda o recorte da caixa como modelo. */
+    private fun addImage() {
+        val r = recorder.region() ?: return toast("Marque a área da imagem")
+        recorder.setVisible(false); bubble?.visibility = View.INVISIBLE
+        ui.postDelayed({
+            takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
+                override fun onSuccess(res: AccessibilityService.ScreenshotResult) {
+                    val hb = res.hardwareBuffer
+                    val bmp = try { Bitmap.wrapHardwareBuffer(hb, res.colorSpace)?.copy(Bitmap.Config.ARGB_8888, false) } finally { hb.close() }
+                    recorder.setVisible(true); bubble?.visibility = View.VISIBLE
+                    if (bmp == null) return shotFailed("Captura falhou")
+                    try {
+                        val x = r.left.coerceIn(0, bmp.width - 1); val y = r.top.coerceIn(0, bmp.height - 1)
+                        val w = r.width().coerceAtMost(bmp.width - x); val h = r.height().coerceAtMost(bmp.height - y)
+                        if (w < RegionPicker.MIN || h < RegionPicker.MIN) return toast("Área pequena demais (mínimo ${RegionPicker.MIN} px)")
+                        val tid = store.newTemplateId()
+                        store.saveTemplate(tid, Bitmap.createBitmap(bmp, x, y, w, h))
+                        rec += Step(Type.IMAGE, ms = 5000, text = tid, thr = 95, delay = DEFAULT_DELAY)
+                        Diag.d("gravação", "item ${rec.size}: IMAGE área $x,$y ${w}x$h modelo $tid")
+                        toast("Item ${rec.size} adicionado: Imagem")
+                    } catch (e: Exception) { Diag.e("gravação", "falha ao guardar a imagem", e); toast("Falha: ${e.message}") }
+                    finally { bmp.recycle() }
                 }
-                return true
-            }
-        }.apply { setBackgroundColor(0x33FF0000) }
-        val lp = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, PixelFormat.TRANSLUCENT,
-        ).apply { layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS }
-        wm.addView(v, lp)
-        recView = v
-        // Reanexa a bolha: janelas do mesmo tipo empilham pela ordem de adição.
-        bubble?.let { b -> val p = b.layoutParams; wm.removeView(b); wm.addView(b, p) }
-        recBtn.restyle(Ic.STOP, C.RED)
-        orbBtn.restyle(Ic.TAP, C.RED) // bolha vermelha = gravando, mesmo com o leque fechado
-        toast("Gravando: toque nos pontos. Para parar: ■ na bolha (segure para descartar).")
+                override fun onFailure(code: Int) { recorder.setVisible(true); shotFailed("Captura recusada (código $code)") }
+            })
+        }, 150) // um quadro para os marcadores sumirem antes da captura
     }
 
     private fun stopRecording(save: Boolean) {
-        Diag.d("gravação", "fim (salvar=$save)")
-        val v = recView ?: return
-        runCatching { wm.removeView(v) }
-        recView = null
-        recBtn.restyle(Ic.REC, C.DARK, C.RED)
-        orbBtn.restyle(Ic.TAP, C.BLUE)
+        Diag.d("gravação", "fim (salvar=$save, itens=${rec.size})")
+        if (!recording) return
+        recording = false
+        runCatching { recorder.hide() }
+        if (::panel.isInitialized) fillRow1()
         if (!save) return
         if (rec.isEmpty()) return toast("Nada gravado")
         val m = Macro(UUID.randomUUID().toString(), "Gravação " + SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault()).format(Date()), 1, rec.toList())
         val err = m.validate()
         if (err != null) return toast("Gravação inválida: $err")
         runCatching { store.save(m) }
-            .onSuccess { store.selected = m.id; toast("Salva: ${m.name} (${m.steps.size} passos)") }
+            .onSuccess { store.selected = m.id; askEditor(m) }
             .onFailure { toast("Falha ao salvar: ${it.message}") }
     }
+
+    /** Como no base: ao encerrar, pergunta se quer ir direto para o editor. */
+    private fun askEditor(m: Macro) {
+        val d = android.app.AlertDialog.Builder(android.view.ContextThemeWrapper(this, android.R.style.Theme_Material_Light_Dialog_Alert))
+            .setTitle("Gravação de macro encerrada.")
+            .setMessage("Ir para o Editor de Macro?\n(${m.steps.size} itens em “${m.name}”)")
+            .setPositiveButton("OK") { _, _ -> startActivity(Intent(this, EditorActivity::class.java).putExtra("id", m.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            .setNegativeButton("Cancelar", null).create()
+        d.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
+        d.show()
+    }
+
 }

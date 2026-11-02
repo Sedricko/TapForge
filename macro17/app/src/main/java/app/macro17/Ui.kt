@@ -69,7 +69,7 @@ fun Context.label(s: String, sp: Float = 14f, color: Int = C.TEXT, bold: Boolean
 
 // --- ícones desenhados em Canvas: sem drawables, sem glifos Unicode (que viram emoji em alguns aparelhos) ---
 
-enum class Ic { PLAY, STOP, REC, ADD, BACK, MOVE, OK, TAP, SWIPE, WAIT, KEY, WARN, GEAR, IMPORT, SEARCH, CHEVRON, EDIT, NUM, MENU, HOME, BOX, INFO, FOLDER, LOCK, EYE, PAUSE, MINUS, CLOSE }
+enum class Ic { PLAY, STOP, REC, ADD, BACK, MOVE, OK, TAP, SWIPE, WAIT, KEY, WARN, GEAR, IMPORT, SEARCH, CHEVRON, EDIT, NUM, MENU, HOME, BOX, INFO, FOLDER, LOCK, EYE, PAUSE, MINUS, CLOSE, TARGET, ARROW, ADDLIST, FRAME }
 
 class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
@@ -83,6 +83,7 @@ class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
             Ic.PLAY -> c.drawPath(Path().apply { moveTo(cx - s * .8f, cy - s); lineTo(cx + s, cy); lineTo(cx - s * .8f, cy + s); close() }, p)
             Ic.STOP -> c.drawRect(cx - s * .85f, cy - s * .85f, cx + s * .85f, cy + s * .85f, p)
             Ic.REC -> c.drawCircle(cx, cy, s, p)
+            Ic.ARROW -> c.drawPath(Path().apply { moveTo(cx + s, cy - s); lineTo(cx - s * .9f, cy + s * .1f); lineTo(cx - s * .1f, cy + s * .2f); lineTo(cx - s * .2f, cy + s * .95f); close() }, p)
             Ic.MOVE -> for (dx in -1..1 step 2) for (dy in -1..1) c.drawCircle(cx + dx * s * .5f, cy + dy * s * .7f, s * .22f, p)
             else -> {
                 p.style = Paint.Style.STROKE
@@ -122,6 +123,22 @@ class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
                     Ic.NUM -> {
                         c.drawLine(cx - s * .35f, cy - s, cx - s * .35f, cy + s, p); c.drawLine(cx + s * .35f, cy - s, cx + s * .35f, cy + s, p)
                         c.drawLine(cx - s, cy - s * .35f, cx + s, cy - s * .35f, p); c.drawLine(cx - s, cy + s * .35f, cx + s, cy + s * .35f, p)
+                    }
+                    Ic.TARGET -> {
+                        c.drawCircle(cx, cy, s * .75f, p)
+                        c.drawLine(cx, cy - s * 1.25f, cx, cy - s * .45f, p); c.drawLine(cx, cy + s * .45f, cx, cy + s * 1.25f, p)
+                        c.drawLine(cx - s * 1.25f, cy, cx - s * .45f, cy, p); c.drawLine(cx + s * .45f, cy, cx + s * 1.25f, cy, p)
+                    }
+                    Ic.ADDLIST -> {
+                        c.drawLine(cx - s, cy - s * .8f, cx + s * .3f, cy - s * .8f, p); c.drawLine(cx - s, cy - s * .1f, cx + s * .3f, cy - s * .1f, p)
+                        c.drawLine(cx - s, cy + s * .6f, cx - s * .1f, cy + s * .6f, p)
+                        c.drawLine(cx + s * .7f, cy + s * .15f, cx + s * .7f, cy + s * 1.05f, p); c.drawLine(cx + s * .25f, cy + s * .6f, cx + s * 1.15f, cy + s * .6f, p)
+                    }
+                    Ic.FRAME -> {
+                        val k = s * .55f
+                        for (sx in listOf(-1f, 1f)) for (sy in listOf(-1f, 1f)) {
+                            c.drawLine(cx + sx * s, cy + sy * s, cx + sx * (s - k), cy + sy * s, p); c.drawLine(cx + sx * s, cy + sy * s, cx + sx * s, cy + sy * (s - k), p)
+                        }
                     }
                     Ic.EYE -> { c.drawOval(cx - s, cy - s * .6f, cx + s, cy + s * .6f, p); p.style = Paint.Style.FILL; c.drawCircle(cx, cy, s * .3f, p) }
                     Ic.PAUSE -> { c.drawLine(cx - s * .45f, cy - s, cx - s * .45f, cy + s, p); c.drawLine(cx + s * .45f, cy - s, cx + s * .45f, cy + s, p) }
