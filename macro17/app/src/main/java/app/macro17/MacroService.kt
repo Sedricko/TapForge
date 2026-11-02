@@ -75,6 +75,8 @@ class MacroService : AccessibilityService() {
         return super.onUnbind(intent)
     }
 
+    fun isRunning() = engine.running
+
     /** Abre ou fecha o painel de registro ao vivo. Chamável de qualquer thread. */
     fun toggleLog() { ui.post { if (logPanel.shown) logPanel.hide() else logPanel.show() } }
 

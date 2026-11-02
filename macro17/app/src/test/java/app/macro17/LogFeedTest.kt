@@ -63,10 +63,15 @@ class LogFeedTest {
     @Test fun clearEmptiesAndNotifiesListener() {
         val f = LogFeed()
         var calls = 0
-        f.listener = { calls++ }
+        var other = 0
+        val l = { calls++; Unit }
+        f.addListener(l); f.addListener { other++ }              // vários ouvintes ao mesmo tempo (aba e painel flutuante)
         f.add(e("passo", "x")); f.clear()
         assertEquals(0, f.snapshot(Cat.ALL).size)
-        assertEquals(2, calls)
+        assertEquals(2, calls); assertEquals(2, other)
+        f.removeListener(l)
+        f.add(e("passo", "y"))
+        assertEquals(2, calls); assertEquals(3, other)            // o removido não é mais chamado
     }
 
     @Test fun concurrentAddsLoseNothingUpToCap() {
@@ -74,5 +79,30 @@ class LogFeedTest {
         val ts = (0 until 4).map { t -> Thread { repeat(500) { f.add(e("passo", "t$t-$it")) } } }
         ts.forEach { it.start() }; ts.forEach { it.join() }
         assertEquals(2000, f.count(Cat.ALL))
+    }
+
+    // --- aba de monitoramento: ruído e avisos ---
+    @Test fun warningsCategoryIsExactlyTheWarnLevel() {
+        val warn = e("passo", "passo 2 imagem: não achou")
+        assertTrue(LogRules.matches(Cat.WARNINGS, warn))
+        assertFalse(LogRules.matches(Cat.WARNINGS, e("passo", "passo 1/2 TAP atraso=0ms")))
+        assertFalse(LogRules.matches(Cat.WARNINGS, e("run", "ERRO x")))      // erro não é aviso
+    }
+
+    @Test fun collapseMergesOnlyAdjacentIdenticalLines() {
+        val a = e("tela", "MainActivity pausada", 3); val a2 = e("tela", "MainActivity pausada", 2)
+        val b = e("gesto", "1,1>1,1 @50ms", 1)
+        val rows = collapse(listOf(a, a2, b, a))                      // mais recente primeiro
+        assertEquals(listOf(2, 1, 1), rows.map { it.count })           // as duas primeiras juntam; a última não (não é vizinha)
+        assertEquals(3L, rows[0].entry.time)                           // mostra o horário da mais recente
+    }
+
+    @Test fun collapseKeepsDifferentTextsApart() {
+        val rows = collapse(listOf(e("passo", "a"), e("passo", "b"), e("gesto", "a")))
+        assertEquals(3, rows.size)                                     // mesma tag com texto diferente, ou mesmo texto com outra tag
+    }
+
+    @Test fun collapseOfNothingIsNothing() {
+        assertTrue(collapse(emptyList()).isEmpty())
     }
 }

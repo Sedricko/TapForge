@@ -41,6 +41,7 @@ class LogPanel(private val svc: AccessibilityService, private val wm: WindowMana
     private var mini = false
     @Volatile private var hideOnShot = true
     private var scheduled = false
+    private val onFeed: () -> Unit = { schedule() }
 
     val shown get() = root != null
 
@@ -54,13 +55,13 @@ class LogPanel(private val svc: AccessibilityService, private val wm: WindowMana
         val v = build()
         root = v
         wm.addView(v, lp)
-        Diag.feed.listener = { schedule() }
+        Diag.feed.addListener(onFeed)
         Diag.d("painel", "registro ao vivo aberto")
         render()
     }
 
     fun hide() {
-        Diag.feed.listener = null
+        Diag.feed.removeListener(onFeed)
         root?.let { runCatching { wm.removeView(it) } }
         root = null; list = null; body = null; chipRow = null
     }
@@ -89,31 +90,12 @@ class LogPanel(private val svc: AccessibilityService, private val wm: WindowMana
         }
     }
 
-    private fun color(e: Entry) = when (LogRules.tone(e)) {
-        Tone.ERROR -> 0xFFEF5350.toInt()
-        Tone.WARN -> 0xFFFFB74D.toInt()
-        Tone.VALUE -> 0xFF64B5F6.toInt()
-        Tone.SYSTEM -> 0xFF81C784.toInt()
-        Tone.PLAIN -> C.TEXT
-    }
-
-    private fun stamp(e: Entry) = timeFmt.format(Instant.ofEpochMilli(e.time).atZone(ZoneId.systemDefault()))
-
     private fun render() {
         val l = list ?: return
         l.removeAllViews()
-        val es = Diag.feed.snapshot(cat, 150)
-        if (es.isEmpty()) l.addView(svc.label("Nenhum evento ainda.", 14f, C.TEXT2).apply { setPadding(svc.dp(8), svc.dp(12), 0, 0) })
-        es.forEach { e ->
-            l.addView(LinearLayout(svc).apply {
-                setPadding(svc.dp(4), svc.dp(5), svc.dp(4), svc.dp(5))
-                addView(svc.label(stamp(e), 12f, C.TEXT2).apply { typeface = Typeface.MONOSPACE })
-                addView(svc.label(e.text, 14f, color(e)).apply {
-                    maxLines = 4; ellipsize = TextUtils.TruncateAt.END
-                    layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).also { it.marginStart = svc.dp(12) }
-                })
-            })
-        }
+        val rows = collapse(Diag.feed.snapshot(cat, 150))
+        if (rows.isEmpty()) l.addView(svc.label("Nenhum evento ainda.", 14f, C.TEXT2).apply { setPadding(svc.dp(8), svc.dp(12), 0, 0) })
+        rows.forEach { l.addView(svc.logRow(it)) }
     }
 
     private fun chips() {
@@ -137,7 +119,7 @@ class LogPanel(private val svc: AccessibilityService, private val wm: WindowMana
     }
 
     private fun share() {
-        val txt = Diag.feed.snapshot(cat, 500).asReversed().joinToString("\n") { "${stamp(it)} [${it.tag}] ${it.text}" }.takeLast(150_000)
+        val txt = plainText(collapse(Diag.feed.snapshot(cat, 500))).takeLast(150_000)
         svc.startActivity(
             Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, txt), "Enviar registro")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),

@@ -1,119 +1,181 @@
 package app.macro17
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.Color
-import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
-import android.view.View
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 
 /**
- * Registro de eventos do app e relatório para quem corrige: salvar em arquivo (SAF), copiar ou compartilhar.
- * O relatório completo é montado numa thread própria porque lê arquivo e roda `logcat`.
+ * Aba de monitoramento: contadores ao vivo (serviço, macro, memória, erros, avisos), registro ao vivo com filtros,
+ * linhas repetidas agrupadas (×N) e botões para copiar ou compartilhar. O relatório completo (aparelho, saídas do
+ * processo, logcat, root opcional) fica no botão "Relatório"; é montado numa thread própria porque lê arquivo e roda `logcat`.
  */
 @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
 class DiagActivity : Activity() {
     private lateinit var store: Store
-    private lateinit var view: TextView
-    private lateinit var scroll: ScrollView
+    private lateinit var list: LinearLayout
+    private lateinit var chipRow: LinearLayout
+    private lateinit var stats: Map<String, TextView>
+    private val ui = Handler(Looper.getMainLooper())
+    private var cat = Cat.ALL
+    private var scheduled = false
     @Volatile private var pending: String? = null
+    private val onFeed: () -> Unit = { schedule() }
+    private val tick = object : Runnable { override fun run() { updateStats(); ui.postDelayed(this, 1000) } }
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         store = Store(this)
-        view = TextView(this).apply { typeface = Typeface.MONOSPACE; textSize = 10.5f; setTextColor(C.TEXT2); setTextIsSelectable(true) }
-        scroll = ScrollView(this).apply { addView(view) }
 
         val bar = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             addView(circleBtn(Ic.BACK, Color.TRANSPARENT, 40, "Voltar") { finish() })
-            addView(label("Diagnóstico e logs", 16f, bold = true).apply { setPadding(dp(4), 0, 0, 0) })
+            addView(label("Monitor e logs", 18f, bold = true).apply { setPadding(dp(4), 0, 0, 0) })
+        }
+        val names = listOf("Serviço", "Macro", "Memória", "Erros", "Avisos")
+        stats = names.associateWith { label("–", 15f, bold = true).apply { gravity = Gravity.CENTER } }
+        val statRow = LinearLayout(this).apply {
+            setPadding(0, dp(8), 0, dp(4))
+            names.forEach { n ->
+                addView(LinearLayout(this@DiagActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    background = tileBg()
+                    setPadding(dp(4), dp(8), dp(4), dp(8))
+                    layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).also { it.setMargins(dp(2), 0, dp(2), 0) }
+                    addView(stats.getValue(n), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+                    addView(label(n, 11f, C.TEXT2).apply { gravity = Gravity.CENTER })
+                })
+            }
         }
         val actions = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(LinearLayout(this@DiagActivity).apply {
-                setPadding(0, dp(8), 0, dp(8))
-                addView(pillBtn("Painel ao vivo", C.BLUE) { MacroService.instance?.toggleLog() ?: Toast.makeText(this@DiagActivity, "Ative o serviço de acessibilidade primeiro", Toast.LENGTH_LONG).show() })
-                addView(pillBtn("Atualizar", C.DARK) { refresh() })
-                addView(pillBtn("Salvar relatório", C.TEAL) { saveReport() })
-                addView(pillBtn("Compartilhar", C.PURPLE) { shareReport() })
-                addView(pillBtn("Copiar", C.ORANGE) { copyReport() })
-                addView(pillBtn("Limpar", C.RED) { Diag.clear(); refresh() })
+                setPadding(0, dp(4), 0, dp(4))
+                addView(pillBtn("Copiar", C.BLUE) { copy(visibleText()) })
+                addView(pillBtn("Compartilhar", C.PURPLE) { share(visibleText()) })
+                addView(pillBtn("Relatório", C.TEAL) { reportMenu() })
+                addView(pillBtn("Limpar", C.RED) { Diag.feed.clear(); Diag.clear() })
+                addView(pillBtn("Painel flutuante", C.DARK) { MacroService.instance?.toggleLog() ?: toast("Ative o serviço de acessibilidade primeiro") })
+                addView(pillBtn("Opções", C.DARK) { options() })
             })
         }
+        chipRow = LinearLayout(this).apply { setPadding(0, dp(4), 0, dp(4)) }
+        list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        chips()
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(bar)
-            addView(toggle("Registrar eventos", "Passos, gestos, capturas, serviço, telas, alarmes e falhas fatais ficam num arquivo local (rotação de ~2 MB).", store.diag) { store.diag = it })
-            addView(toggle("Incluir log do sistema (root)", "Ao gerar o relatório, roda “su” para juntar logcat completo, dmesg e estado da acessibilidade. O gerenciador de root pode pedir confirmação.", store.diagRoot) { store.diagRoot = it })
-            addView(label("Sem root: adb shell pm grant app.macro17 android.permission.READ_LOGS libera o logcat do sistema.", 11f, C.TEXT2).apply { setPadding(dp(4), dp(8), dp(4), 0) })
-            addView(actions)
-            addView(scroll, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+            addView(bar); addView(statRow); addView(actions)
+            addView(HorizontalScrollView(this@DiagActivity).apply { isHorizontalScrollBarEnabled = false; addView(chipRow) })
+            addView(ScrollView(this@DiagActivity).apply { addView(list) }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
             padForSystemBars(dp(12))
         })
     }
 
-    override fun onResume() { super.onResume(); refresh() }
-
-    private fun refresh() {
-        view.text = Diag.tail(40_000).ifEmpty { "Nenhum evento registrado ainda." }
-        scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
+    override fun onResume() {
+        super.onResume()
+        Diag.feed.addListener(onFeed)
+        render(); ui.post(tick)
     }
 
-    private fun toggle(title: String, desc: String, value: Boolean, change: (Boolean) -> Unit): View = LinearLayout(this).apply {
-        gravity = Gravity.CENTER_VERTICAL
-        background = tileBg()
-        setPadding(dp(14), dp(10), dp(10), dp(10))
-        layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(8) }
-        addView(LinearLayout(this@DiagActivity).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-            addView(label(title, 15f, bold = true))
-            addView(label(desc, 12f, C.TEXT2))
-        })
-        addView(Switch(this@DiagActivity).apply {
-            isChecked = value; contentDescription = title
-            setOnCheckedChangeListener { _, on -> change(on) }
-        })
+    override fun onPause() {
+        super.onPause()
+        Diag.feed.removeListener(onFeed)
+        ui.removeCallbacksAndMessages(null); scheduled = false
+    }
+
+    private fun schedule() = ui.post {
+        if (scheduled) return@post
+        scheduled = true
+        ui.postDelayed({ scheduled = false; render() }, 250) // junta rajadas de eventos numa só atualização
+    }
+
+    private fun rows() = collapse(Diag.feed.snapshot(cat, 500))
+    private fun visibleText() = plainText(rows())
+
+    private fun render() {
+        list.removeAllViews()
+        val rs = rows().take(200)
+        if (rs.isEmpty()) list.addView(label("Nenhum evento ainda neste uso do app.", 14f, C.TEXT2).apply { setPadding(dp(8), dp(12), 0, 0) })
+        rs.forEach { list.addView(logRow(it)) }
+        updateStats()
+    }
+
+    private fun chips() {
+        chipRow.removeAllViews()
+        Cat.values().forEach { c ->
+            val on = c == cat
+            chipRow.addView(chipBtn(if (c == Cat.ERRORS || c == Cat.WARNINGS) "${c.label} · ${Diag.feed.count(c)}" else c.label, on) { cat = c; chips(); render() })
+        }
+    }
+
+    private fun updateStats() {
+        val svc = MacroService.instance
+        val rt = Runtime.getRuntime()
+        val err = Diag.feed.count(Cat.ERRORS); val warn = Diag.feed.count(Cat.WARNINGS)
+        fun set(k: String, text: String, color: Int) { stats.getValue(k).apply { this.text = text; setTextColor(color) } }
+        set("Serviço", if (svc != null) "ativo" else "desligado", if (svc != null) 0xFF81C784.toInt() else 0xFFEF5350.toInt())
+        set("Macro", if (svc?.isRunning() == true) "rodando" else "parada", if (svc?.isRunning() == true) 0xFF64B5F6.toInt() else C.TEXT2)
+        set("Memória", "${(rt.totalMemory() - rt.freeMemory()) shr 20} MB", C.TEXT)
+        set("Erros", err.toString(), if (err > 0) 0xFFEF5350.toInt() else C.TEXT2)
+        set("Avisos", warn.toString(), if (warn > 0) 0xFFFFB74D.toInt() else C.TEXT2)
+        // Os chips de Erros e Avisos mostram a contagem: atualiza o texto sem refazer a lista.
+        for (n in 0 until chipRow.childCount) (chipRow.getChildAt(n) as? TextView)?.let { v ->
+            val c = Cat.values()[n]
+            if (c == Cat.ERRORS || c == Cat.WARNINGS) v.text = "${c.label} · ${Diag.feed.count(c)}"
+        }
+    }
+
+    // EXTRA_TEXT e a área de transferência passam pelo Binder (~1 MB): manda só o final, que é o mais recente.
+    private fun copy(text: String) {
+        if (text.isEmpty()) return toast("Nada para copiar")
+        getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Registro Macro17", text.takeLast(150_000)))
+        toast("Copiado" + if (text.length > 150_000) " (últimos 150 mil caracteres)" else "")
+    }
+
+    private fun share(text: String) {
+        if (text.isEmpty()) return toast("Nada para compartilhar")
+        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT, "Registro Macro17").putExtra(Intent.EXTRA_TEXT, text.takeLast(150_000)), "Enviar registro"))
+    }
+
+    private fun options() {
+        val items = arrayOf("Registrar eventos em arquivo", "Incluir log do sistema no relatório (root)")
+        val on = booleanArrayOf(store.diag, store.diagRoot)
+        AlertDialog.Builder(this).setTitle("Opções do monitor")
+            .setMultiChoiceItems(items, on) { _, i, v -> if (i == 0) store.diag = v else store.diagRoot = v }
+            .setMessage("O relatório com root roda “su” para juntar logcat completo, dmesg e a acessibilidade. Sem root: adb shell pm grant app.macro17 android.permission.READ_LOGS")
+            .setPositiveButton("OK", null).show()
+    }
+
+    private fun reportMenu() {
+        val acts = listOf<Pair<String, () -> Unit>>(
+            "Salvar relatório em arquivo" to { build { r -> pending = r; startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/plain").putExtra(Intent.EXTRA_TITLE, "macro17-relatorio-${System.currentTimeMillis() / 1000}.txt"), SAVE) } },
+            "Compartilhar relatório completo" to { build { share(it) } },
+            "Copiar relatório completo" to { build { copy(it) } },
+        )
+        AlertDialog.Builder(this).setTitle("Relatório completo").setItems(acts.map { it.first }.toTypedArray()) { _, w -> acts[w].second() }.show()
     }
 
     /** Monta o relatório fora da thread principal e entrega o texto a [then] na principal. */
     private fun build(then: (String) -> Unit) {
-        Toast.makeText(this, "Gerando relatório…", Toast.LENGTH_SHORT).show()
+        toast("Gerando relatório…")
         Thread({
             val r = try { Diag.report(this) } catch (t: Throwable) { "falha ao gerar o relatório: ${t.javaClass.simpleName}: ${t.message}" }
             runOnUiThread { if (!isDestroyed) then(r) }
         }, "macro17-report").start()
-    }
-
-    private fun saveReport() = build { r ->
-        pending = r
-        startActivityForResult(
-            Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("text/plain")
-                .putExtra(Intent.EXTRA_TITLE, "macro17-relatorio-${System.currentTimeMillis() / 1000}.txt"), SAVE,
-        )
-    }
-
-    // EXTRA_TEXT/área de transferência passam pelo Binder (~1 MB): manda só o final, que é o mais recente.
-    private fun shareReport() = build { r ->
-        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT, "Relatório Macro17").putExtra(Intent.EXTRA_TEXT, r.takeLast(150_000)), "Enviar relatório"))
-    }
-
-    private fun copyReport() = build { r ->
-        getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Relatório Macro17", r.takeLast(150_000)))
-        Toast.makeText(this, "Copiado (últimos 150 mil caracteres)", Toast.LENGTH_SHORT).show()
     }
 
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
@@ -123,10 +185,12 @@ class DiagActivity : Activity() {
         if (req != SAVE || res != RESULT_OK) return
         try {
             contentResolver.openOutputStream(uri, "wt")!!.use { it.write(text.toByteArray()) }
-            Toast.makeText(this, "Relatório salvo", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) { Toast.makeText(this, "Falhou: ${e.message ?: e.javaClass.simpleName}", Toast.LENGTH_LONG).show() }
+            toast("Relatório salvo")
+        } catch (e: Exception) { toast("Falhou: ${e.message ?: e.javaClass.simpleName}") }
         pending = null
     }
+
+    private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
 
     private companion object { const val SAVE = 7 }
 }

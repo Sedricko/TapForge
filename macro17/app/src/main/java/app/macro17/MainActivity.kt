@@ -41,7 +41,7 @@ class MainActivity : Activity() {
             Triple(Ic.HOME, "Home") {},
             Triple(Ic.GEAR, "Configurações") { startActivity(Intent(this, OptionsActivity::class.java)) },
             Triple(Ic.INFO, "Registro ao vivo") { MacroService.instance?.toggleLog() ?: toast("Ative o serviço de acessibilidade primeiro") },
-            Triple(Ic.INFO, "Diagnóstico e logs") { startActivity(Intent(this, DiagActivity::class.java)) },
+            Triple(Ic.INFO, "Monitor e logs") { startActivity(Intent(this, DiagActivity::class.java)) },
         ))
         val root = FrameLayout(this).apply {
             setBackgroundColor(B.BG)
@@ -110,6 +110,7 @@ class MainActivity : Activity() {
 
         content.addView(bigButton(Ic.EDIT, "Editor de macro") { edit(cur?.id ?: "new") })
         content.addView(bigButton(Ic.FOLDER, "Arquivo") { fileDialog() })
+        content.addView(bigButton(Ic.INFO, "Monitor e logs") { startActivity(Intent(this, DiagActivity::class.java)) })
         content.addView(bigButton(Ic.TAP, "Iniciar") { cur?.let { play(it.id) } ?: toast("Crie ou importe uma macro primeiro") })
     }
 

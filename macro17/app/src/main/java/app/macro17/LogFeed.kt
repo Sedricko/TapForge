@@ -3,7 +3,7 @@ package app.macro17
 /** Registro ao vivo: entradas em memória (últimas [LogFeed] cap), classificadas por categoria, nível e cor. Java/Kotlin puro. */
 enum class Level { INFO, WARN, ERROR }
 enum class Tone { PLAIN, WARN, ERROR, VALUE, SYSTEM }
-enum class Cat(val label: String) { ALL("Tudo"), STEPS("Passos"), SEARCH("Busca"), GESTURES("Gestos"), SYSTEM("Sistema"), ERRORS("Erros") }
+enum class Cat(val label: String) { ALL("Tudo"), STEPS("Passos"), SEARCH("Busca"), GESTURES("Gestos"), SYSTEM("Sistema"), WARNINGS("Avisos"), ERRORS("Erros") }
 
 data class Entry(val time: Long, val tag: String, val text: String, val level: Level)
 
@@ -23,6 +23,7 @@ object LogRules {
         Cat.SEARCH -> e.tag == "visão" || e.tag == "captura" || e.tag == "aviso" || (e.tag == "passo" && resultWords.any { e.text.contains(it) })
         Cat.GESTURES -> e.tag == "gesto"
         Cat.SYSTEM -> e.tag in systemTags
+        Cat.WARNINGS -> e.level == Level.WARN
         Cat.ERRORS -> e.level == Level.ERROR
     }
 
@@ -35,13 +36,32 @@ object LogRules {
     }
 }
 
+/** Uma ou mais entradas seguidas idênticas (mesma tag e texto) viram uma linha com [count]; [entry] é a mais recente. */
+data class Row(val entry: Entry, val count: Int)
+
+/** [es] mais recente primeiro. Só junta vizinhas: a ordem dos fatos não muda, o ruído repetido some. */
+fun collapse(es: List<Entry>): List<Row> {
+    val out = ArrayList<Row>()
+    for (e in es) {
+        val last = out.lastOrNull()
+        if (last != null && last.entry.tag == e.tag && last.entry.text == e.text) out[out.lastIndex] = last.copy(count = last.count + 1)
+        else out += Row(e, 1)
+    }
+    return out
+}
+
 class LogFeed(private val cap: Int = 500) {
     private val items = ArrayDeque<Entry>()
-    @Volatile var listener: (() -> Unit)? = null // chamado de qualquer thread; quem recebe agenda a atualização
+    private val listeners = java.util.concurrent.CopyOnWriteArraySet<() -> Unit>()
+
+    /** Chamados de qualquer thread; quem recebe agenda a atualização na sua própria thread. Guarde a mesma referência para remover. */
+    fun addListener(l: () -> Unit) { listeners.add(l) }
+    fun removeListener(l: () -> Unit) { listeners.remove(l) }
+    private fun fire() = listeners.forEach { it() }
 
     fun add(e: Entry) {
         synchronized(this) { items.addLast(e); while (items.size > cap) items.removeFirst() }
-        listener?.invoke()
+        fire()
     }
 
     /** Mais recente primeiro, no máximo [limit]. */
@@ -50,5 +70,5 @@ class LogFeed(private val cap: Int = 500) {
 
     fun count(c: Cat): Int = synchronized(this) { items.count { LogRules.matches(c, it) } }
 
-    fun clear() { synchronized(this) { items.clear() }; listener?.invoke() }
+    fun clear() { synchronized(this) { items.clear() }; fire() }
 }

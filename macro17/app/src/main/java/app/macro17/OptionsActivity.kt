@@ -41,7 +41,7 @@ class OptionsActivity : Activity() {
                 addView(LinearLayout(this@OptionsActivity).apply {
                     orientation = LinearLayout.VERTICAL
                     layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-                    addView(label("Diagnóstico e logs", 15f, bold = true))
+                    addView(label("Monitor e logs", 15f, bold = true))
                     addView(label("Registro de eventos, relatório do sistema e exportação para enviar a quem corrige.", 12f, C.TEXT2))
                 })
                 addView(glyph(Ic.CHEVRON, C.TEXT, 22))
