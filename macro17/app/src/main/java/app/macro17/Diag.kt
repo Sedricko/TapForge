@@ -99,7 +99,7 @@ object Diag {
             }.ifEmpty { "nenhuma" }
         }
         section("Eventos do app") { log?.readAll()?.takeLast(400_000).orEmpty().ifEmpty { "vazio (o diagnóstico estava desligado?)" } }
-        section("logcat visível ao app (sem READ_LOGS: só os logs do próprio app)") { logcat() }
+        section("logcat visível ao app, filtrado (sem READ_LOGS: só os logs do próprio app; avisos e erros sempre ficam)") { logcat() }
         if (Store(c).diagRoot) {
             section("ROOT: logcat do sistema inteiro (todos os buffers)") { su("logcat -d -b all -v threadtime -t 8000", 300_000) }
             section("ROOT: dmesg (kernel, últimas 400 linhas)") { su("dmesg | tail -n 400", 100_000) }
@@ -137,6 +137,6 @@ object Diag {
         val p = ProcessBuilder("logcat", "-d", "-v", "threadtime", "-t", "3000").redirectErrorStream(true).start()
         val out = p.inputStream.bufferedReader().use { it.readText() }
         p.destroy()
-        out.takeLast(300_000).ifEmpty { "vazio" }
+        filterLogcat(out).takeLast(300_000).ifEmpty { "vazio" }
     } catch (e: Exception) { "indisponível: ${e.message}" }
 }

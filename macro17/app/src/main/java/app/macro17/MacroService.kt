@@ -194,6 +194,7 @@ class MacroService : AccessibilityService() {
         val m = store.selected?.let { store.get(it) } ?: return toast("Selecione uma macro no app antes de capturar")
         if (recView != null || engine.running) return toast("Pare a gravação ou a macro antes de capturar")
         setOrb(false)
+        Diag.d("captura", "iniciada para \"${m.name}\"")
         bubble?.visibility = View.INVISIBLE // o orbe não pode aparecer no quadro
         toast("Capturando em 2 s: deixe visível o que quer achar")
         ui.postDelayed({ shoot(m.id) }, 2000)
@@ -229,6 +230,7 @@ class MacroService : AccessibilityService() {
                 next.validate()?.let { throw IllegalArgumentException(it) } // antes de gravar o PNG, para não deixar arquivo solto
                 store.saveTemplate(tid, Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height()))
                 store.save(next)
+                Diag.d("captura", "imagem salva: passo ${next.steps.size} de \"${m.name}\", área ${r.left},${r.top},${r.right},${r.bottom} (${r.width()}x${r.height()}), modelo $tid")
                 toast("Imagem adicionada como passo ${next.steps.size} de “${m.name}”")
             } catch (e: Exception) { toast("Falha: ${e.message}") }
             close()
@@ -241,6 +243,7 @@ class MacroService : AccessibilityService() {
                 val next = m.copy(steps = m.steps.afterInsert(m.steps.size, Step(Type.NUMBER, r.left, r.top, r.right, r.bottom, ms = 5000, cycle = 300)))
                 next.validate()?.let { throw IllegalArgumentException(it) }
                 store.save(next)
+                Diag.d("captura", "passo Ler número: ${next.steps.size} de \"${m.name}\", área ${r.left},${r.top},${r.right},${r.bottom}")
                 toast("Passo “Ler número” adicionado (${next.steps.size}). Ajuste a condição no editor e ensine o leitor em Opções.")
             } catch (e: Exception) { toast("Falha: ${e.message}") }
             close()
@@ -297,6 +300,7 @@ class MacroService : AccessibilityService() {
                         lastUp = e.eventTime
                         rec += if (moved > slop) Step(Type.SWIPE, downX.toInt(), downY.toInt(), e.rawX.toInt(), e.rawY.toInt(), dur, delay = gap)
                         else Step(Type.TAP, downX.toInt(), downY.toInt(), ms = dur, delay = gap)
+                        rec.last().let { Diag.d("gravação", "gravado: ${it.type} ${it.x1},${it.y1}" + (if (it.type == Type.SWIPE) ">${it.x2},${it.y2}" else "") + " duração ${it.ms}ms espera antes ${it.delay}ms") }
                     }
                 }
                 return true
