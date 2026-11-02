@@ -93,18 +93,22 @@ def pom_deps(g, a, v):
 def module_deps(g, a, v):
     data, _ = get(p(g, a, v, "module"))
     if not data: return None
-    m = json.loads(data); out = []; redirect = None
+    m = json.loads(data); out = []; redirect = None; cons = []
     for var in m.get("variants", []):
         n = var.get("name", "").lower()
         if "source" in n or "javadoc" in n: continue
         for at in var.get("available-at", []) or []:
             redirect = (at["module"] and at["group"], at["module"], at["version"])
         if not ("runtime" in n or "api" in n): continue
+        # restrições: só valem se o módulo já está no grafo, e então sobem a versão dele (o AndroidX usa isto entre libs do mesmo grupo)
+        for d in var.get("dependencyConstraints", []) or []:
+            ver = d.get("version", {}); vv = ver.get("requires") or ver.get("prefers") or ver.get("strictly")
+            if vv: cons.append((d["group"], d["module"], vv.strip("[]()").split(",")[0]))
         for d in var.get("dependencies", []) or []:
             ver = d.get("version", {})
             vv = ver.get("requires") or ver.get("prefers") or ver.get("strictly")
             if vv: out.append((d["group"], d["module"], vv.strip("[]()").split(",")[0]))
-    return out, redirect
+    return out, redirect, cons
 
 def skip(g, a): return g.startswith(SKIP_GROUPS) or (g, a) in SKIP_COORDS
 
@@ -112,19 +116,28 @@ def main(out, roots):
     selected = {}; seen = {}; queue = []
     for r in roots:
         g, a, v = r.split(":"); queue.append((g, a, v))
-    while queue:
-        g, a, v = queue.pop(0)
-        if skip(g, a): continue
-        seen.setdefault((g, a), set()).add(v)
-        if (g, a) in selected and vkey(selected[(g, a)]) >= vkey(v): continue
-        selected[(g, a)] = v
-        md = module_deps(g, a, v)
-        if md is not None:
-            deps, redirect = md
-            if redirect: queue.append((redirect[0], redirect[1], redirect[2]))
-        else:
-            _, deps = pom_deps(g, a, v)
-        for d in deps: queue.append(d)
+    constraints = {}
+    while True:
+        while queue:
+            g, a, v = queue.pop(0)
+            if skip(g, a): continue
+            seen.setdefault((g, a), set()).add(v)
+            if (g, a) in selected and vkey(selected[(g, a)]) >= vkey(v): continue
+            selected[(g, a)] = v
+            md = module_deps(g, a, v)
+            if md is not None:
+                deps, redirect, cons = md
+                if redirect: queue.append((redirect[0], redirect[1], redirect[2]))
+                for cg, ca, cv in cons:
+                    if (cg, ca) not in constraints or vkey(cv) > vkey(constraints[(cg, ca)]): constraints[(cg, ca)] = cv
+            else:
+                _, deps = pom_deps(g, a, v)
+            for d in deps: queue.append(d)
+        bumped = False
+        for (cg, ca), cv in constraints.items():
+            if (cg, ca) in selected and vkey(cv) > vkey(selected[(cg, ca)]):
+                queue.append((cg, ca, cv)); bumped = True
+        if not bumped: break
     print(f"{len(selected)} módulos selecionados")
     total = 0
     for (g, a), v in sorted(selected.items()):
