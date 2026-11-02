@@ -178,4 +178,36 @@ class VisionTest {
         assertNotNull(exact)
         assertNull(TemplateMatcher.findNcc(hay, needle, exact!!.score))   // exatamente igual ao limiar não conta
     }
+
+    @Test fun nccFindsTemplateAtOddCoordinatesAndEdges() {
+        // O buscador grosso reduz por 2 ou 4: posições ímpares e encostadas nas bordas são onde ele erraria.
+        val needle = noise(36, 28, 21)
+        for ((x, y) in listOf(37 to 53, 1 to 1, 163 to 121, 0 to 0, 99 to 7)) {
+            val hay = noise(200, 150, 22)
+            plant(hay, needle, x, y)
+            val hit = TemplateMatcher.findNcc(hay, needle, 0.9f)
+            assertNotNull("não achou em ($x,$y)", hit)
+            assertEquals("x em ($x,$y)", x + 18, hit!!.x); assertEquals("y em ($x,$y)", y + 14, hit.y)
+        }
+    }
+
+    @Test fun nccOnAreaCropReportsOnlyInsideTheArea() {
+        val needle = noise(30, 20, 31)
+        val hay = noise(200, 150, 32)
+        plant(hay, needle, 150, 100)
+        assertNull(TemplateMatcher.findNcc(hay.crop(0, 0, 100, 100), needle, 0.9f))     // alvo fora da área recortada
+        val inside = TemplateMatcher.findNcc(hay.crop(100, 60, 100, 90), needle, 0.9f)
+        assertNotNull(inside); assertEquals(150 - 100 + 15, inside!!.x); assertEquals(100 - 60 + 10, inside.y)
+    }
+
+    @Test fun nccNeverReportsAHitForNeedleLargerThanHaystack() {
+        assertNull(TemplateMatcher.findNcc(noise(20, 20, 41), noise(30, 30, 42), 0.5f))
+    }
+
+    @Test fun baseThresholdFollowsTheReferenceRule() {
+        assertEquals(0.20f, TemplateMatcher.baseThreshold(5), 1e-6f)      // piso de 20%
+        assertEquals(0.90f, TemplateMatcher.baseThreshold(90), 1e-6f)
+        assertEquals(0.99f, TemplateMatcher.baseThreshold(99), 1e-6f)
+        assertEquals(0.99f, TemplateMatcher.baseThreshold(100), 1e-6f)    // 100% vale 99%
+    }
 }

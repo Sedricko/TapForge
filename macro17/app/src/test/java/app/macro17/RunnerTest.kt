@@ -15,7 +15,14 @@ private class Fake(
     val frame: Gray? = null,                       // quadro que screen() devolve quando a fila está vazia
     val templates: Map<String, Gray> = emptyMap(),
     val glyphSet: GlyphSet = GlyphSet(),
+    val crashGesture: Boolean = false,             // simula falha inesperada (RuntimeException fora do contrato)
 ) : Ports {
+    val texts = ArrayDeque<Pair<Int, Int>?>()      // resultados de findText em ordem; esgotada = nada achado
+    val textQueries = ArrayList<String>()
+    override fun findText(query: String, exact: Boolean, area: IntArray?): Pair<Int, Int>? {
+        textQueries += "$query|$exact|${area?.joinToString(",") ?: "tela"}"
+        return if (texts.isNotEmpty()) texts.removeFirst() else null
+    }
     val nodes = ArrayDeque<Pair<Int, Int>?>()      // resultados de findNode em ordem; esgotada = nada achado
     val queries = ArrayList<String>()
     val queue = ArrayDeque<Gray?>()                // quadros em ordem; null simula captura que falhou
@@ -32,6 +39,7 @@ private class Fake(
     override fun findNode(query: String, exact: Boolean): Pair<Int, Int>? { queries += "$query|$exact"; return if (nodes.isNotEmpty()) nodes.removeFirst() else null }
     override fun gesture(strokes: List<Stroke>, ms: Int) {
         if (failGesture) throw IllegalStateException("gesto rejeitado")
+        if (crashGesture) throw ArithmeticException("boom")
         if (gestures++ >= stopAfterGestures) throw InterruptedException()
         events += "g:" + strokes.joinToString("|") { "${it.x1},${it.y1}>${it.x2},${it.y2}" } + "@$ms"
     }
@@ -398,5 +406,90 @@ class RunnerTest {
         run(macro(image().copy(confirm = 2)), f)
         assertEquals(3, f.shots)
         assertEquals(listOf("g:115,50>115,50@50"), f.events.filter { it.startsWith("g:") })
+    }
+
+    // --- ler texto da tela (OCR) ---
+    private fun ocr(goto: Int = 0, fail: Int = 0, ms: Int = 1000, area: IntArray? = null) =
+        Step(Type.TEXT, area?.get(0) ?: 0, area?.get(1) ?: 0, area?.get(2) ?: 0, area?.get(3) ?: 0, ms = ms, text = "Entrar|Login", cycle = 500, goto = goto, fail = fail)
+
+    @Test fun textFoundTapsItsCenterAndForwardsTargets() {
+        val f = Fake().also { it.texts.add(200 to 300) }
+        val (o, _) = run(macro(ocr()), f)
+        assertTrue(o is Outcome.Done)
+        assertEquals(listOf("g:200,300>200,300@50"), f.events)
+        assertEquals(listOf("Entrar|Login|false|tela"), f.textQueries)   // alvos intactos, sem área = tela toda
+    }
+
+    @Test fun textAreaIsForwardedOnlyWhenValid() {
+        val f = Fake().also { it.texts.add(1 to 1) }
+        run(macro(ocr(area = intArrayOf(10, 20, 300, 400))), f)
+        assertEquals("Entrar|Login|false|10,20,300,400", f.textQueries.single())
+        val g = Fake().also { it.texts.add(1 to 1) }
+        run(macro(Step(Type.TEXT, 50, 50, 50, 50, ms = 1000, text = "x", cycle = 500)), g)   // área vazia (x2 <= x1) vira tela toda
+        assertTrue(g.textQueries.single().endsWith("|tela"))
+    }
+
+    @Test fun textRetriesUntilFoundThenFollowsGoto() {
+        val f = Fake().also { it.texts.addAll(listOf(null, null, 90 to 80)) }
+        run(macro(ocr(goto = 3), tap(1), tap(2)), f)
+        assertEquals(3, f.textQueries.size)
+        assertEquals(listOf("g:90,80>90,80@50", "g:2,100>2,100@10"), gestures(f))   // tocou e saltou para o passo 3
+    }
+
+    @Test fun textTimeoutFollowsFail() {
+        val f = Fake()
+        run(macro(ocr(fail = 2, ms = 1000), tap(1), tap(2)), f)
+        assertEquals(3, f.textQueries.size)                                 // 0, 500 e 1000 ms
+        assertEquals(listOf("1", "2"), tapXs(f))                            // falhou: passo 2 e segue
+    }
+
+    @Test fun textSkipDoesNotTap() {
+        val f = Fake().also { it.texts.add(5 to 5) }
+        run(macro(ocr().copy(skip = true)), f)
+        assertEquals(emptyList<String>(), gestures(f))
+    }
+
+    // --- robustez do executor ---
+    @Test fun unexpectedRuntimeExceptionBecomesFailedNotACrash() {
+        val (o, _) = run(macro(tap(1)), Fake(crashGesture = true))
+        assertTrue(o is Outcome.Failed)
+        assertTrue((o as Outcome.Failed).why.contains("ArithmeticException"))
+    }
+
+    @Test fun interruptFlagStopsAGotoLoopWithoutAnyPortHelp() {
+        // Fake.sleep não lança: só a checagem Thread.interrupted() do laço pode parar este GOTO 1→1.
+        val loop = Step(Type.GOTO, goto = 1)
+        Thread.currentThread().interrupt()
+        try {
+            val (o, _) = run(macro(loop, loops = 0))
+            assertTrue(o is Outcome.Stopped)
+        } finally { Thread.interrupted() }                                   // não vaza o flag para outros testes
+    }
+
+    @Test fun selfCallingMacroFailsAtDepthLimit() {
+        val rec = Macro("m", "n", 1, listOf(Step(Type.CALL, text = "m", ret = true)))
+        val (o, _) = run(rec, Fake(macros = mapOf("m" to rec)))
+        assertTrue((o as Outcome.Failed).why.contains("aninhadas"))
+    }
+
+    @Test fun callToMissingMacroFails() {
+        val (o, _) = run(macro(Step(Type.CALL, text = "nao-existe")))
+        assertTrue((o as Outcome.Failed).why.contains("não encontrada"))
+    }
+
+    @Test fun callReturnsAndContinuesAfterCallee() {
+        val callee = Macro("c", "c", 1, listOf(tap(7)))
+        val (o, f) = run(macro(tap(1), Step(Type.CALL, text = "c", ret = true), tap(2)), Fake(macros = mapOf("c" to callee)))
+        assertTrue(o is Outcome.Done)
+        assertEquals(listOf("1", "7", "2"), tapXs(f))
+    }
+
+    @Test fun imageSearchWithNoFrameEverTerminatesAtDeadline() {
+        // screen() sempre devolve null (capturas recusadas): o prazo tem de encerrar a busca, e o passo seguir o "falhou".
+        val f = Fake(frame = null, templates = mapOf("t" to needle))
+        val (o, _) = run(macro(image(fail = 2, ms = 500), tap(1), tap(2)), f)
+        assertTrue(o is Outcome.Done)
+        assertTrue(f.clock >= 500)
+        assertEquals(listOf("1", "2"), tapXs(f))
     }
 }

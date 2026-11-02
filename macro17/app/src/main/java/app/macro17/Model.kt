@@ -157,8 +157,16 @@ fun List<Step>.afterSwap(i: Int, j: Int): List<Step> {
     return swapped.map { s -> s.mapTargets { t -> if (t == a) b else if (t == b) a else t } }
 }
 
-/** Insere [s] na posição [at] (0-based); saltos para passos dali em diante sobem um número. */
+/**
+ * Insere [s] na posição [at] (0-based); saltos dos passos EXISTENTES para dali em diante sobem um número.
+ * [s] entra como veio: um passo novo no fim que salta para si mesmo (laço) tem de continuar válido.
+ * Para uma cópia (duplicar) use [Step.shiftedFrom].
+ */
 fun List<Step>.afterInsert(at: Int, s: Step): List<Step> {
     val pos = at + 1
-    return toMutableList().also { it.add(at, s) }.map { x -> x.mapTargets { t -> if (t >= pos) t + 1 else t } }
+    val shift = { t: Int -> if (t >= pos) t + 1 else t }
+    return map { x -> x.mapTargets(shift) }.toMutableList().also { it.add(at, s) }
 }
+
+/** Cópia de um passo para ser inserida em [at] (0-based): seus alvos acompanham a renumeração das demais. */
+fun Step.shiftedFrom(at: Int): Step = mapTargets { t -> if (t >= at + 1) t + 1 else t }

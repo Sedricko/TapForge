@@ -131,4 +131,71 @@ class ModelTest {
         assertEquals(4, Store.readLimited(ByteArrayInputStream(ByteArray(4)), 4).size) // limite exato passa
         try { Store.readLimited(ByteArrayInputStream(ByteArray(5)), 4); fail() } catch (_: IOException) {}
     }
+
+    // --- edição da lista ---
+    @Test fun insertKeepsTheNewStepsOwnTargets() {
+        // passo novo no fim que salta para si mesmo (laço): continua válido depois de inserido
+        val self = Step(Type.GOTO, goto = 2)
+        val out = listOf(a).afterInsert(1, self)
+        assertEquals(2, out[1].goto)
+        assertNull(Macro("i", "n", 1, out).validate())
+    }
+
+    @Test fun duplicateCopyFollowsRenumbering() {
+        val x = Step(Type.GOTO, goto = 2)                // passo 1 → 2
+        val y = Step(Type.GOTO, goto = 1)                // passo 2 → 1
+        val out = listOf(x, y).let { it.afterInsert(1, it[0].shiftedFrom(1)) }
+        assertEquals(listOf(3, 3, 1), out.map { it.goto })   // y virou o passo 3; x e a cópia apontam para ele; y ainda volta ao 1
+    }
+
+    @Test fun swapRenumbersCountersCasesAndFailTargets() {
+        val c = Step(Type.COUNTER, goto = 3, cases = listOf(Case(1, 2)))
+        val img = Step(Type.IMAGE, ms = 1000, text = "i", goto = 2, fail = 3)
+        val outC = listOf(c, a, b).afterSwap(1, 2)       // troca os passos 2 e 3
+        assertEquals(2, outC[0].goto); assertEquals(listOf(Case(1, 3)), outC[0].cases)
+        val outI = listOf(img, a, b).afterSwap(1, 2)
+        assertEquals(3, outI[0].goto); assertEquals(2, outI[0].fail)
+    }
+
+    // --- JSON ---
+    private fun rich(t: Type) = Step(
+        t, 11, 22, 33, 44, ms = 555, delay = 3, rnd = 400, rndMin = 100, jitter = 7, skip = true, goto = 2, counter = 4,
+        cases = listOf(Case(2, 1), Case(5, 2)), text = "texto ç ã", ret = false, thr = 77, cycle = 321, fail = 1, tap = false,
+        exact = true, scales = true, cmp = 3, lo = 10, hi = 20, method = 1, mono = true, confirm = 3,
+    )
+
+    @Test fun everyTypeSurvivesAJsonRoundTrip() {
+        val m = Macro("id", "Minha macro", 5, Type.values().map { rich(it) })
+        val back = Macro.fromJson(org.json.JSONObject(m.toJson().toString()), "id")
+        assertEquals(m, back)                            // data class: todos os campos de todos os tipos
+    }
+
+    @Test fun oldJsonWithoutNewFieldsGetsDefaults() {
+        val s = Step.fromJson(org.json.JSONObject("{\"t\":\"TAP\",\"x1\":5}"))
+        assertEquals(5, s.x1)
+        assertEquals(90, s.thr); assertEquals(200, s.cycle); assertEquals(1, s.confirm)
+        assertTrue(s.tap); assertTrue(s.ret); assertEquals(1, s.counter)
+    }
+
+    @Test fun unknownTypeIsRejectedByFromJson() {
+        try { Step.fromJson(org.json.JSONObject("{\"t\":\"INEXISTENTE\"}")); fail() } catch (_: IllegalArgumentException) {}
+    }
+
+    @Test fun missingTypeIsRejectedByFromJson() {
+        try { Step.fromJson(org.json.JSONObject("{}")); fail() } catch (_: org.json.JSONException) {}
+    }
+
+    @Test fun counterCasesBeyondTheLimitAreTruncated() {
+        val cs = org.json.JSONArray().also { arr -> repeat(MAX_CASES + 3) { arr.put(org.json.JSONObject().put("n", it + 1).put("to", 0)) } }
+        val s = Step.fromJson(org.json.JSONObject().put("t", "COUNTER").put("cs", cs))
+        assertEquals(MAX_CASES, s.cases.size)
+    }
+
+    @Test fun macroValidationBoundaries() {
+        assertNotNull(Macro("i", " ", 1, emptyList()).validate())                       // nome em branco
+        assertNotNull(Macro("i", "x".repeat(61), 1, emptyList()).validate())            // nome longo
+        assertNotNull(Macro("i", "n", -1, emptyList()).validate())                       // repetições negativas
+        assertNull(Macro("i", "x".repeat(60), 0, emptyList()).validate())                // 60 chars e infinito: limite exato válido
+        assertNotNull(Macro("i", "n", 1, List(MAX_STEPS + 1) { Step(Type.WAIT, ms = 1) }).validate())
+    }
 }

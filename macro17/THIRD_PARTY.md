@@ -42,3 +42,5 @@ Gradle (baixado pelo wrapper), plugin Android do Gradle, compilador do Kotlin e 
 o compilador gera. Copiar a cadeia de build inteira para o repositório (centenas de MB) não vale o custo; fixar as versões já está feito.
 
 
+
+`json-20240303.jar` (org.json, só testes na JVM, domínio público/JSON License): SHA-1 `0ebb88e8fb5122b7506d5cf1d69f1ccdb790d22a`. O `android.jar` traz `org.json` apenas como stub que lança "not mocked", então os testes de ida e volta do JSON precisam desta implementação real.

@@ -63,6 +63,9 @@ class Runner(private val p: Ports) {
         Outcome.Stopped
     } catch (e: IllegalStateException) {
         Outcome.Failed(e.message ?: "erro")
+    } catch (e: RuntimeException) {
+        // OpenCV, OCR, índices: qualquer falha inesperada vira motivo de parada em vez de derrubar o processo.
+        Outcome.Failed("erro inesperado: ${e.javaClass.simpleName}${e.message?.let { ": $it" } ?: ""}")
     }
 
     private fun loop(root: Macro): Outcome {

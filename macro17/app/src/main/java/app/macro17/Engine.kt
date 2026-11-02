@@ -41,13 +41,15 @@ class Engine(
     @Synchronized fun stop() { thread?.interrupt() }
 
     private fun run(m: Macro) {
-        report(
+        // Throwable (ex.: OutOfMemoryError ao decodificar quadro): o report sempre roda, para soltar a tela e a bolha.
+        val msg = try {
             when (val o = Runner(ports).run(m)) {
                 Outcome.Done -> "Macro concluída"
                 Outcome.Stopped -> "Macro parada"
                 is Outcome.Failed -> "Erro: ${o.why}"
             }
-        )
+        } catch (t: Throwable) { "Erro inesperado: ${t.javaClass.simpleName}" }
+        report(msg)
     }
 
     private companion object { const val NODE_LIMIT = 4000 }
@@ -111,7 +113,7 @@ class Engine(
             var seen = 0
             while (queue.isNotEmpty() && seen++ < NODE_LIMIT) {
                 val n = queue.removeFirst()
-                val hit = if (byId) n.viewIdResourceName?.endsWith(q) == true else
+                val hit = if (byId) q.isNotEmpty() && n.viewIdResourceName?.let { it == q || it.substringAfterLast('/') == q } == true else
                     listOfNotNull(n.text, n.contentDescription).any { if (exact) it.toString().equals(q, ignoreCase = true) else it.contains(q, ignoreCase = true) }
                 if (hit && n.isVisibleToUser) {
                     n.getBoundsInScreen(rect)
@@ -182,6 +184,11 @@ class Engine(
             } finally { crop?.recycle(); full.recycle() }
         }
         override fun nextInt(bound: Int) = rnd.nextInt(bound)
-        override fun log(line: String) = say(line)
+        private var lastJump = 0L
+        // Laço GOTO rápido gera milhares de "Passo N → Passo M"; no máximo um por segundo vai à tela (diagnósticos passam sempre).
+        override fun log(line: String) {
+            if (line.contains(" → Passo ")) { val t = now(); if (t - lastJump < 1000) return; lastJump = t }
+            say(line)
+        }
     }
 }

@@ -213,7 +213,7 @@ class EditorActivity : Activity() {
     private fun rowMenu(i: Int) {
         AlertDialog.Builder(this).setItems(arrayOf("Duplicar", "Mover para cima", "Mover para baixo", "Excluir")) { _, w ->
             when (w) {
-                0 -> if (steps.size < MAX_STEPS) steps = steps.afterInsert(i + 1, steps[i])
+                0 -> if (steps.size < MAX_STEPS) steps = steps.afterInsert(i + 1, steps[i].shiftedFrom(i + 1))
                 1 -> if (i > 0) steps = steps.afterSwap(i, i - 1)
                 2 -> if (i < steps.lastIndex) steps = steps.afterSwap(i, i + 1)
                 3 -> steps = steps.afterDelete(i)
@@ -282,7 +282,7 @@ class EditorActivity : Activity() {
             val nv = v.copyOf()
             for ((n, k) in idx.withIndex()) {
                 val raw = edits[n].text.toString().trim()
-                nv[k] = if (raw.isEmpty() && (k in optional || (type == Type.IMAGE && k in X1..Y2))) 0 else raw.toIntOrNull() ?: run { edits[n].error = "número inteiro"; return@setOnClickListener }
+                nv[k] = if (raw.isEmpty() && (k in optional || ((type == Type.IMAGE || type == Type.TEXT) && k in X1..Y2))) 0 else raw.toIntOrNull() ?: run { edits[n].error = "número inteiro"; return@setOnClickListener }
             }
             val cases = (0 until MAX_CASES).map { Case(nv[CASE0 + 2 * it], nv[CASE0 + 2 * it + 1]) }.filter { it.n > 0 }
             val ns = Step(

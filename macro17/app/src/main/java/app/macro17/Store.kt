@@ -119,7 +119,7 @@ class Store(ctx: Context) {
     }.getOrNull()
 
     fun list(): List<Macro> =
-        dir.listFiles().orEmpty().mapNotNull { get(it.nameWithoutExtension) }.sortedBy { it.name.lowercase() }
+        dir.listFiles().orEmpty().filter { it.extension == "json" }.mapNotNull { get(it.nameWithoutExtension) }.sortedBy { it.name.lowercase() }
 
     /** Escreve em arquivo temporário e renomeia: queda no meio não corrompe a macro anterior. */
     fun save(m: Macro) {

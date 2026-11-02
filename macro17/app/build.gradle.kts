@@ -23,5 +23,5 @@ dependencies {
     // O Kotlin que estas bibliotecas declaram é ignorado: o stdlib acima já está no app (evita classes duplicadas).
     implementation("org.opencv:opencv:4.9.0") { exclude(group = "org.jetbrains.kotlin"); exclude(group = "org.jetbrains.kotlinx") }
     implementation("com.google.mlkit:text-recognition:16.0.1") { exclude(group = "org.jetbrains.kotlin"); exclude(group = "org.jetbrains.kotlinx") }
-    testImplementation(files("../libs/junit-4.13.2.jar", "../libs/hamcrest-core-1.3.jar"))
+    testImplementation(files("../libs/json-20240303.jar", "../libs/junit-4.13.2.jar", "../libs/hamcrest-core-1.3.jar"))
 }
