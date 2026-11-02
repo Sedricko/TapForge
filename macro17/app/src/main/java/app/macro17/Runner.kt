@@ -80,10 +80,11 @@ class Runner(private val p: Ports) {
             val f = stack[stack.lastIndex]
             if (f.resume) { f.resume = false; advance(stack, f, f.pc + 1); continue }
             val s = f.macro.steps[f.pc]
-            p.trace("passo ${f.pc + 1}/${f.macro.steps.size} ${s.type}" + (if (s.skip) " (pular)" else "") + " atraso=${delayOf(s)}ms")
+            val wait = delayOf(s) // uma vez só: delayOf sorteia quando o atraso é aleatório, e o rastro tem de mostrar o valor usado
+            p.trace("passo ${f.pc + 1}/${f.macro.steps.size} ${s.type}" + (if (s.skip) " (pular)" else "") + " atraso=${wait}ms")
 
             // Mínimo de 1 ms por passo: macro infinita sem nenhuma espera não pode virar laço quente.
-            p.sleep(maxOf(1, delayOf(s)).toLong())
+            p.sleep(maxOf(1, wait).toLong())
 
             var jump = 0
             when (s.type) {

@@ -508,4 +508,14 @@ class RunnerTest {
         run(macro(node(ms = 100)), f)
         assertTrue(f.traces.any { it == "passo 1 elemento: não achou" })
     }
+
+    @Test fun traceShowsTheDelayActuallyUsedAndDrawsOnlyOnce() {
+        // Regressão: o rastro chamava delayOf (que sorteia) e o passo chamava de novo, consumindo dois sorteios.
+        val s = tap(1, delay = 9999).copy(rnd = 300, rndMin = 100)
+        val f = Fake(rolls = ArrayDeque(listOf(50, 77)))
+        run(macro(s), f)
+        assertEquals(150L, f.sleeps.first())                       // 100 + primeiro sorteio (50)
+        assertTrue(f.traces.any { it.endsWith("atraso=150ms") })   // o rastro mostra o mesmo valor
+        assertEquals(1, f.rolls.size)                              // só um sorteio consumido (sobrou o 77)
+    }
 }
