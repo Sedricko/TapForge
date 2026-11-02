@@ -196,8 +196,10 @@ class MacroService : AccessibilityService() {
         setOrb(false)
         Diag.d("captura", "iniciada para \"${m.name}\"")
         bubble?.visibility = View.INVISIBLE // o orbe não pode aparecer no quadro
-        toast("Capturando em 2 s: deixe visível o que quer achar")
-        ui.postDelayed({ shoot(m.id) }, 2000)
+        // O aviso tem de sumir antes do quadro: um toast ainda na tela entra na imagem capturada (visto em aparelho).
+        val hint = Toast.makeText(this, "Capturando em 3 s: deixe visível o que quer achar", Toast.LENGTH_SHORT).also { it.show() }
+        ui.postDelayed({ hint.cancel() }, 1500)
+        ui.postDelayed({ shoot(m.id) }, 3000)
     }
 
     private fun shotFailed(msg: String) { Diag.e("captura", msg); toast(msg); bubble?.visibility = View.VISIBLE }
