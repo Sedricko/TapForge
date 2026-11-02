@@ -220,6 +220,9 @@ class RunnerTest {
         assertEquals(listOf("1", "2"), tapXs(run(m, fakeWith(noise(200, 150, 9))).second)) // não achou: vai ao passo 2
     }
 
+    // só os gestos: um salto também grava a linha "Passo N → Passo M" em events
+    private fun gestures(f: Fake) = f.events.filter { it.startsWith("g:") }
+
     // só os toques dos passos (10 ms); o toque do achado dura 50 ms e fica de fora
     private fun tapXs(f: Fake) = f.events.filter { it.startsWith("g:") && !it.endsWith("@50") }.map { it.substring(2, 3) }
 
@@ -247,9 +250,9 @@ class RunnerTest {
 
     @Test fun imageWithoutTapOrWithSkipStillJumps() {
         val m = macro(image(goto = 3).copy(tap = false), tap(1), tap(2))
-        assertEquals(listOf("g:2,100>2,100@10"), run(m, fakeWith(screenWith(50, 60))).second.events)
+        assertEquals(listOf("g:2,100>2,100@10"), gestures(run(m, fakeWith(screenWith(50, 60))).second))
         val m2 = macro(image(goto = 3).copy(skip = true), tap(1), tap(2))
-        assertEquals(listOf("g:2,100>2,100@10"), run(m2, fakeWith(screenWith(50, 60))).second.events)
+        assertEquals(listOf("g:2,100>2,100@10"), gestures(run(m2, fakeWith(screenWith(50, 60))).second))
     }
 
     @Test fun imageMissingTemplateFails() {
@@ -293,6 +296,6 @@ class RunnerTest {
         val m = macro(node(goto = 3).copy(tap = false), tap(1), tap(2))
         val f = Fake().also { it.nodes.add(10 to 10) }
         run(m, f)
-        assertEquals(listOf("g:2,100>2,100@10"), f.events)          // sem toque no achado; saltou para o passo 3
+        assertEquals(listOf("g:2,100>2,100@10"), gestures(f))       // sem toque no achado; saltou para o passo 3
     }
 }

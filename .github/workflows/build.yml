@@ -19,7 +19,6 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: gradle/actions/setup-gradle@v4
-        with: { build-root-directory: macro17 }
       - run: chmod +x gradlew && ./gradlew :app:testDebugUnitTest :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with: { name: macro17-debug-apk, path: macro17/app/build/outputs/apk/debug/*.apk }
