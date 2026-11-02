@@ -23,6 +23,7 @@ class ModelTest {
         assertNull(Step(Type.COUNTER, counter = 3, goto = 0, cases = listOf(Case(3, 1), Case(5, 0))).validate(2))
         assertNull(Step(Type.RESET, counter = 10).validate(1))
         assertNull(Step(Type.CALL, text = "abc").validate(1))
+        assertNull(Step(Type.NUMBER, 10, 10, 200, 80, ms = 3000, cmp = 3, lo = 100, hi = 900).validate(1))
         assertNull(Step(Type.NODE, ms = 3000, text = "Entrar").validate(1))
         assertNull(Step(Type.NODE, ms = 3000, text = "id:btn_ok", exact = true, goto = 2, fail = 1).validate(2))
         assertNull(Step(Type.IMAGE, ms = 3000, text = "id").validate(1))
@@ -46,6 +47,12 @@ class ModelTest {
         assertNotNull(Step(Type.COUNTER, counter = 1, cases = listOf(Case(2, 9))).validate(2))   // destino fora
         assertNotNull(Step(Type.COUNTER, counter = 1, cases = List(MAX_CASES + 1) { Case(it + 1, 0) }).validate(2))
         assertNotNull(Step(Type.CALL, text = "").validate(1))
+        assertNotNull(Step(Type.NUMBER, 0, 0, 0, 0, ms = 3000).validate(1))                              // sem área
+        assertNotNull(Step(Type.NUMBER, 50, 50, 10, 10, ms = 3000).validate(1))                          // área invertida
+        assertNotNull(Step(Type.NUMBER, 10, 10, 90, 90, ms = 3000, cmp = 4).validate(1))                 // condição inexistente
+        assertNotNull(Step(Type.NUMBER, 10, 10, 90, 90, ms = 3000, cmp = 3, lo = 500, hi = 100).validate(1)) // entre com máximo < mínimo
+        assertNotNull(Step(Type.NUMBER, 10, 10, 90, 90, ms = 3000, lo = -1).validate(1))                 // negativo
+        assertNotNull(Step(Type.NUMBER, 10, 10, 90, 90, ms = 50).validate(1))                            // prazo curto
         assertNotNull(Step(Type.NODE, ms = 3000, text = " ").validate(1))                             // elemento sem texto
         assertNotNull(Step(Type.NODE, ms = 50, text = "x").validate(1))                               // prazo curto
         assertNotNull(Step(Type.NODE, ms = 3000, text = "x", fail = 9).validate(2))                   // destino fora

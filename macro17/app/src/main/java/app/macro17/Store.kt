@@ -3,6 +3,7 @@ package app.macro17
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -11,6 +12,8 @@ import java.io.InputStream
 class Store(ctx: Context) {
     private val dir = File(ctx.filesDir, "macros").apply { mkdirs() }
     private val tdir = File(ctx.filesDir, "templates").apply { mkdirs() }
+    private val sdir = File(ctx.filesDir, "samples").apply { mkdirs() }
+    private val gfile = File(ctx.filesDir, "glyphs.json")
     private val prefs = ctx.getSharedPreferences("macro17", Context.MODE_PRIVATE)
 
     var selected: String?
@@ -43,9 +46,57 @@ class Store(ctx: Context) {
         if (!ID.matches(id)) return null
         val f = File(tdir, "$id.png").takeIf { it.exists() } ?: return null
         val b = BitmapFactory.decodeFile(f.path) ?: return null
-        val px = IntArray(b.width * b.height).also { b.getPixels(it, 0, b.width, 0, 0, b.width, b.height) }
-        return Gray.fromArgb(px, b.width, b.height).also { b.recycle() }
+        return gray(b).also { b.recycle() }
     }
+
+    fun gray(b: Bitmap): Gray {
+        val px = IntArray(b.width * b.height).also { b.getPixels(it, 0, b.width, 0, 0, b.width, b.height) }
+        return Gray.fromArgb(px, b.width, b.height)
+    }
+
+    // --- leitor de números: amostras ainda sem rótulo e os símbolos já aprendidos ---
+    fun saveSample(b: Bitmap): String {
+        val id = newTemplateId()
+        File(sdir, "$id.png").outputStream().use { check(b.compress(Bitmap.CompressFormat.PNG, 100, it)) { "falha ao gravar a amostra" } }
+        return id
+    }
+
+    fun samples(): List<String> = sdir.listFiles { f -> f.extension == "png" }.orEmpty().map { it.nameWithoutExtension }.filter { ID.matches(it) }.sorted()
+
+    fun sample(id: String): Bitmap? = if (ID.matches(id)) BitmapFactory.decodeFile(File(sdir, "$id.png").path) else null
+
+    fun deleteSample(id: String) { if (ID.matches(id)) File(sdir, "$id.png").delete() }
+
+    /** Símbolos aprendidos. Arquivo ausente ou corrompido vira um leitor vazio. */
+    fun glyphs(): GlyphSet {
+        val set = GlyphSet()
+        runCatching {
+            val o = JSONObject(gfile.readText())
+            for (c in '0'..'9') {
+                val a = o.optJSONArray(c.toString()) ?: continue
+                for (i in 0 until a.length()) {
+                    val g = a.getJSONObject(i)
+                    val hex = g.getString("p")
+                    if (hex.length != GLYPH_W * GLYPH_H * 2) continue
+                    set.add(c, Glyph(IntArray(GLYPH_W * GLYPH_H) { hex.substring(it * 2, it * 2 + 2).toInt(16) }, g.getDouble("a").toFloat()))
+                }
+            }
+        }
+        return set
+    }
+
+    /** Grava em arquivo temporário e renomeia, como as macros. */
+    fun saveGlyphs(set: GlyphSet) {
+        val o = JSONObject()
+        for ((c, list) in set.byDigit) o.put(c.toString(), JSONArray().also { a ->
+            list.forEach { g -> a.put(JSONObject().put("a", g.aspect.toDouble()).put("p", g.px.joinToString("") { "%02x".format(it.coerceIn(0, 255)) })) }
+        })
+        val tmp = File(gfile.path + ".tmp")
+        tmp.writeText(o.toString())
+        if (!tmp.renameTo(gfile)) throw IOException("não foi possível gravar o leitor")
+    }
+
+    fun clearGlyphs() { gfile.delete() }
 
     /** Horário "HH:mm" do alarme de cada macro; vale só se o alarme ainda existir (ver Alarms.isScheduled). */
     fun scheduleTime(id: String): String? = prefs.getString("at_$id", null)

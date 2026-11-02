@@ -14,6 +14,7 @@ private class Fake(
     val stopAfterGestures: Int = Int.MAX_VALUE,
     val frame: Gray? = null,                       // quadro que screen() devolve quando a fila está vazia
     val templates: Map<String, Gray> = emptyMap(),
+    val glyphSet: GlyphSet = GlyphSet(),
 ) : Ports {
     val nodes = ArrayDeque<Pair<Int, Int>?>()      // resultados de findNode em ordem; esgotada = nada achado
     val queries = ArrayList<String>()
@@ -27,6 +28,7 @@ private class Fake(
     override fun now() = clock
     override fun screen(): Gray? { shots++; return if (queue.isNotEmpty()) queue.removeFirst() else frame }
     override fun template(id: String) = templates[id]
+    override fun glyphs() = glyphSet
     override fun findNode(query: String, exact: Boolean): Pair<Int, Int>? { queries += "$query|$exact"; return if (nodes.isNotEmpty()) nodes.removeFirst() else null }
     override fun gesture(strokes: List<Stroke>, ms: Int) {
         if (failGesture) throw IllegalStateException("gesto rejeitado")
@@ -304,5 +306,54 @@ class RunnerTest {
         val f = Fake().also { it.nodes.add(10 to 10) }
         run(m, f)
         assertEquals(listOf("g:2,100>2,100@10"), gestures(f))       // sem toque no achado; saltou para o passo 3
+    }
+
+    // --- ler número ---
+    private fun trainedSet() = GlyphSet().also { Digits.learn(TestFont.render("0123456789", 3, 220, 20), "0123456789", it) }
+    private fun screenWithNumber(text: String): Gray {
+        val f = Gray(300, 200, IntArray(300 * 200) { 20 })
+        plant(f, TestFont.render(text, 3, 220, 20), 40, 30)
+        return f
+    }
+    private fun number(cmp: Int, lo: Int, hi: Int = 0, goto: Int = 0, fail: Int = 0, ms: Int = 1000) =
+        Step(Type.NUMBER, 30, 20, 140, 70, ms = ms, cycle = 100, cmp = cmp, lo = lo, hi = hi, goto = goto, fail = fail)
+    private fun withNumber(text: String) = Fake(frame = screenWithNumber(text), glyphSet = trainedSet())
+
+    @Test fun numberConditionTrueFollowsGoto() {
+        val m = macro(number(cmp = 0, lo = 1000, goto = 3, fail = 2), tap(1), tap(2))     // 1234 ≥ 1000
+        assertEquals(listOf("g:2,100>2,100@10"), gestures(run(m, withNumber("1234")).second))
+    }
+
+    @Test fun numberConditionFalseTimesOutAndFollowsFail() {
+        val m = macro(number(cmp = 0, lo = 5000, goto = 3, fail = 2, ms = 300), tap(1), tap(2))   // 1234 ≥ 5000 nunca vale
+        val f = withNumber("1234")
+        run(m, f)
+        assertEquals(4, f.shots)                                         // 0, 100, 200, 300 ms
+        assertEquals(listOf("1", "2"), tapXs(f))
+    }
+
+    @Test fun numberComparisons() {
+        fun ok(cmp: Int, lo: Int, hi: Int = 0): Boolean {
+            val f = withNumber("1234")
+            run(macro(number(cmp, lo, hi, goto = 3, fail = 2, ms = 100), tap(1), tap(2)), f)
+            return tapXs(f) == listOf("2")                               // só o passo 3 roda se valeu
+        }
+        assertTrue(ok(0, 1234)); assertTrue(!ok(0, 1235))                // ≥
+        assertTrue(ok(1, 1234)); assertTrue(!ok(1, 1233))                // ≤
+        assertTrue(ok(2, 1234)); assertTrue(!ok(2, 1233))                // =
+        assertTrue(ok(3, 1000, 2000)); assertTrue(!ok(3, 2000, 3000))    // entre
+    }
+
+    @Test fun numberWithoutTrainingFailsWithAHint() {
+        val (o, _) = run(macro(number(0, 1)), Fake(frame = screenWithNumber("1234")))
+        assertTrue((o as Outcome.Failed).why.contains("ainda não aprendeu"))
+    }
+
+    @Test fun unreadableNumberCountsAsFailure() {
+        val blank = Gray(300, 200, IntArray(300 * 200) { 20 })
+        val m = macro(number(cmp = 0, lo = 1, goto = 3, fail = 2, ms = 200), tap(1), tap(2))
+        val f = Fake(frame = blank, glyphSet = trainedSet())
+        run(m, f)
+        assertEquals(listOf("1", "2"), tapXs(f))
     }
 }

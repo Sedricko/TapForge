@@ -27,6 +27,7 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity android:name=".OptionsActivity" android:exported="false" />
+        <activity android:name=".ReaderActivity" android:exported="false" />
 
         <service
             android:name=".MacroService"

@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Ordem importa: o editor usa o índice do enum no menu de tipos. */
-enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE }
+enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER }
 
 const val MAX_STEPS = 5000
 const val MAX_MS = 60_000      // getMaxGestureDuration() do sistema é 60 s
@@ -42,6 +42,10 @@ data class Step(
     // NODE: text = texto do elemento (ou "id:nome" para o id de recurso); ms = prazo; cycle = intervalo; goto/fail como no IMAGE.
     val exact: Boolean = false, // NODE: texto inteiro igual (sem diferenciar maiúsculas); false = contém
     val scales: Boolean = false, // IMAGE: tentar também escalas próximas (mais lento)
+    // NUMBER: x1..y2 = área onde está o número (obrigatória); cmp: 0 ≥, 1 ≤, 2 =, 3 entre; lo = valor (ou mínimo); hi = máximo.
+    val cmp: Int = 0,
+    val lo: Int = 0,
+    val hi: Int = 0,
 ) {
     /** [size] é o total de passos da macro, para validar os alvos de salto. */
     fun validate(size: Int): String? = when {
@@ -68,6 +72,11 @@ data class Step(
         type == Type.NODE && (text.isBlank() || text.length > 200) -> "texto do elemento vazio ou maior que 200 caracteres"
         type == Type.NODE && (cycle !in 50..MAX_MS || ms < 100) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de pelo menos 100 ms"
         type == Type.NODE && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
+        type == Type.NUMBER && !(x2 > x1 && y2 > y1) -> "área do número inválida: X e Y finais devem ser maiores que os iniciais"
+        type == Type.NUMBER && cmp !in 0..3 -> "condição deve ser 0 (≥), 1 (≤), 2 (=) ou 3 (entre)"
+        type == Type.NUMBER && (lo < 0 || hi < 0 || (cmp == 3 && hi < lo)) -> "valores não podem ser negativos; em 'entre' o máximo não pode ser menor que o mínimo"
+        type == Type.NUMBER && (cycle !in 50..MAX_MS || ms < 100) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de pelo menos 100 ms"
+        type == Type.NUMBER && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
         else -> null
     }
 
@@ -76,7 +85,7 @@ data class Step(
     fun toJson() = JSONObject().put("t", type.name).put("x1", x1).put("y1", y1).put("x2", x2).put("y2", y2)
         .put("ms", ms).put("d", delay).put("r", rnd).put("rm", rndMin).put("j", jitter).put("sk", skip)
         .put("g", goto).put("c", counter).put("tx", text).put("rt", ret)
-        .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact).put("sl", scales)
+        .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact).put("sl", scales).put("cm", cmp).put("lo", lo).put("hi", hi)
         .put("cs", JSONArray().also { a -> cases.forEach { a.put(JSONObject().put("n", it.n).put("to", it.to)) } })
 
     companion object {
@@ -91,7 +100,7 @@ data class Step(
                 o.optInt("g"), o.optInt("c", 1),
                 List(minOf(cs?.length() ?: 0, MAX_CASES)) { Case(cs!!.getJSONObject(it).optInt("n"), cs.getJSONObject(it).optInt("to")) },
                 o.optString("tx"), o.optBoolean("rt", true),
-                o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"),
+                o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"), o.optInt("cm"), o.optInt("lo"), o.optInt("hi"),
             )
         }
     }

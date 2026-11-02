@@ -69,7 +69,7 @@ fun Context.label(s: String, sp: Float = 14f, color: Int = C.TEXT, bold: Boolean
 
 // --- ícones desenhados em Canvas: sem drawables, sem glifos Unicode (que viram emoji em alguns aparelhos) ---
 
-enum class Ic { PLAY, STOP, REC, ADD, BACK, MOVE, OK, TAP, SWIPE, WAIT, KEY, WARN, GEAR, IMPORT, SEARCH, CHEVRON, EDIT }
+enum class Ic { PLAY, STOP, REC, ADD, BACK, MOVE, OK, TAP, SWIPE, WAIT, KEY, WARN, GEAR, IMPORT, SEARCH, CHEVRON, EDIT, NUM }
 
 class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
@@ -119,6 +119,10 @@ class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
                     }
                     Ic.SEARCH -> { c.drawCircle(cx - s * .25f, cy - s * .25f, s * .7f, p); c.drawLine(cx + s * .3f, cy + s * .3f, cx + s, cy + s, p) }
                     Ic.CHEVRON -> c.drawPath(Path().apply { moveTo(cx - s * .4f, cy - s); lineTo(cx + s * .4f, cy); lineTo(cx - s * .4f, cy + s) }, p)
+                    Ic.NUM -> {
+                        c.drawLine(cx - s * .35f, cy - s, cx - s * .35f, cy + s, p); c.drawLine(cx + s * .35f, cy - s, cx + s * .35f, cy + s, p)
+                        c.drawLine(cx - s, cy - s * .35f, cx + s, cy - s * .35f, p); c.drawLine(cx - s, cy + s * .35f, cx + s, cy + s * .35f, p)
+                    }
                     Ic.EDIT -> { c.drawLine(cx - s, cy + s, cx + s * .8f, cy - s * .8f, p); c.drawLine(cx - s, cy + s, cx - s * .2f, cy + s, p) }
                     else -> c.drawPath(Path().apply { moveTo(cx - s, cy); lineTo(cx - s * .25f, cy + s * .7f); lineTo(cx + s, cy - s * .7f) }, p)
                 }
@@ -191,6 +195,15 @@ fun View.padForSystemBars(extra: Int) {
 fun Activity.textAction(text: String, click: () -> Unit) = label(text, 14f, C.ACCENT, bold = true).apply {
     setPadding(dp(10), dp(8), dp(10), dp(8))
     foreground = ripple(8, 0x225B9DFF)
+    setOnClickListener { click() }
+}
+
+/** Botão em pílula com texto, para barras de poucas escolhas. */
+fun Context.pillBtn(text: String, bg: Int, click: () -> Unit) = label(text, 13f, Color.WHITE, bold = true).apply {
+    background = rounded(bg, 18)
+    foreground = ripple(18, 0x33FFFFFF)
+    setPadding(dp(12), dp(8), dp(12), dp(8))
+    layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.setMargins(dp(3), 0, dp(3), 0) }
     setOnClickListener { click() }
 }
 

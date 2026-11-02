@@ -216,13 +216,34 @@ class MacroService : AccessibilityService() {
             } catch (e: Exception) { toast("Falha: ${e.message}") }
             close()
         }
+        // Número: um passo que lê o valor naquela área. Amostra: o recorte vai para o Leitor de números, onde você digita o que ele mostra.
+        fun number() {
+            val r = picker.region() ?: return toast("Marque uma área de pelo menos ${RegionPicker.MIN} px")
+            val m = store.get(macroId) ?: run { close(); return toast("Macro não encontrada") }
+            try {
+                val next = m.copy(steps = m.steps.afterInsert(m.steps.size, Step(Type.NUMBER, r.left, r.top, r.right, r.bottom, ms = 5000, cycle = 300)))
+                next.validate()?.let { throw IllegalArgumentException(it) }
+                store.save(next)
+                toast("Passo “Ler número” adicionado (${next.steps.size}). Ajuste a condição no editor e ensine o leitor em Opções.")
+            } catch (e: Exception) { toast("Falha: ${e.message}") }
+            close()
+        }
+        fun sample() {
+            val r = picker.region() ?: return toast("Marque uma área de pelo menos ${RegionPicker.MIN} px")
+            try {
+                store.saveSample(Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height()))
+                toast("Amostra salva. Digite o número que ela mostra em Opções › Leitor de números.")
+            } catch (e: Exception) { toast("Falha: ${e.message}") }
+            close()
+        }
         val bar = android.widget.LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             background = glass(28)
-            setPadding(dp(16), dp(6), dp(6), dp(6))
-            addView(label("Arraste sobre o que quer achar", 13f, C.TEXT2).apply { setPadding(0, 0, dp(12), 0) })
-            addView(circleBtn(Ic.BACK, C.DARK, 44, "Cancelar") { close() })
-            addView(circleBtn(Ic.OK, C.BLUE, 44, "Salvar recorte") { save() })
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            addView(pillBtn("Cancelar", C.DARK) { close() })
+            addView(pillBtn("Amostra", C.DARK) { sample() })
+            addView(pillBtn("Número", C.PURPLE) { number() })
+            addView(pillBtn("Imagem", C.BLUE) { save() })
         }
         root.addView(picker, FrameLayout.LayoutParams(-1, -1))
         root.addView(bar, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.bottomMargin = dp(64) })
@@ -233,6 +254,7 @@ class MacroService : AccessibilityService() {
             PixelFormat.TRANSLUCENT,
         ).apply { layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS }
         wm.addView(root, lp)
+        toast("Arraste sobre a área e escolha: Imagem, Número ou Amostra")
     }
 
     // --- gravação ------------------------------------------------------------------------

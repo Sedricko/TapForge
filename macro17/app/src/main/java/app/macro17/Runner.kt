@@ -19,6 +19,7 @@ interface Ports {
     /** Quadro atual da tela em tons de cinza; null se esta captura falhou de forma passiva (ex.: intervalo mínimo). */
     @Throws(InterruptedException::class) fun screen(): Gray?
     fun template(id: String): Gray?
+    fun glyphs(): GlyphSet // símbolos que o leitor de números já aprendeu
 
     /** Centro, em pixels da tela, do primeiro elemento visível que casa com [query]; null se não há (ou a janela está em transição). */
     fun findNode(query: String, exact: Boolean): Pair<Int, Int>?
@@ -81,6 +82,17 @@ class Runner(private val p: Ports) {
                     if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.x, hit.y, hit.x, hit.y)), TAP_MS)
                     jump = if (hit != null) s.goto else s.fail
                 }
+                Type.NUMBER -> {
+                    val set = p.glyphs()
+                    if (set.count() == 0) return Outcome.Failed("o leitor de números ainda não aprendeu nenhum dígito (Opções › Leitor de números)")
+                    val read = poll(s) {
+                        val frame = p.screen() ?: return@poll null
+                        val ox = s.x1.coerceIn(0, frame.w)
+                        val oy = s.y1.coerceIn(0, frame.h)
+                        Digits.read(frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1), set)?.takeIf { holds(s, it) }
+                    }
+                    jump = if (read != null) s.goto else s.fail
+                }
                 Type.NODE -> {
                     val hit = poll(s) { p.findNode(s.text, s.exact) }
                     if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.first, hit.second, hit.first, hit.second)), TAP_MS)
@@ -117,6 +129,14 @@ class Runner(private val p: Ports) {
         val hay = if (whole) frame else frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1)
         val th = s.thr / 100f
         (if (s.scales) TemplateMatcher.findNccScaled(hay, needle, th) else TemplateMatcher.findNcc(hay, needle, th))?.let { it.copy(x = it.x + ox, y = it.y + oy) }
+    }
+
+    /** A leitura satisfaz a condição do passo (≥, ≤, =, entre)? */
+    private fun holds(s: Step, v: Long) = when (s.cmp) {
+        0 -> v >= s.lo
+        1 -> v <= s.lo
+        2 -> v == s.lo.toLong()
+        else -> v in s.lo..s.hi.toLong()
     }
 
     /** Repete [attempt] a cada [Step.cycle] ms até dar certo ou passar [Step.ms]. A primeira tentativa é imediata. */

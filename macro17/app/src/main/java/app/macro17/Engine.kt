@@ -81,6 +81,7 @@ class Engine(
         override fun status(text: String, ms: Int) { say(text); Thread.sleep(ms.toLong()) }
 
         override fun resolve(id: String) = store.get(id)
+        override fun glyphs() = store.glyphs()
         override fun now() = SystemClock.elapsedRealtime()
 
         // Cache: o PNG não precisa ser decodificado a cada tentativa. Ids são únicos por captura, então nunca fica velho.

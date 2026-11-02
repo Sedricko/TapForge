@@ -34,6 +34,19 @@ Passo **Buscar imagem**: procura um recorte na tela a cada intervalo, até o pra
 - **Limites:** a busca grossa reduz a imagem, então texturas muito finas e desalinhadas podem passar batido; ícones e botões comuns, não. Sem medição de velocidade no aparelho. Telas protegidas (`FLAG_SECURE`) não podem ser capturadas. Os recortes ficam no aparelho e **não vão junto na exportação** da macro.
 - **Sem OCR**, de propósito (ver `THIRD_PARTY.md`).
 
+## Achar por texto (acessibilidade)
+Passo **Achar por texto**: varre a janela ativa e acha o elemento pelo texto ou descrição (contém, ou igual), ou pelo fim do id de recurso (`id:btn_ok`). Toca no centro e segue os destinos "se achar" e "se não achar", com prazo e intervalo.
+- É o mais exato para apps comuns: não depende de resolução, tema nem brilho. Em jogos e telas desenhadas (Unity, Flutter) a tela não expõe elementos e isso não funciona; use imagem.
+- O serviço passa a poder **ler o texto dos elementos** da tela (`canRetrieveWindowContent`). Nada é gravado nem enviado: o app não tem permissão de internet.
+- Só a janela ativa e até 4000 elementos por busca.
+
+## Ler número (leitor por amostra, sem OCR)
+Passo **Ler número**: lê o valor numa área da tela e compara (≥, ≤, =, entre). Valendo dentro do prazo, segue "se a condição valer"; senão, "se não valer".
+- **Ensinar:** no orbe, lupa, arraste sobre um número e escolha **Amostra**; em Opções › Leitor de números, digite o que a amostra mostra. Repita até cobrir 0 a 9. Fontes e tamanhos diferentes convivem.
+- **Criar o passo:** no orbe, lupa, arraste sobre o número e escolha **Número**. A área já vem preenchida; ajuste a condição no editor.
+- **Como funciona:** separa os símbolos por colunas vazias e compara cada um com os dígitos aprendidos. Serve a fontes fixas (jogos, contadores). Se um símbolo for desconhecido ou ambíguo, **não chuta**: conta como "não valeu".
+- **Limites:** dígitos colados uns nos outros não separam; só dígitos (sem vírgula, ponto ou sinal); não lê texto livre. Validado com uma fonte de teste em vários tamanhos, contrastes e ruído, não com fontes reais de jogos.
+
 ## Dependências
 Nenhuma biblioteca externa. O que precisou vir de fora está copiado em `libs/` e documentado em `THIRD_PARTY.md`.
 
