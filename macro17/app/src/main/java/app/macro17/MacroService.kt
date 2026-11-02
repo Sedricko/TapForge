@@ -266,9 +266,14 @@ class MacroService : AccessibilityService() {
     // --- captura de imagem ---------------------------------------------------------------
 
     /** Orbe → Capturar: congela a tela, deixa recortar e acrescenta um passo IMAGE ao fim da macro selecionada. */
+    // Uma captura de cada vez: um segundo toque no enquadrar durante a contagem abria dois seletores empilhados (visto no log: "iniciada ×2").
+    private var capturing = false
+
     private fun captureImage() {
+        if (capturing) return toast("Captura em andamento")
         val m = store.selected?.let { store.get(it) } ?: return toast("Selecione uma macro no app antes de capturar")
         if (recording || engine.running) return toast("Pare a gravação ou a macro antes de capturar")
+        capturing = true
         Diag.d("captura", "iniciada para \"${m.name}\"")
         bubble?.visibility = View.INVISIBLE // o orbe não pode aparecer no quadro
         // O aviso tem de sumir antes do quadro: um toast ainda na tela entra na imagem capturada (visto em aparelho).
@@ -277,7 +282,7 @@ class MacroService : AccessibilityService() {
         ui.postDelayed({ shoot(m.id) }, 3000)
     }
 
-    private fun shotFailed(msg: String) { Diag.e("captura", msg); toast(msg); bubble?.visibility = View.VISIBLE }
+    private fun shotFailed(msg: String) { capturing = false; Diag.e("captura", msg); toast(msg); bubble?.visibility = View.VISIBLE }
 
     private fun shoot(macroId: String) {
         takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
@@ -294,6 +299,7 @@ class MacroService : AccessibilityService() {
         val picker = RegionPicker(this, shot)
         val root = FrameLayout(this)
         fun close() {
+            capturing = false
             runCatching { wm.removeView(root) }
             shot.recycle()
             bubble?.visibility = View.VISIBLE
