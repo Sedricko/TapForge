@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Opção D: fundo noturno em azul-marinho e violeta, com um brilho violeta no canto superior direito. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:angle="315" android:startColor="#0D1226" android:centerColor="#1B2550" android:endColor="#2A2B6B" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:type="radial" android:centerX="0.7" android:centerY="0.1" android:gradientRadius="70%p" android:startColor="#667E57C2" android:endColor="#007E57C2" />
+        </shape>
+    </item>
+</layer-list>

@@ -16,7 +16,7 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.ImageView
-import android.widget.LinearLayout
+import android.widget.FrameLayout
 import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -101,42 +101,70 @@ class MacroService : AccessibilityService() {
 
     // --- bolha ---------------------------------------------------------------------------
 
+    // Orbe que abre em leque (opção D). Fechado, a janela é só o orbe: uma janela de overlay captura todo o toque na sua área.
+    private var orbOpen = false
+    private lateinit var orbBtn: View
+    private var fan = emptyList<View>()
+
+    private fun <T : View> T.placed(size: Int, x: Int, y: Int): T {
+        layoutParams = FrameLayout.LayoutParams(dp(size), dp(size)).also { it.leftMargin = dp(x); it.topMargin = dp(y) }
+        return this
+    }
+
+    private fun setOrb(open: Boolean) {
+        val f = bubble ?: return
+        if (open == orbOpen) return
+        orbOpen = open
+        (orbBtn.layoutParams as FrameLayout.LayoutParams).topMargin = dp(if (open) 44 else 0)
+        orbBtn.requestLayout()
+        fan.forEach { it.visibility = if (open) View.VISIBLE else View.GONE }
+        // Aberto, o leque ocupa 44dp acima do orbe; sobe a janela na mesma medida para o orbe não pular.
+        val lp = f.layoutParams as WindowManager.LayoutParams
+        lp.y += dp(if (open) -44 else 44)
+        wm.updateViewLayout(f, lp)
+    }
+
     private fun showBubble() {
         val lp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
             // TYPE_ACCESSIBILITY_OVERLAY dispensa a permissão "exibir sobre outros apps".
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT,
-        ).apply { gravity = Gravity.TOP or Gravity.START; x = 0; y = 300 }
+        ).apply { gravity = Gravity.TOP or Gravity.START; x = 0; y = 360 }
 
-        val handle = circleBtn(Ic.MOVE, C.EDGE, 44, "Mover") {}.apply {
-            var dx = 0f; var dy = 0f; var sx = 0; var sy = 0
-            setOnTouchListener { _, e ->
-                when (e.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> { dx = e.rawX; dy = e.rawY; sx = lp.x; sy = lp.y }
-                    MotionEvent.ACTION_MOVE -> {
+        val play = circleBtn(Ic.PLAY, C.BLUE, 38, "Executar macro selecionada") {
+            store.selected?.let { runMacro(it) } ?: toast("Selecione uma macro no app")
+            setOrb(false)
+        }.placed(38, 57, 15)
+        val stop = circleBtn(Ic.STOP, C.DARK, 38, "Parar macro") { engine.stop(); setOrb(false) }.placed(38, 77, 49)
+        recBtn = circleBtn(Ic.REC, C.DARK, 38, "Gravar", C.RED) { if (recView == null) startRecording() else stopRecording(save = true) }.placed(38, 57, 83)
+        fan = listOf(play, stop, recBtn)
+        fan.forEach { it.visibility = View.GONE }
+        orbBtn = circleBtn(Ic.TAP, C.BLUE, 48, "Controle de macros") { setOrb(!orbOpen) }.placed(48, 0, 0)
+
+        // Arrastar pelo próprio orbe; toque curto abre/fecha. Consumir só o arrasto deixa o clique (e o TalkBack) funcionando.
+        val slop = ViewConfiguration.get(this).scaledTouchSlop
+        var dx = 0f; var dy = 0f; var sx = 0; var sy = 0; var drag = false
+        orbBtn.setOnTouchListener { v, e ->
+            when (e.actionMasked) {
+                MotionEvent.ACTION_DOWN -> { dx = e.rawX; dy = e.rawY; sx = lp.x; sy = lp.y; drag = false; false }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!drag && hypot(e.rawX - dx, e.rawY - dy) > slop) drag = true
+                    if (drag) {
                         lp.x = sx + (e.rawX - dx).toInt(); lp.y = sy + (e.rawY - dy).toInt()
                         bubble?.let { wm.updateViewLayout(it, lp) }
                     }
+                    drag
                 }
-                true
+                MotionEvent.ACTION_UP -> { if (drag) v.isPressed = false; drag }
+                else -> false
             }
         }
-        recBtn = circleBtn(Ic.REC, C.EDGE, 44, "Gravar", C.RED) { if (recView == null) startRecording() else stopRecording(save = true) }
-        val v = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), dp(4), dp(4), dp(4))
-            background = glass(28)
-            addView(handle)
-            addView(circleBtn(Ic.PLAY, C.BLUE, 44, "Executar macro selecionada") {
-                store.selected?.let { runMacro(it) } ?: toast("Selecione uma macro no app")
-            })
-            addView(circleBtn(Ic.STOP, C.EDGE, 44, "Parar macro") { engine.stop() })
-            addView(recBtn)
-        }
-        bubble = v
-        v.alpha = store.opacity / 100f
-        wm.addView(v, lp)
+
+        val frame = FrameLayout(this).apply { fan.forEach { addView(it) }; addView(orbBtn) }
+        bubble = frame
+        frame.alpha = store.opacity / 100f
+        wm.addView(frame, lp)
     }
 
     // --- gravação ------------------------------------------------------------------------
@@ -183,7 +211,7 @@ class MacroService : AccessibilityService() {
         val v = recView ?: return
         runCatching { wm.removeView(v) }
         recView = null
-        recBtn.restyle(Ic.REC, C.EDGE, C.RED)
+        recBtn.restyle(Ic.REC, C.DARK, C.RED)
         if (!save) return
         if (rec.isEmpty()) return toast("Nada gravado")
         val m = Macro(UUID.randomUUID().toString(), "Gravação " + SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault()).format(Date()), 1, rec.toList())

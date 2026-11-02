@@ -10,6 +10,7 @@ import java.util.Calendar
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, i: Intent) {
         val id = i.getStringExtra("id") ?: return
+        Store(c).setScheduleTime(id, null) // alarme de uma vez só: já disparou
         MacroService.instance?.runMacro(id)
             ?: android.widget.Toast.makeText(c, "Macro agendada não rodou: serviço de acessibilidade desligado", android.widget.Toast.LENGTH_LONG).show()
     }
@@ -20,6 +21,14 @@ object Alarms {
         c, id.hashCode(), Intent(c, AlarmReceiver::class.java).putExtra("id", id),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
+
+    /** O PendingIntent some junto com o alarme após reinício; sem ele o horário guardado está velho. */
+    fun isScheduled(c: Context, id: String) = PendingIntent.getBroadcast(
+        c, id.hashCode(), Intent(c, AlarmReceiver::class.java).putExtra("id", id),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE,
+    ) != null
+
+    fun cancel(c: Context, id: String) { c.getSystemService(AlarmManager::class.java).cancel(pi(c, id)) }
 
     /**
      * Agenda a próxima ocorrência de hh:mm (uma vez). Retorna true se o alarme é exato.

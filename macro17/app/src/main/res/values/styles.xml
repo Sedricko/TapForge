@@ -1,11 +1,11 @@
 <resources>
-    <!-- Conceito: vidro escuro sobre fundo azul claro. Tema escuro (texto branco em diálogos), barras do sistema claras sobre o fundo claro. -->
+    <!-- Opção D: tema noturno. Barras do sistema escuras (ícones claros) sobre o fundo escuro. -->
     <style name="Theme.Macro17" parent="android:Theme.Material.NoActionBar">
         <item name="android:colorAccent">#5B9DFF</item>
         <item name="android:colorPrimary">#161C2B</item>
-        <item name="android:windowBackground">@drawable/bg_bloom</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowBackground">@drawable/bg_night</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:dialogCornerRadius">24dp</item>
     </style>
 </resources>

@@ -40,7 +40,8 @@ object C {
     val EDGE = 0x2EFFFFFF
     val TEXT = Color.WHITE
     val TEXT2 = 0xB3FFFFFF.toInt()
-    val INK = 0xFF1B2233.toInt()       // texto sobre o fundo claro (pílula de busca)
+    val NIGHT = 0xFF0D1226.toInt()     // texto sobre o acento (chip ativo)
+    val DARK = 0xFF1E2640.toInt()      // fundo sólido dos botões do leque
 }
 
 private val PALETTE = intArrayOf(C.BLUE, C.PURPLE, C.ORANGE, C.TEAL, C.RED, 0xFF8D6E63.toInt())
@@ -193,13 +194,13 @@ fun Activity.textAction(text: String, click: () -> Unit) = label(text, 14f, C.AC
     setOnClickListener { click() }
 }
 
-/** Pílula de busca translúcida sobre o fundo claro. */
-fun Activity.searchPill(edit: EditText): View = LinearLayout(this).apply {
-    gravity = Gravity.CENTER_VERTICAL
-    background = rounded(0xB3FFFFFF.toInt(), 22, 0x66FFFFFF)
-    setPadding(dp(14), 0, dp(14), 0)
-    addView(glyph(Ic.SEARCH, C.INK, 24))
-    addView(edit.apply { layoutParams = LinearLayout.LayoutParams(0, MATCH_PARENT, 1f); setPadding(dp(8), 0, 0, 0) })
+/** Chip de filtro: ativo com acento azul, inativo em vidro. */
+fun Activity.chipBtn(text: String, active: Boolean, click: () -> Unit) = label(text, 13f, if (active) C.NIGHT else C.TEXT, bold = active).apply {
+    background = rounded(if (active) C.ACCENT else C.TILE, 16, if (active) C.ACCENT else C.EDGE)
+    foreground = ripple(16)
+    setPadding(dp(14), dp(6), dp(14), dp(6))
+    layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.setMargins(dp(2), 0, dp(4), 0) }
+    setOnClickListener { click() }
 }
 
 /** Tile com rótulo pequeno em cima e o campo logo abaixo. */

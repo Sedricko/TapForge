@@ -27,6 +27,13 @@ class Store(ctx: Context) {
         get() = prefs.getInt("opacity", 100).coerceIn(30, 100)
         set(v) = prefs.edit().putInt("opacity", v.coerceIn(30, 100)).apply()
 
+    /** Horário "HH:mm" do alarme de cada macro; vale só se o alarme ainda existir (ver Alarms.isScheduled). */
+    fun scheduleTime(id: String): String? = prefs.getString("at_$id", null)
+
+    fun setScheduleTime(id: String, t: String?) {
+        prefs.edit().apply { if (t == null) remove("at_$id") else putString("at_$id", t) }.apply()
+    }
+
     /** Macro aguardando o seletor de arquivo do SAF; sobrevive a Activity recriada. */
     var pendingExport: String?
         get() = prefs.getString("export", null)
@@ -54,6 +61,7 @@ class Store(ctx: Context) {
 
     fun delete(id: String) {
         file(id)?.delete()
+        setScheduleTime(id, null)
         if (selected == id) selected = null
     }
 
