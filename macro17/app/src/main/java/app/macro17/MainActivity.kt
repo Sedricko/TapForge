@@ -4,22 +4,17 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.app.TimePickerDialog
 import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.widget.BaseAdapter
+import android.view.WindowInsets
 import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ListView
-import android.widget.TextView
+import android.widget.ScrollView
 import android.widget.Toast
 import org.json.JSONObject
 import java.util.UUID
@@ -28,54 +23,26 @@ import java.util.UUID
 @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
 class MainActivity : Activity() {
     private lateinit var store: Store
-    private lateinit var status: TextView
-    private lateinit var dot: View
-    private lateinit var list: ListView
+    private lateinit var body: LinearLayout
     private var macros = emptyList<Macro>()
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         store = Store(this)
-
-        dot = View(this).apply { layoutParams = LinearLayout.LayoutParams(dp(12), dp(12)).also { it.setMargins(0, 0, dp(10), 0) } }
-        status = label("", 14f, bold = true).apply { layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) }
-        val banner = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(14), dp(14), dp(14))
-            background = rounded(Color.WHITE, 4, C.LINE)
-            elevation = dp(2).toFloat()
-            addView(dot); addView(status)
-        }
-        val actions = LinearLayout(this).apply {
-            setPadding(0, dp(10), 0, dp(6))
-            addView(outlineBtn("Acessibilidade") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) })
-            addView(outlineBtn("Importar") { importFile() })
-        }
-        val empty = label("Nenhuma macro. Toque em + ou grave pela bolha.", 14f, C.GRAY).apply { setPadding(dp(8), dp(24), dp(8), 0) }
-        list = ListView(this).apply {
-            divider = ColorDrawable(C.LINE); dividerHeight = 1
-            clipToPadding = false; setPadding(0, 0, 0, dp(88)) // vão para o FAB não cobrir a última linha
-            emptyView = empty
-            setOnItemClickListener { _, _, i, _ -> menu(macros[i]) }
-            adapter = object : BaseAdapter() {
-                override fun getCount() = macros.size
-                override fun getItem(i: Int) = macros[i]
-                override fun getItemId(i: Int) = i.toLong()
-                override fun getView(i: Int, v: View?, p: ViewGroup) = row(macros[i])
+        body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)) }
+        val scroll = ScrollView(this).apply {
+            clipToPadding = false
+            addView(body)
+            setOnApplyWindowInsetsListener { v, i ->
+                val s = i.getInsets(WindowInsets.Type.systemBars())
+                v.setPadding(s.left, 0, s.right, dp(96) + s.bottom) // vão para o botão flutuante não cobrir o último card
+                i
             }
-        }
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            addView(banner, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-            addView(actions)
-            addView(list, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
-            addView(empty)
-            padForSystemBars(dp(12), top = false)
         }
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             addView(appBar("Macro17", back = false))
-            addView(content, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+            addView(scroll, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
         }
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(C.BG)
@@ -86,27 +53,77 @@ class MainActivity : Activity() {
 
     override fun onResume() { super.onResume(); refresh() }
 
-    private fun row(m: Macro): View = LinearLayout(this).apply {
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(4), dp(12), dp(8), dp(12))
-        addView(label(if (m.id == store.selected) "★" else "", 18f, C.PRIMARY).apply {
-            gravity = Gravity.CENTER; layoutParams = LinearLayout.LayoutParams(dp(32), WRAP_CONTENT)
+    // Poucas dezenas de macros: reconstruir a coluna é mais simples e mais robusto que um adapter com cabeçalhos.
+    private fun refresh() {
+        macros = store.list()
+        body.removeAllViews()
+        body.addView(statusCard())
+        body.addView(LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), dp(20), 0, 0)
+            addView(label("MINHAS MACROS · ${macros.size}", 12f, C.GRAY, bold = true).apply {
+                letterSpacing = 0.08f
+                layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
+            })
+            addView(textAction("Importar") { importFile() })
         })
-        addView(LinearLayout(this@MainActivity).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-            addView(label(m.name, 16f))
-            addView(label("${m.steps.size} passos · " + if (m.loops == 0) "repete sem parar" else "${m.loops}×", 13f, C.GRAY))
-        })
+        if (macros.isEmpty()) body.addView(emptyState()) else macros.forEach { body.addView(macroCard(it)) }
     }
 
-    private fun refresh() {
+    private fun statusCard(): View {
         val on = MacroService.instance != null
-        dot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (on) C.PRIMARY else C.RED) }
-        status.text = if (on) "Serviço de acessibilidade ativo. A bolha está na tela." else
-            "Serviço desligado. Ative “Macro17” em Acessibilidade. Se estiver cinza (app instalado fora da loja), abra Informações do app > ⋮ > Permitir configurações restritas."
-        macros = store.list()
-        (list.adapter as BaseAdapter).notifyDataSetChanged()
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = card()
+            elevation = dp(1).toFloat()
+            setPadding(dp(16), dp(16), dp(12), dp(8))
+            addView(LinearLayout(this@MainActivity).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(badge(if (on) Ic.OK else Ic.WARN, if (on) C.TINT else C.TINT_RED, if (on) C.PRIMARY else C.RED, 40))
+                addView(LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(14), 0, dp(4), 0)
+                    layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
+                    addView(label(if (on) "Serviço ativo" else "Serviço desligado", 16f, bold = true))
+                    addView(label(
+                        if (on) "A bolha está na tela. Selecione uma macro para ela executar."
+                        else "Ative “Macro17” em Acessibilidade. Se a opção estiver cinza (app instalado fora da loja): Informações do app > ⋮ > Permitir configurações restritas.",
+                        13f, C.GRAY,
+                    ))
+                })
+            })
+            addView(textAction(if (on) "Ajustes de acessibilidade" else "Ativar agora") {
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }.apply { layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.gravity = Gravity.END } })
+        }
+    }
+
+    private fun macroCard(m: Macro): View = LinearLayout(this).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(14), dp(12), dp(14), dp(12))
+        background = card()
+        foreground = ripple(12)
+        elevation = dp(1).toFloat()
+        layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(8) }
+        addView(badge(Ic.PLAY, C.TINT, C.PRIMARY, 40))
+        addView(LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), 0, dp(8), 0)
+            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
+            addView(label(m.name, 16f, bold = true))
+            addView(label("${m.steps.size} passos · " + when (m.loops) { 0 -> "repete sem parar"; 1 -> "executa 1 vez"; else -> "repete ${m.loops}×" }, 13f, C.GRAY))
+        })
+        if (m.id == store.selected) addView(chip("NA BOLHA"))
+        setOnClickListener { menu(m) }
+    }
+
+    private fun emptyState(): View = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER_HORIZONTAL
+        setPadding(dp(24), dp(48), dp(24), 0)
+        addView(badge(Ic.REC, C.TINT, C.PRIMARY, 72).apply { layoutParams = LinearLayout.LayoutParams(dp(72), dp(72)) })
+        addView(label("Nenhuma macro ainda", 18f, bold = true).apply { setPadding(0, dp(16), 0, dp(4)) })
+        addView(label("Toque em Nova macro ou grave pela bolha flutuante.", 14f, C.GRAY).apply { gravity = Gravity.CENTER })
     }
 
     private fun edit(id: String) = startActivity(Intent(this, EditorActivity::class.java).putExtra("id", id))

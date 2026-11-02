@@ -3,14 +3,15 @@ package app.macro17
 import android.app.Activity
 import android.app.AlertDialog
 import android.graphics.Color
-import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.InsetDrawable
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
-import android.widget.ArrayAdapter
+import android.widget.BaseAdapter
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -26,6 +27,8 @@ class EditorActivity : Activity() {
     private lateinit var name: EditText
     private lateinit var loops: EditText
     private lateinit var list: ListView
+    private lateinit var header: TextView
+    private lateinit var emptyHint: TextView
     private val steps = ArrayList<Step>()
 
     // Ordem dos campos no diálogo: índice em IntArray [x1,y1,x2,y2,ms,delay,rnd,jitter].
@@ -37,6 +40,7 @@ class EditorActivity : Activity() {
         Type.KEY to intArrayOf(0, 5, 6),
     )
     private val titles = mapOf(Type.TAP to "Toque", Type.SWIPE to "Deslizar", Type.WAIT to "Esperar", Type.KEY to "Tecla")
+    private val icons = mapOf(Type.TAP to Ic.TAP, Type.SWIPE to Ic.SWIPE, Type.WAIT to Ic.WAIT, Type.KEY to Ic.KEY)
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
@@ -46,19 +50,30 @@ class EditorActivity : Activity() {
         steps.addAll(existing?.steps.orEmpty())
 
         name = field(existing?.name ?: "Nova macro", "Nome", numeric = false)
-        loops = field((existing?.loops ?: 1).toString(), "Repetições", numeric = true)
+        loops = field((existing?.loops ?: 1).toString(), "0 = ∞", numeric = true)
+        header = label("", 12f, C.GRAY, bold = true).apply { letterSpacing = 0.08f; setPadding(dp(4), dp(16), 0, dp(4)) }
+        emptyHint = label("Sem passos. Toque em Adicionar passo ou grave pela bolha.", 14f, C.GRAY).apply { setPadding(dp(4), dp(8), dp(4), 0) }
         list = ListView(this).apply {
-            divider = ColorDrawable(C.LINE); dividerHeight = 1
-            clipToPadding = false; setPadding(0, 0, 0, dp(88)) // vão para o FAB
+            divider = InsetDrawable(ColorDrawable(C.LINE), dp(52), 0, 0, 0) // linha começa depois do ícone
+            dividerHeight = 1
+            clipToPadding = false; setPadding(0, 0, 0, dp(88)) // vão para o botão flutuante
             setOnItemClickListener { _, _, i, _ -> editStep(steps[i].type, steps[i]) { steps[i] = it; refresh() } }
             setOnItemLongClickListener { _, _, i, _ -> rowMenu(i); true }
+            adapter = object : BaseAdapter() {
+                override fun getCount() = steps.size
+                override fun getItem(i: Int) = steps[i]
+                override fun getItemId(i: Int) = i.toLong()
+                override fun getView(i: Int, v: View?, p: ViewGroup) = stepRow(i, steps[i])
+            }
         }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(labeled("Nome", name))
-            addView(labeled("Repetições (0 = infinito)", loops))
-            addView(label("Passos", 16f, bold = true).apply { setPadding(dp(2), dp(12), 0, 0) })
-            addView(label("Toque para editar; segure para duplicar, mover ou excluir.", 12f, C.GRAY).apply { setPadding(dp(2), 0, 0, dp(4)) })
+            addView(LinearLayout(this@EditorActivity).apply {
+                addView(labeled("Nome", name, weight = 2f))
+                addView(labeled("Repetições", loops, weight = 1f))
+            })
+            addView(header)
+            addView(emptyHint)
             addView(list, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
             padForSystemBars(dp(12), top = false)
         }
@@ -76,23 +91,34 @@ class EditorActivity : Activity() {
     }
 
     private fun refresh() {
-        list.adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, steps.mapIndexed { i, s -> "${i + 1}. ${describe(s)}" }) {
-            override fun getView(p: Int, v: View?, g: ViewGroup): View = (super.getView(p, v, g) as TextView).apply {
-                textSize = 14f; typeface = Typeface.MONOSPACE; setTextColor(Color.BLACK)
-                setPadding(dp(8), dp(12), dp(8), dp(12))
-            }
-        }
+        header.text = "PASSOS · ${steps.size}"
+        emptyHint.visibility = if (steps.isEmpty()) View.VISIBLE else View.GONE
+        (list.adapter as BaseAdapter).notifyDataSetChanged()
     }
 
-    private fun describe(s: Step): String {
-        val jit = if (s.jitter > 0) " ±${s.jitter}px" else ""
-        val pause = (if (s.delay > 0) " +${s.delay}ms" else "") + (if (s.rnd > 0) " +rnd${s.rnd}" else "")
+    private fun stepRow(i: Int, s: Step): View = LinearLayout(this).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(4), dp(10), dp(4), dp(10))
+        addView(badge(icons.getValue(s.type), C.TINT, C.PRIMARY, 36))
+        addView(LinearLayout(this@EditorActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), 0, dp(8), 0)
+            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
+            addView(label("${i + 1}. ${titles.getValue(s.type)}", 15f, bold = true))
+            addView(label(detail(s), 13f, C.GRAY))
+        })
+        val pause = (if (s.delay > 0) "+${s.delay} ms" else "") + (if (s.rnd > 0) "\n+0–${s.rnd} ms" else "")
+        if (pause.isNotEmpty()) addView(label(pause, 12f, C.GRAY).apply { gravity = Gravity.END })
+    }
+
+    private fun detail(s: Step): String {
+        val jit = if (s.jitter > 0) " · ±${s.jitter} px" else ""
         return when (s.type) {
-            Type.TAP -> "Toque (${s.x1},${s.y1}) ${s.ms}ms$jit"
-            Type.SWIPE -> "Deslizar (${s.x1},${s.y1})→(${s.x2},${s.y2}) ${s.ms}ms$jit"
-            Type.WAIT -> "Esperar ${s.ms}ms"
-            Type.KEY -> "Tecla " + arrayOf("?", "Voltar", "Início", "Recentes", "Notificações")[s.x1.coerceIn(0, 4)]
-        } + pause
+            Type.TAP -> "(${s.x1}, ${s.y1}) · ${s.ms} ms$jit"
+            Type.SWIPE -> "(${s.x1}, ${s.y1}) → (${s.x2}, ${s.y2}) · ${s.ms} ms$jit"
+            Type.WAIT -> "${s.ms} ms"
+            Type.KEY -> arrayOf("?", "Voltar", "Início", "Recentes", "Notificações")[s.x1.coerceIn(0, 4)]
+        }
     }
 
     private fun pickType() {
