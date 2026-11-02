@@ -15,6 +15,8 @@ private class Fake(
     val frame: Gray? = null,                       // quadro que screen() devolve quando a fila está vazia
     val templates: Map<String, Gray> = emptyMap(),
 ) : Ports {
+    val nodes = ArrayDeque<Pair<Int, Int>?>()      // resultados de findNode em ordem; esgotada = nada achado
+    val queries = ArrayList<String>()
     val queue = ArrayDeque<Gray?>()                // quadros em ordem; null simula captura que falhou
     var shots = 0
     var clock = 0L
@@ -25,6 +27,7 @@ private class Fake(
     override fun now() = clock
     override fun screen(): Gray? { shots++; return if (queue.isNotEmpty()) queue.removeFirst() else frame }
     override fun template(id: String) = templates[id]
+    override fun findNode(query: String, exact: Boolean): Pair<Int, Int>? { queries += "$query|$exact"; return if (nodes.isNotEmpty()) nodes.removeFirst() else null }
     override fun gesture(strokes: List<Stroke>, ms: Int) {
         if (failGesture) throw IllegalStateException("gesto rejeitado")
         if (gestures++ >= stopAfterGestures) throw InterruptedException()
@@ -252,5 +255,44 @@ class RunnerTest {
     @Test fun imageMissingTemplateFails() {
         val (o, _) = run(macro(image()), Fake(frame = screenWith(50, 60)))
         assertTrue((o as Outcome.Failed).why.contains("imagem do passo 1"))
+    }
+
+    // --- achar por texto (árvore de acessibilidade) ---
+    private fun node(goto: Int = 0, fail: Int = 0, ms: Int = 1000) = Step(Type.NODE, ms = ms, text = "Entrar", goto = goto, fail = fail, cycle = 100)
+
+    @Test fun nodeFoundTapsItsCenter() {
+        val f = Fake().also { it.nodes.add(540 to 1200) }
+        val (o, _) = run(macro(node()), f)
+        assertTrue(o is Outcome.Done)
+        assertEquals(listOf("g:540,1200>540,1200@50"), f.events)
+        assertEquals(listOf("Entrar|false"), f.queries)             // "contém" por padrão
+    }
+
+    @Test fun nodeExactFlagIsForwarded() {
+        val f = Fake().also { it.nodes.add(1 to 1) }
+        run(macro(node().copy(exact = true)), f)
+        assertEquals(listOf("Entrar|true"), f.queries)
+    }
+
+    @Test fun nodeRetriesUntilFound() {
+        val f = Fake().also { it.nodes.addAll(listOf(null, null, 300 to 400)) }  // transição, nada, achou
+        run(macro(node()), f)
+        assertEquals(3, f.queries.size)
+        assertEquals(listOf("g:300,400>300,400@50"), f.events)
+    }
+
+    @Test fun nodeTimeoutFollowsFail() {
+        val m = macro(node(goto = 3, fail = 2, ms = 500), tap(1), tap(2))
+        val f = Fake()
+        run(m, f)
+        assertEquals(6, f.queries.size)                             // 0, 100, ..., 500 ms
+        assertEquals(listOf("1", "2"), tapXs(f))                    // não achou: vai ao passo 2 e segue
+    }
+
+    @Test fun nodeFoundFollowsGotoWithoutTapWhenDisabled() {
+        val m = macro(node(goto = 3).copy(tap = false), tap(1), tap(2))
+        val f = Fake().also { it.nodes.add(10 to 10) }
+        run(m, f)
+        assertEquals(listOf("g:2,100>2,100@10"), f.events)          // sem toque no achado; saltou para o passo 3
     }
 }

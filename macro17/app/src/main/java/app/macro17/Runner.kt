@@ -19,6 +19,9 @@ interface Ports {
     /** Quadro atual da tela em tons de cinza; null se esta captura falhou de forma passiva (ex.: intervalo mínimo). */
     @Throws(InterruptedException::class) fun screen(): Gray?
     fun template(id: String): Gray?
+
+    /** Centro, em pixels da tela, do primeiro elemento visível que casa com [query]; null se não há (ou a janela está em transição). */
+    fun findNode(query: String, exact: Boolean): Pair<Int, Int>?
     fun now(): Long // ms monotônicos, para o prazo da busca
     fun nextInt(bound: Int): Int
     fun log(line: String)
@@ -78,6 +81,11 @@ class Runner(private val p: Ports) {
                     if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.x, hit.y, hit.x, hit.y)), TAP_MS)
                     jump = if (hit != null) s.goto else s.fail
                 }
+                Type.NODE -> {
+                    val hit = poll(s) { p.findNode(s.text, s.exact) }
+                    if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.first, hit.second, hit.first, hit.second)), TAP_MS)
+                    jump = if (hit != null) s.goto else s.fail
+                }
                 Type.CALL -> if (!s.skip) {
                     val m = p.resolve(s.text) ?: return Outcome.Failed("macro chamada não encontrada")
                     m.validate()?.let { return Outcome.Failed("macro “${m.name}” inválida: $it") }
@@ -101,17 +109,20 @@ class Runner(private val p: Ports) {
      * Tenta achar [needle] na tela a cada [Step.cycle] ms até [Step.ms]. A primeira tentativa é imediata.
      * Devolve o centro do achado em coordenadas da tela inteira (a área de busca é recortada antes).
      */
-    private fun search(s: Step, needle: Gray): TemplateMatcher.Hit? {
+    private fun search(s: Step, needle: Gray): TemplateMatcher.Hit? = poll(s) {
+        val frame = p.screen() ?: return@poll null
+        val whole = s.x1 == 0 && s.y1 == 0 && s.x2 == 0 && s.y2 == 0
+        val ox = if (whole) 0 else s.x1.coerceIn(0, frame.w)
+        val oy = if (whole) 0 else s.y1.coerceIn(0, frame.h)
+        val hay = if (whole) frame else frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1)
+        TemplateMatcher.find(hay, needle, s.thr / 100f)?.let { it.copy(x = it.x + ox, y = it.y + oy) }
+    }
+
+    /** Repete [attempt] a cada [Step.cycle] ms até dar certo ou passar [Step.ms]. A primeira tentativa é imediata. */
+    private fun <T : Any> poll(s: Step, attempt: () -> T?): T? {
         val start = p.now()
         while (true) {
-            val frame = p.screen()
-            if (frame != null) {
-                val whole = s.x1 == 0 && s.y1 == 0 && s.x2 == 0 && s.y2 == 0
-                val ox = if (whole) 0 else s.x1.coerceIn(0, frame.w)
-                val oy = if (whole) 0 else s.y1.coerceIn(0, frame.h)
-                val hay = if (whole) frame else frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1)
-                TemplateMatcher.find(hay, needle, s.thr / 100f)?.let { return it.copy(x = it.x + ox, y = it.y + oy) }
-            }
+            attempt()?.let { return it }
             if (p.now() - start >= s.ms) return null
             p.sleep(s.cycle.toLong())
         }

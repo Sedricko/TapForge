@@ -56,21 +56,22 @@ class EditorActivity : Activity() {
         Type.RESET to intArrayOf(CNT) + common,
         Type.CALL to common,
         Type.IMAGE to intArrayOf(X1, Y1, X2, Y2, MS, CYC, THR, GOTO, FAIL) + common,
+        Type.NODE to intArrayOf(MS, CYC, GOTO, FAIL) + common,
     )
     private val optional = setOf(DELAY, RND, JIT, RMIN, GOTO, FAIL) + (CASE0 until CASE0 + MAX_CASES * 2) // em branco vale 0
 
     private val titles = mapOf(
         Type.TAP to "Toque", Type.SWIPE to "Deslizar", Type.PINCH_IN to "Pinça para dentro", Type.PINCH_OUT to "Pinça para fora",
         Type.WAIT to "Esperar", Type.KEY to "Tecla", Type.STATUS to "Alerta de status", Type.GOTO to "Ir para o passo",
-        Type.COUNTER to "Contador de execução", Type.RESET to "Zerar contador", Type.CALL to "Chamar macro", Type.IMAGE to "Buscar imagem",
+        Type.COUNTER to "Contador de execução", Type.RESET to "Zerar contador", Type.CALL to "Chamar macro", Type.IMAGE to "Buscar imagem", Type.NODE to "Achar por texto",
     )
     private val icons = mapOf(
         Type.TAP to Ic.TAP, Type.SWIPE to Ic.SWIPE, Type.PINCH_IN to Ic.SWIPE, Type.PINCH_OUT to Ic.SWIPE, Type.WAIT to Ic.WAIT,
-        Type.KEY to Ic.KEY, Type.STATUS to Ic.WARN, Type.GOTO to Ic.CHEVRON, Type.COUNTER to Ic.ADD, Type.RESET to Ic.BACK, Type.CALL to Ic.PLAY, Type.IMAGE to Ic.SEARCH,
+        Type.KEY to Ic.KEY, Type.STATUS to Ic.WARN, Type.GOTO to Ic.CHEVRON, Type.COUNTER to Ic.ADD, Type.RESET to Ic.BACK, Type.CALL to Ic.PLAY, Type.IMAGE to Ic.SEARCH, Type.NODE to Ic.SEARCH,
     )
     private val tones = mapOf(
         Type.TAP to C.BLUE, Type.SWIPE to C.PURPLE, Type.PINCH_IN to C.PURPLE, Type.PINCH_OUT to C.PURPLE, Type.WAIT to C.ORANGE,
-        Type.KEY to C.TEAL, Type.STATUS to C.TEAL, Type.GOTO to C.ORANGE, Type.COUNTER to C.BLUE, Type.RESET to C.RED, Type.CALL to C.PURPLE, Type.IMAGE to C.ORANGE,
+        Type.KEY to C.TEAL, Type.STATUS to C.TEAL, Type.GOTO to C.ORANGE, Type.COUNTER to C.BLUE, Type.RESET to C.RED, Type.CALL to C.PURPLE, Type.IMAGE to C.ORANGE, Type.NODE to C.TEAL,
     )
 
     override fun onCreate(b: Bundle?) {
@@ -169,6 +170,8 @@ class EditorActivity : Activity() {
             Type.COUNTER -> "contador ${s.counter}" + s.cases.joinToString("") { " · ≥${it.n}→${if (it.to == 0) "seguir" else it.to}" } +
                 " · senão " + if (s.goto == 0) "seguir" else "→ ${s.goto}"
             Type.RESET -> "contador ${s.counter} = 0"
+            Type.NODE -> "“${s.text}”" + (if (s.exact) " (igual)" else "") + " · até ${s.ms} ms · achou → " + (if (s.goto == 0) "seguir" else s.goto) +
+                " · não → " + (if (s.fail == 0) "seguir" else s.fail) + if (s.tap) " · toca" else ""
             Type.IMAGE -> "≥ ${s.thr}% · até ${s.ms} ms · " + (if (s.x2 > s.x1) "área (${s.x1}, ${s.y1})–(${s.x2}, ${s.y2}) · " else "tela toda · ") +
                 "achou → " + (if (s.goto == 0) "seguir" else s.goto) + " · não → " + (if (s.fail == 0) "seguir" else s.fail) + if (s.tap) " · toca" else ""
             Type.CALL -> (store.get(s.text)?.name ?: "macro removida") + if (s.ret) " · volta ao terminar" else " · substitui esta"
@@ -192,6 +195,7 @@ class EditorActivity : Activity() {
                 Type.GOTO -> Step(type, goto = 1)
                 Type.COUNTER, Type.RESET -> Step(type, counter = 1)
                 Type.CALL, Type.IMAGE -> Step(type)
+                Type.NODE -> Step(type, ms = 3000)
             }
             editStep(type, base, steps.size + 1) { steps = steps.afterInsert(steps.size, it); refresh() }
         }.showGlass(this)
@@ -220,7 +224,8 @@ class EditorActivity : Activity() {
         col.addView(label(titles.getValue(type), 20f, bold = true).apply { setPadding(0, 0, 0, dp(8)) })
 
         var text = s.text
-        val textEdit = if (type == Type.STATUS) field(s.text, "Mensagem", numeric = false).also { col.addView(labeled("Mensagem", it)) } else null
+        val textLabel = if (type == Type.NODE) "Texto do elemento (ou id:nome do recurso)" else "Mensagem"
+        val textEdit = if (type == Type.STATUS || type == Type.NODE) field(s.text, textLabel, numeric = false).also { col.addView(labeled(textLabel, it)) } else null
         if (type == Type.CALL) {
             val btn = textAction(store.get(s.text)?.name ?: "Escolher macro…") {}
             btn.setOnClickListener { pickMacro { m -> text = m.id; btn.text = m.name } }
@@ -233,8 +238,8 @@ class EditorActivity : Activity() {
                 k == X1 && type == Type.KEY -> "Tecla (1 voltar, 2 início, 3 recentes, 4 notificações)"
                 k == MS && type == Type.WAIT -> "Espera (ms)"
                 k == MS && type == Type.STATUS -> "Tempo da mensagem (ms)"
-                k == MS && type == Type.IMAGE -> "Buscar por até (ms)"
-                k == GOTO && type == Type.IMAGE -> "Se achar, ir para o passo (0 = seguir)"
+                k == MS && (type == Type.IMAGE || type == Type.NODE) -> "Buscar por até (ms)"
+                k == GOTO && (type == Type.IMAGE || type == Type.NODE) -> "Se achar, ir para o passo (0 = seguir)"
                 type == Type.IMAGE && k in X1..Y2 -> "Área de busca: " + labels.getValue(k) + " (tudo 0 = tela toda)"
                 k >= CASE0 -> if ((k - CASE0) % 2 == 0) "Caso ${(k - CASE0) / 2 + 1}: ao chegar a (0 = vazio)" else "Caso ${(k - CASE0) / 2 + 1}: ir para o passo (0 = seguir)"
                 k == GOTO && type == Type.COUNTER -> "Destino padrão (0 = seguir)"
@@ -247,7 +252,9 @@ class EditorActivity : Activity() {
         val retSw = if (type == Type.CALL)
             Switch(this).apply { isChecked = s.ret; contentDescription = "Voltar ao terminar" }.also { col.addView(labeled("Voltar a esta macro ao terminar", it)) } else null
 
-        val tapSw = if (type == Type.IMAGE)
+        val exactSw = if (type == Type.NODE)
+            Switch(this).apply { isChecked = s.exact; contentDescription = "Texto inteiro igual" }.also { col.addView(labeled("Texto inteiro igual (desligado = contém)", it)) } else null
+        val tapSw = if (type == Type.IMAGE || type == Type.NODE)
             Switch(this).apply { isChecked = s.tap; contentDescription = "Tocar no centro ao achar" }.also { col.addView(labeled("Tocar no centro do que achou", it)) } else null
 
         val dlg = AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(col) })
@@ -265,8 +272,8 @@ class EditorActivity : Activity() {
             val ns = Step(
                 type, nv[X1], nv[Y1], nv[X2], nv[Y2], nv[MS], nv[DELAY], nv[RND], nv[RMIN], nv[JIT],
                 skipSw?.isChecked ?: false, nv[GOTO], if (nv[CNT] == 0) 1 else nv[CNT], if (type == Type.COUNTER) cases else emptyList(),
-                if (type == Type.STATUS) textEdit!!.text.toString().trim() else if (type == Type.CALL || type == Type.IMAGE) text else "", retSw?.isChecked ?: true,
-                nv[THR], nv[CYC], nv[FAIL], tapSw?.isChecked ?: true,
+                if (type == Type.STATUS || type == Type.NODE) textEdit!!.text.toString().trim() else if (type == Type.CALL || type == Type.IMAGE) text else "", retSw?.isChecked ?: true,
+                nv[THR], nv[CYC], nv[FAIL], tapSw?.isChecked ?: true, exactSw?.isChecked ?: false,
             )
             val err = ns.validate(total)
             if (err != null) { toast(err); return@setOnClickListener }
