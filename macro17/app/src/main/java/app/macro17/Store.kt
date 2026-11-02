@@ -14,6 +14,19 @@ class Store(ctx: Context) {
         get() = prefs.getString("selected", null)
         set(v) = prefs.edit().putString("selected", v).apply()
 
+    // Opções da tela "Opções". Padrões: tela ligada e parada ao bloquear (gestos já seriam cancelados), bolha opaca.
+    var keepOn: Boolean
+        get() = prefs.getBoolean("keepOn", true)
+        set(v) = prefs.edit().putBoolean("keepOn", v).apply()
+
+    var stopOnLock: Boolean
+        get() = prefs.getBoolean("stopOnLock", true)
+        set(v) = prefs.edit().putBoolean("stopOnLock", v).apply()
+
+    var opacity: Int // 30..100: abaixo de 30% a bolha some e não dá para pará-la
+        get() = prefs.getInt("opacity", 100).coerceIn(30, 100)
+        set(v) = prefs.edit().putInt("opacity", v.coerceIn(30, 100)).apply()
+
     /** Macro aguardando o seletor de arquivo do SAF; sobrevive a Activity recriada. */
     var pendingExport: String?
         get() = prefs.getString("export", null)

@@ -122,6 +122,7 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(4), 0, 0, 0)
             addView(label("Macros", 16f, bold = true).apply { layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) })
+            addView(circleBtn(Ic.GEAR, Color.TRANSPARENT, 40, "Opções") { startActivity(Intent(this@MainActivity, OptionsActivity::class.java)) })
             addView(circleBtn(Ic.ADD, Color.TRANSPARENT, 40, "Nova macro") { edit("new") })
         }
         val footer = LinearLayout(this).apply {

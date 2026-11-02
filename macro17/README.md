@@ -12,6 +12,9 @@ Conceito de vidro escuro: painel navy translúcido sobre fundo azul claro, tiles
 3. Gravação: toque nos pontos desejados. **Os toques não chegam ao app de baixo** (só são capturados).
 4. No app: a grade 2×2 executa, para, importa e abre os ajustes; a busca filtra a lista; tocar numa macro abre Selecionar, Executar, Editar, Agendar, Exportar (JSON via SAF), Excluir. *Importar* lê JSON.
 
+## Opções
+Tela acessada pela engrenagem do painel: manter a tela ligada durante a execução, parar ao bloquear a tela e opacidade da bolha (30% a 100%).
+
 ## Passos
 Toque, deslizar, esperar e tecla global (voltar, início, recentes, notificações). Cada passo tem pausa fixa depois, pausa extra aleatória e jitter de coordenada. Macro tem repetições (0 = infinito).
 

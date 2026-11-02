@@ -1,8 +1,12 @@
 package app.macro17
 
 import android.accessibilityservice.AccessibilityService
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -33,13 +37,21 @@ class MacroService : AccessibilityService() {
     private var recView: View? = null
     private val rec = ArrayList<Step>()
     private lateinit var recBtn: ImageView
+    private var lock: BroadcastReceiver? = null
 
     override fun onServiceConnected() {
         wm = getSystemService(WindowManager::class.java)
         store = Store(this)
-        engine = Engine(this) { toast(it) }
+        // Ao terminar (qualquer motivo) a tela volta a poder apagar.
+        engine = Engine(this) { toast(it); ui.post { awake(false) } }
         instance = this
         showBubble()
+        lock = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) { if (store.stopOnLock) engine.stop() }
+        }
+        val off = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        // A versão com flags só existe na API 33; nas 31 e 32 o registro simples já basta para broadcast do sistema.
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(lock, off, Context.RECEIVER_NOT_EXPORTED) else registerReceiver(lock, off)
     }
 
     override fun onAccessibilityEvent(e: AccessibilityEvent?) = Unit
@@ -48,6 +60,8 @@ class MacroService : AccessibilityService() {
     override fun onUnbind(intent: Intent?): Boolean {
         engine.stop()
         stopRecording(save = false)
+        lock?.let { runCatching { unregisterReceiver(it) } }
+        lock = null
         bubble?.let { runCatching { wm.removeView(it) } }
         bubble = null
         instance = null
@@ -64,9 +78,25 @@ class MacroService : AccessibilityService() {
         when {
             m == null -> toast("Macro não encontrada")
             recView != null -> toast("Termine a gravação primeiro")
-            !engine.start(m) -> toast("Já existe uma macro em execução")
-            else -> toast("Executando: ${m.name}")
+            engine.running -> toast("Já existe uma macro em execução")
+            else -> {
+                // awake(true) entra na fila antes de a thread da macro poder postar o awake(false) do fim.
+                ui.post { awake(true) }
+                if (engine.start(m)) toast("Executando: ${m.name}") else ui.post { awake(false) }
+            }
         }
+    }
+
+    /** Opções que valem na hora (a opacidade); as demais são lidas a cada execução. */
+    fun applyOptions() { ui.post { bubble?.alpha = store.opacity / 100f } }
+
+    // A janela da bolha é a única que o serviço mantém: o flag mantém a tela ligada enquanto ela existe.
+    private fun awake(on: Boolean) {
+        val v = bubble ?: return
+        val lp = v.layoutParams as WindowManager.LayoutParams
+        val keep = on && store.keepOn
+        lp.flags = if (keep) lp.flags or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON else lp.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON.inv()
+        wm.updateViewLayout(v, lp)
     }
 
     // --- bolha ---------------------------------------------------------------------------
@@ -105,6 +135,7 @@ class MacroService : AccessibilityService() {
             addView(recBtn)
         }
         bubble = v
+        v.alpha = store.opacity / 100f
         wm.addView(v, lp)
     }
 
