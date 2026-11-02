@@ -1,118 +1,86 @@
 package app.macro17
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
-import android.graphics.Color
+import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.view.Gravity
-import android.view.View
-import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.Switch
+import android.widget.TextView
 
-/** Opções gravadas em SharedPreferences (Store). O serviço lê a cada execução; a opacidade ele aplica na hora. */
+/**
+ * Configurações no formato do app base (mesmos títulos e descrições, mesma ordem). Cada opção grava na hora e o serviço
+ * relê. O que o Macro17 ainda não tem aparece esmaecido e sem resposta, com "(indisponível)", em vez de fingir que funciona.
+ */
 class OptionsActivity : Activity() {
+    private lateinit var store: Store
+    private var battery: Switch? = null
+
+    private fun pushOptions() { MacroService.instance?.applyOptions() }
+
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
-        val store = Store(this)
+        store = Store(this)
+        val p = Prefs(this)
 
-        val bar = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            addView(circleBtn(Ic.BACK, Color.TRANSPARENT, 40, "Voltar") { finish() })
-            addView(label("Opções", 16f, bold = true).apply { setPadding(dp(4), 0, 0, 0) })
+        p.category("Reprodução", Ic.PLAY)
+        p.switchRow("Parar Reprodução com Tecla de Volume", "Qualquer tecla de volume, ao soltar, para a macro em execução.", store.stopVolume) { store.stopVolume = it }
+        p.switchRow("Iniciar macro com tecla de volume.", "Com o app ocioso, soltar a tecla de volume inicia a macro selecionada.", store.startVolume) { store.startVolume = it }
+        p.switchRow("Mostrar Toques", "Mostrar feedback visual para reproduções (indisponível)", false, enabled = false)
+        p.switchRow("Manter Tela Ligada", "A tela permanecerá ligada enquanto o Macro17 estiver em execução.", store.keepOn) { store.keepOn = it }
+        p.switchRow("Depurar", "Exibir informações de depuração na tela: abre o registro ao vivo ao iniciar uma macro.", store.debugOverlay) { store.debugOverlay = it }
+        p.switchRow("Alarme", "Um alarme soará quando a macro terminar.", store.endAlarm) { store.endAlarm = it }
+        p.switchRow("Parar ao bloquear a tela", "Encerra a macro quando a tela apaga.", store.stopOnLock) { store.stopOnLock = it }
+        p.switchRow("Monitoramento contínuo da tela", "Mantém a captura de tela em ociosidade para reduzir o atraso de inicialização. (indisponível: o Macro17 captura sob demanda)", false, enabled = false)
+        battery = p.switchRow("Desativar otimização de bateria", "Permita o uso em segundo plano sem restrições para uma operação estável.", ignoringBattery()) {
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
         }
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = glass()
-            elevation = dp(8).toFloat()
-            setPadding(dp(16), dp(12), dp(16), dp(16))
-            addView(bar)
-            addView(toggle("Manter a tela ligada", "Durante a execução de uma macro.", store.keepOn) { store.keepOn = it })
-            addView(toggle("Parar ao bloquear a tela", "Encerra a macro quando a tela apaga.", store.stopOnLock) { store.stopOnLock = it })
-            addView(opacityTile(store))
-            addView(LinearLayout(this@OptionsActivity).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                background = tileBg()
-                foreground = ripple(16)
-                setPadding(dp(14), dp(12), dp(10), dp(12))
-                layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(8) }
-                addView(LinearLayout(this@OptionsActivity).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-                    addView(label("Monitor e logs", 15f, bold = true))
-                    addView(label("Registro de eventos, relatório do sistema e exportação para enviar a quem corrige.", 12f, C.TEXT2))
-                })
-                addView(glyph(Ic.CHEVRON, C.TEXT, 22))
-                setOnClickListener { startActivity(Intent(this@OptionsActivity, DiagActivity::class.java)) }
-            })
-            addView(LinearLayout(this@OptionsActivity).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                background = tileBg()
-                foreground = ripple(16)
-                setPadding(dp(14), dp(12), dp(10), dp(12))
-                layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(8) }
-                addView(LinearLayout(this@OptionsActivity).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-                    addView(label("Leitor de números", 15f, bold = true))
-                    addView(label("Ensine os dígitos de um jogo ou contador para o passo “Ler número”.", 12f, C.TEXT2))
-                })
-                addView(glyph(Ic.CHEVRON, C.TEXT, 22))
-                setOnClickListener { startActivity(Intent(this@OptionsActivity, ReaderActivity::class.java)) }
-            })
-        }
-        setContentView(LinearLayout(this).apply {
-            addView(panel, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-            padForSystemBars(dp(12))
-        })
+
+        p.category("Janela Pop-up", Ic.FRAME)
+        val tr = p.valueRow("Transparência da janela flutuante (%)", "${100 - store.opacity} %") { transparencyDialog() }
+        transparencyText = tr
+        p.switchRow("Ocultar janela pop-up durante a reprodução", "Pressione a tecla de volume para parar a reprodução da macro.", store.hidePopup) { store.hidePopup = it; pushOptions() }
+        p.switchRow("Visualização Simples", "Simplifica os botões de controle exibidos na tela.", store.simpleView) { store.simpleView = it; pushOptions() }
+        p.switchRow("Modo de Reprodução", "Apenas o botão de reprodução é exibido.", store.playMode) { store.playMode = it; pushOptions() }
+
+        p.category("Gravação de tela", Ic.REC)
+        p.valueRow("Configurações de gravação de áudio", "Sem áudio (indisponível)", enabled = false)
+        p.valueRow("Taxa de bits de vídeo", "Defina a qualidade visual da gravação. (indisponível)", enabled = false)
+        p.valueRow("Taxa de quadros de vídeo", "Defina os quadros por segundo (FPS). (indisponível)", enabled = false)
+
+        p.category("Macro17", Ic.GEAR)
+        p.valueRow("Leitor de números", "Ensine os dígitos de um jogo ou contador para o passo “Ler número”.") { startActivity(Intent(this, ReaderActivity::class.java)) }
+        p.valueRow("Monitor e logs", "Registro de eventos, relatório do sistema e exportação para quem corrige.") { startActivity(Intent(this, DiagActivity::class.java)) }
+
+        setContentView(p.page("Configurações", Ic.BACK, { finish() }))
     }
 
-    private fun toggle(title: String, desc: String, value: Boolean, change: (Boolean) -> Unit): View = LinearLayout(this).apply {
-        gravity = Gravity.CENTER_VERTICAL
-        background = tileBg()
-        setPadding(dp(14), dp(12), dp(10), dp(12))
-        layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(8) }
-        addView(LinearLayout(this@OptionsActivity).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-            addView(label(title, 15f, bold = true))
-            addView(label(desc, 12f, C.TEXT2))
-        })
-        addView(Switch(this@OptionsActivity).apply {
-            isChecked = value
-            contentDescription = title
-            setOnCheckedChangeListener { _, on -> change(on) }
-        })
-    }
+    private var transparencyText: TextView? = null
 
-    private fun opacityTile(store: Store): View {
-        val value = label("${store.opacity}%", 13f, C.TEXT2)
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = tileBg()
-            setPadding(dp(14), dp(12), dp(14), dp(8))
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(8) }
-            addView(LinearLayout(this@OptionsActivity).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                addView(label("Opacidade da bolha", 15f, bold = true).apply { layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) })
-                addView(value)
-            })
-            addView(SeekBar(this@OptionsActivity).apply {
-                max = 70                       // 30..100: abaixo de 30% a bolha some
-                progress = store.opacity - 30
-                contentDescription = "Opacidade da bolha"
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(s: SeekBar, p: Int, fromUser: Boolean) {
-                        store.opacity = 30 + p
-                        value.text = "${store.opacity}%"
-                        MacroService.instance?.applyOptions()
-                    }
-                    override fun onStartTrackingTouch(s: SeekBar) {}
-                    override fun onStopTrackingTouch(s: SeekBar) {}
-                })
+    override fun onResume() { super.onResume(); battery?.isChecked = ignoringBattery() }
+
+    private fun ignoringBattery() = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+
+    /** 0 a 50%, como no base: mais transparente que isso o painel some e não dá para tocar nele. */
+    private fun transparencyDialog() {
+        val value = TextView(this).apply { text = "${100 - store.opacity} %"; textSize = 16f; gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(8)) }
+        val bar = SeekBar(this).apply {
+            max = 50; progress = 100 - store.opacity; contentDescription = "Transparência da janela flutuante"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(s: SeekBar, v: Int, fromUser: Boolean) {
+                    store.opacity = 100 - v; value.text = "$v %"; transparencyText?.text = "$v %"; pushOptions()
+                }
+                override fun onStartTrackingTouch(s: SeekBar) {}
+                override fun onStopTrackingTouch(s: SeekBar) {}
             })
         }
+        AlertDialog.Builder(this).setTitle("Transparência da janela flutuante (%)")
+            .setView(LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(12), dp(24), dp(4)); addView(value); addView(bar) })
+            .setPositiveButton("OK", null).show()
     }
 }

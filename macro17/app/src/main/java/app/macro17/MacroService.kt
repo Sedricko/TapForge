@@ -14,6 +14,11 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Display
 import android.view.Gravity
+import android.view.KeyEvent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
+import android.os.VibrationEffect
+import android.os.VibratorManager
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -52,7 +57,10 @@ class MacroService : AccessibilityService() {
         store = Store(this)
         // Ao terminar (qualquer motivo) a tela volta a poder apagar.
         logPanel = LogPanel(this, wm) { engine.stop() }
-        engine = Engine(this, { toast(it); ui.post { awake(false) }; logPanel.setThrough(false); setPlayIcon(false) }, ::toast, logPanel::captureHide)
+        engine = Engine(this, { msg ->
+            toast(msg); ui.post { awake(false); bubble?.visibility = View.VISIBLE }; logPanel.setThrough(false); setPlayIcon(false)
+            if (msg == "Macro concluída" && store.endAlarm) playEndAlarm() // só no fim natural, não em parada manual nem em erro
+        }, ::toast, logPanel::captureHide)
         instance = this
         Diag.d("serviço", "acessibilidade conectada (gestos/captura/janelas conforme accessibility_config)")
         showBubble()
@@ -62,6 +70,22 @@ class MacroService : AccessibilityService() {
         val off = IntentFilter(Intent.ACTION_SCREEN_OFF)
         // A versão com flags só existe na API 33; nas 31 e 32 o registro simples já basta para broadcast do sistema.
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(lock, off, Context.RECEIVER_NOT_EXPORTED) else registerReceiver(lock, off)
+    }
+
+    /**
+     * Teclas de volume, como no base: só no ACTION_UP e sem consumir a tecla (o volume continua mudando).
+     * Parar: opção de parar OU "ocultar janela" (sem painel visível a tecla é o único jeito). Iniciar: só com o app ocioso.
+     */
+    override fun onKeyEvent(e: KeyEvent): Boolean {
+        if (!::store.isInitialized || e.action != KeyEvent.ACTION_UP) return false
+        if (e.keyCode != KeyEvent.KEYCODE_VOLUME_UP && e.keyCode != KeyEvent.KEYCODE_VOLUME_DOWN) return false
+        if (engine.running) {
+            if (store.stopVolume || store.hidePopup) { Diag.d("serviço", "tecla de volume: parar"); engine.stop() }
+        } else if (store.startVolume && !recording) {
+            Diag.d("serviço", "tecla de volume: iniciar")
+            store.selected?.let { runMacro(it) }
+        }
+        return false
     }
 
     override fun onAccessibilityEvent(e: AccessibilityEvent?) = Unit
@@ -114,13 +138,32 @@ class MacroService : AccessibilityService() {
             else -> {
                 // awake(true) entra na fila antes de a thread da macro poder postar o awake(false) do fim.
                 ui.post { awake(true) }
-                if (engine.start(m)) { toast("Executando: ${m.name}"); logPanel.setThrough(true); setPlayIcon(true) } else ui.post { awake(false) }
+                if (engine.start(m)) {
+                    toast("Executando: ${m.name}"); logPanel.setThrough(true); setPlayIcon(true)
+                    // Ocultar: o painel some durante a reprodução (a tecla de volume para a macro, ver onKeyEvent). Depurar: abre o registro.
+                    ui.post { if (store.hidePopup) bubble?.visibility = View.INVISIBLE; if (store.debugOverlay && !logPanel.shown) logPanel.show() }
+                } else ui.post { awake(false) }
             }
         }
     }
 
+    /** Toque de alarme por 5 s e uma vibração curta ("Alarme" nas configurações). */
+    private fun playEndAlarm() = ui.post {
+        runCatching {
+            val r = RingtoneManager.getRingtone(this, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+            r.audioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+            r.play(); ui.postDelayed({ runCatching { r.stop() } }, 5000)
+            getSystemService(VibratorManager::class.java).defaultVibrator.vibrate(VibrationEffect.createOneShot(800, VibrationEffect.DEFAULT_AMPLITUDE))
+        }.onFailure { Diag.e("serviço", "alarme de fim falhou", it) }
+    }
+
     /** Opções que valem na hora (a opacidade); as demais são lidas a cada execução. */
-    fun applyOptions() { ui.post { bubble?.alpha = store.opacity / 100f } }
+    fun applyOptions() {
+        ui.post {
+            bubble?.alpha = store.opacity / 100f
+            if (::row1.isInitialized && !recording) { if (store.playMode || store.simpleView) { expanded = false; row2.visibility = View.GONE }; fillRow1() }
+        }
+    }
 
     // A janela da bolha é a única que o serviço mantém: o flag mantém a tela ligada enquanto ela existe.
     private fun awake(on: Boolean) {
@@ -183,9 +226,10 @@ class MacroService : AccessibilityService() {
             val pb = pbtn(if (engine.running) Ic.STOP else Ic.PLAY, "Executar ou parar a macro") { togglePlay() }
             playBtn = pb
             row1.addView(pb)
-            row1.addView(recBadge { startRecording() })
-            row1.addView(pbtn(Ic.FRAME, "Capturar imagem para a macro") { captureImage() })
-            row1.addView(pbtn(Ic.CHEVRON, if (expanded) "Recolher" else "Mais opções") { expanded = !expanded; row2.visibility = if (expanded) View.VISIBLE else View.GONE; fillRow1() }.also { it.rotation = if (expanded) -90f else 90f })
+            // "Modo de Reprodução": só o ▶. "Visualização Simples": sem enquadrar e sem a segunda linha.
+            if (!store.playMode) row1.addView(recBadge { startRecording() })
+            if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.FRAME, "Capturar imagem para a macro") { captureImage() })
+            if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.CHEVRON, if (expanded) "Recolher" else "Mais opções") { expanded = !expanded; row2.visibility = if (expanded) View.VISIBLE else View.GONE; fillRow1() }.also { it.rotation = if (expanded) -90f else 90f })
         }
     }
 

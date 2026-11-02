@@ -36,13 +36,7 @@ class MainActivity : Activity() {
             addView(content)
             setOnApplyWindowInsetsListener { v, i -> v.setPadding(0, 0, 0, i.getInsets(WindowInsets.Type.navigationBars()).bottom); i }
         }
-        // Ações ainda sem tela própria ficam fora do menu em vez de fingir que existem.
-        drawer = Drawer(this, listOf(
-            Triple(Ic.HOME, "Home") {},
-            Triple(Ic.GEAR, "Configurações") { startActivity(Intent(this, OptionsActivity::class.java)) },
-            Triple(Ic.INFO, "Registro ao vivo") { MacroService.instance?.toggleLog() ?: toast("Ative o serviço de acessibilidade primeiro") },
-            Triple(Ic.INFO, "Monitor e logs") { startActivity(Intent(this, DiagActivity::class.java)) },
-        ))
+        drawer = mainDrawer(0)
         val root = FrameLayout(this).apply {
             setBackgroundColor(B.BG)
             addView(LinearLayout(this@MainActivity).apply {

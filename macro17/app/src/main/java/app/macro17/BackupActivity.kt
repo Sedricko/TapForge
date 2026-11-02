@@ -1,0 +1,88 @@
+package app.macro17
+
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.Intent
+import android.graphics.Color
+import android.os.Bundle
+import android.view.Gravity
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.view.WindowInsets
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.Toast
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+/** Backup e Restauração em ZIP, como no base: um aviso e dois botões. O seletor de arquivos é o do sistema (SAF). */
+@Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+class BackupActivity : Activity() {
+    override fun onCreate(b: Bundle?) {
+        super.onCreate(b)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(4), dp(4), dp(4))
+            addView(card().apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                setPadding(dp(14), dp(14), dp(14), dp(14))
+                addView(glyph(Ic.BOX, 0xFFD81B60.toInt(), 30))
+                addView(label("Backup e Restauração", 15f, B.TEXT2, bold = true).apply { setPadding(0, dp(6), 0, dp(6)) })
+                addView(label("Os dados ficam no armazenamento interno do app. Se você desinstalar o Macro17, as macros também serão excluídas. Faça um backup dos seus dados agora.", 15f, B.TEXT).apply { gravity = Gravity.CENTER })
+            })
+            addView(bigText("Backup de Dados") { startActivityForResult(
+                Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
+                    .putExtra(Intent.EXTRA_TITLE, "macro17-backup-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".zip"), SAVE) })
+            addView(bigText("Restaurar Dados") {
+                AlertDialog.Builder(this@BackupActivity).setTitle("Restaurar dados")
+                    .setMessage("Macros e imagens do backup substituem as que têm o mesmo identificador. Arquivos inválidos são ignorados. Continuar?")
+                    .setPositiveButton("Escolher arquivo") { _, _ -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), LOAD) }
+                    .setNegativeButton("Cancelar", null).show()
+            })
+        }
+        val scroll = ScrollView(this).apply {
+            addView(content)
+            setOnApplyWindowInsetsListener { v, i -> v.setPadding(0, 0, 0, i.getInsets(WindowInsets.Type.navigationBars()).bottom); i }
+        }
+        setContentView(FrameLayout(this).apply {
+            setBackgroundColor(B.BG)
+            addView(LinearLayout(this@BackupActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(appBar("Backup e Restauração", Ic.BACK, { finish() }))
+                addView(scroll, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+            }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+        })
+    }
+
+    private fun bigText(text: String, click: () -> Unit) = label(text, 20f, B.BLUE, bold = true).apply {
+        gravity = Gravity.CENTER
+        background = rounded(Color.WHITE, 4); elevation = dp(2).toFloat()
+        foreground = ripple(4, 0x1F00897B)
+        setPadding(dp(16), dp(20), dp(16), dp(20))
+        layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) }
+        setOnClickListener { click() }
+    }
+
+    override fun onActivityResult(req: Int, res: Int, data: Intent?) {
+        super.onActivityResult(req, res, data)
+        val uri = data?.data ?: return
+        if (res != RESULT_OK) return
+        Toast.makeText(this, if (req == SAVE) "Gerando o backup…" else "Restaurando…", Toast.LENGTH_SHORT).show()
+        Thread({
+            val msg = try {
+                if (req == SAVE) {
+                    val n = contentResolver.openOutputStream(uri, "wt")!!.use { BackupZip.write(it, filesDir) }
+                    Diag.d("backup", "gravou $n arquivos")
+                    "Backup salvo ($n arquivos)"
+                } else {
+                    val r = contentResolver.openInputStream(uri)!!.use { BackupZip.read(it, filesDir) }
+                    Diag.d("backup", "restaurou ${r.restored}, ignorou ${r.skipped.size}: ${r.skipped.take(5)}")
+                    "Restaurados ${r.restored} arquivos" + if (r.skipped.isEmpty()) "" else "; ${r.skipped.size} ignorados (veja Monitor e logs)"
+                }
+            } catch (e: Exception) { Diag.e("backup", "falhou", e); "Falhou: ${e.message ?: e.javaClass.simpleName}" }
+            runOnUiThread { Toast.makeText(this, msg, Toast.LENGTH_LONG).show() }
+        }, "macro17-backup").start()
+    }
+
+    private companion object { const val SAVE = 11; const val LOAD = 12 }
+}

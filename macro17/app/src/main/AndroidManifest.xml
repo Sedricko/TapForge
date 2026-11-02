@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <!-- Negada por padrão em instalações novas (API 33+); Alarms.kt cai para alarme aproximado. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Vibração curta junto do alarme de fim de macro (opção "Alarme"). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Não é concedida a apps comuns; declarada só para que `adb shell pm grant app.macro17 android.permission.READ_LOGS`
          libere o logcat do sistema inteiro no relatório de diagnóstico. -->
     <uses-permission android:name="android.permission.READ_LOGS" tools:ignore="ProtectedPermissions" />
@@ -30,7 +32,10 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
-        <activity android:name=".OptionsActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
+        <activity android:name=".OptionsActivity" android:exported="false" />
+        <activity android:name=".PermissionsActivity" android:exported="false" />
+        <activity android:name=".BackupActivity" android:exported="false" />
+        <activity android:name=".AboutActivity" android:exported="false" />
         <activity android:name=".DiagActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
         <activity android:name=".ReaderActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
 

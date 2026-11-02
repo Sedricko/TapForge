@@ -33,13 +33,24 @@ class Store(ctx: Context) {
         get() = prefs.getBoolean("diagRoot", false)
         set(v) = prefs.edit().putBoolean("diagRoot", v).apply()
 
+    // Opções do painel e das teclas, como na tela de configurações do app base. Padrão tudo desligado, menos a transparência.
+    private fun flag(k: String) = prefs.getBoolean(k, false)
+    private fun setFlag(k: String, v: Boolean) = prefs.edit().putBoolean(k, v).apply()
+    var stopVolume: Boolean get() = flag("stopVolume"); set(v) = setFlag("stopVolume", v)
+    var startVolume: Boolean get() = flag("startVolume"); set(v) = setFlag("startVolume", v)
+    var hidePopup: Boolean get() = flag("hidePopup"); set(v) = setFlag("hidePopup", v)
+    var simpleView: Boolean get() = flag("simpleView"); set(v) = setFlag("simpleView", v)
+    var playMode: Boolean get() = flag("playMode"); set(v) = setFlag("playMode", v)
+    var debugOverlay: Boolean get() = flag("debugOverlay"); set(v) = setFlag("debugOverlay", v)
+    var endAlarm: Boolean get() = flag("endAlarm"); set(v) = setFlag("endAlarm", v)
+
     var stopOnLock: Boolean
         get() = prefs.getBoolean("stopOnLock", true)
         set(v) = prefs.edit().putBoolean("stopOnLock", v).apply()
 
-    var opacity: Int // 30..100: abaixo de 30% a bolha some e não dá para pará-la
-        get() = prefs.getInt("opacity", 100).coerceIn(30, 100)
-        set(v) = prefs.edit().putInt("opacity", v.coerceIn(30, 100)).apply()
+    var opacity: Int // 50..100 (= transparência de 0 a 50%, o limite do base): mais transparente que isso a bolha some
+        get() = prefs.getInt("opacity", 70).coerceIn(50, 100) // 30% de transparência por padrão, como no base (limite de 50%)
+        set(v) = prefs.edit().putInt("opacity", v.coerceIn(50, 100)).apply()
 
     // --- recortes de imagem dos passos IMAGE (um PNG por id) ---
     fun newTemplateId(): String = java.util.UUID.randomUUID().toString()
