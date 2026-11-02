@@ -26,8 +26,18 @@ Toque, deslizar, esperar e tecla global (voltar, início, recentes, notificaçõ
 - Telas protegidas (`FLAG_SECURE`, bancos) e tela bloqueada cancelam gestos: a macro para com mensagem.
 - Android 17: o serviço não declara `isAccessibilityTool` (é automação). Se o sistema restringir serviços que não são ferramenta de acessibilidade (ex.: Proteção Avançada), o serviço será bloqueado.
 
+## Busca de imagem
+Passo **Buscar imagem**: procura um recorte na tela a cada intervalo, até o prazo. Achou: toca no centro (opcional) e segue o destino "se achar". Não achou no prazo: segue o destino "se não achar". Área de busca opcional.
+- **Criar:** deixe a macro na lista como selecionada, abra o leque do orbe e toque na lupa. Em 2 s a tela congela; arraste sobre o que quer achar e confirme. O passo entra no fim da macro.
+- **Captura de tela** pelo próprio serviço de acessibilidade (`takeScreenshot`), sem a janela de consentimento de gravação de tela. Intervalo mínimo do sistema entre capturas: ~0,3 s.
+- **Limites:** comparação de pixels em tons de cinza, sensível a brilho e escala. Telas protegidas (`FLAG_SECURE`) não podem ser capturadas. Os recortes ficam no aparelho e **não vão junto na exportação** da macro.
+- **Sem OCR**, de propósito (ver `THIRD_PARTY.md`).
+
+## Dependências
+Nenhuma biblioteca externa. O que precisou vir de fora está copiado em `libs/` e documentado em `THIRD_PARTY.md`.
+
 ## Build
 ```
 ./gradlew :app:testDebugUnitTest :app:assembleDebug
 ```
-Exige Android SDK com plataforma 37. AGP 8.13 só suporta oficialmente até a API 36: `android.suppressUnsupportedCompileSdk=37` em `gradle.properties`.
+Exige Android SDK com plataforma 37 e acesso ao Gradle e ao plugin Android (cadeia de build, ver `THIRD_PARTY.md`). AGP 8.13 só suporta oficialmente até a API 36: `android.suppressUnsupportedCompileSdk=37` em `gradle.properties`.

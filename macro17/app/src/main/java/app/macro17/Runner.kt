@@ -15,6 +15,11 @@ interface Ports {
     fun key(code: Int)
     @Throws(InterruptedException::class) fun status(text: String, ms: Int)
     fun resolve(id: String): Macro?
+
+    /** Quadro atual da tela em tons de cinza; null se esta captura falhou de forma passiva (ex.: intervalo mínimo). */
+    @Throws(InterruptedException::class) fun screen(): Gray?
+    fun template(id: String): Gray?
+    fun now(): Long // ms monotônicos, para o prazo da busca
     fun nextInt(bound: Int): Int
     fun log(line: String)
 }
@@ -67,6 +72,12 @@ class Runner(private val p: Ports) {
                 Type.GOTO -> jump = s.goto
                 Type.RESET -> f.counters[s.counter] = 0
                 Type.COUNTER -> jump = counterJump(f, s)
+                Type.IMAGE -> {
+                    val needle = p.template(s.text) ?: return Outcome.Failed("imagem do passo ${f.pc + 1} não encontrada no aparelho")
+                    val hit = search(s, needle)
+                    if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.x, hit.y, hit.x, hit.y)), TAP_MS)
+                    jump = if (hit != null) s.goto else s.fail
+                }
                 Type.CALL -> if (!s.skip) {
                     val m = p.resolve(s.text) ?: return Outcome.Failed("macro chamada não encontrada")
                     m.validate()?.let { return Outcome.Failed("macro “${m.name}” inválida: $it") }
@@ -84,6 +95,26 @@ class Runner(private val p: Ports) {
             advance(stack, f, if (jump > 0) jump - 1 else f.pc + 1)
         }
         return Outcome.Done
+    }
+
+    /**
+     * Tenta achar [needle] na tela a cada [Step.cycle] ms até [Step.ms]. A primeira tentativa é imediata.
+     * Devolve o centro do achado em coordenadas da tela inteira (a área de busca é recortada antes).
+     */
+    private fun search(s: Step, needle: Gray): TemplateMatcher.Hit? {
+        val start = p.now()
+        while (true) {
+            val frame = p.screen()
+            if (frame != null) {
+                val whole = s.x1 == 0 && s.y1 == 0 && s.x2 == 0 && s.y2 == 0
+                val ox = if (whole) 0 else s.x1.coerceIn(0, frame.w)
+                val oy = if (whole) 0 else s.y1.coerceIn(0, frame.h)
+                val hay = if (whole) frame else frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1)
+                TemplateMatcher.find(hay, needle, s.thr / 100f)?.let { return it.copy(x = it.x + ox, y = it.y + oy) }
+            }
+            if (p.now() - start >= s.ms) return null
+            p.sleep(s.cycle.toLong())
+        }
     }
 
     /** Fim da lista conta uma volta; atingido o limite de repetições, a macro termina e o chamador (se houver) retoma. */
@@ -125,5 +156,5 @@ class Runner(private val p: Ports) {
         }
     }
 
-    private companion object { const val MAX_DEPTH = 8 }
+    private companion object { const val MAX_DEPTH = 8; const val TAP_MS = 50 }
 }

@@ -23,6 +23,8 @@ class ModelTest {
         assertNull(Step(Type.COUNTER, counter = 3, goto = 0, cases = listOf(Case(3, 1), Case(5, 0))).validate(2))
         assertNull(Step(Type.RESET, counter = 10).validate(1))
         assertNull(Step(Type.CALL, text = "abc").validate(1))
+        assertNull(Step(Type.IMAGE, ms = 3000, text = "id").validate(1))
+        assertNull(Step(Type.IMAGE, x1 = 10, y1 = 10, x2 = 200, y2 = 300, ms = 3000, text = "id", goto = 2, fail = 1).validate(2))
     }
 
     @Test fun invalidSteps() {
@@ -42,6 +44,12 @@ class ModelTest {
         assertNotNull(Step(Type.COUNTER, counter = 1, cases = listOf(Case(2, 9))).validate(2))   // destino fora
         assertNotNull(Step(Type.COUNTER, counter = 1, cases = List(MAX_CASES + 1) { Case(it + 1, 0) }).validate(2))
         assertNotNull(Step(Type.CALL, text = "").validate(1))
+        assertNotNull(Step(Type.IMAGE, ms = 3000, text = "").validate(1))                            // sem recorte
+        assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", thr = 10).validate(1))                // semelhança abaixo de 20%
+        assertNotNull(Step(Type.IMAGE, ms = 50, text = "i").validate(1))                             // prazo curto demais
+        assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", cycle = 10).validate(1))              // intervalo curto demais
+        assertNotNull(Step(Type.IMAGE, x1 = 50, y1 = 50, x2 = 10, y2 = 10, ms = 3000, text = "i").validate(1)) // área invertida
+        assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", fail = 5).validate(2))                // destino fora
     }
 
     @Test fun macroRules() {
@@ -89,6 +97,13 @@ class ModelTest {
         val out = listOf(c, a, b).afterDelete(1)
         assertEquals(2, out[0].goto)
         assertEquals(listOf(Case(2, 0), Case(4, 2)), out[0].cases)
+    }
+
+    @Test fun imageFailTargetIsRenumbered() {
+        val img = Step(Type.IMAGE, ms = 1000, text = "i", goto = 3, fail = 2)
+        val out = listOf(img, a, b).afterDelete(1)       // apaga o passo 2
+        assertEquals(2, out[0].goto)                      // 3 desce para 2
+        assertEquals(0, out[0].fail)                      // apontava para o apagado: vira "seguir"
     }
 
     @Test fun readLimited() {

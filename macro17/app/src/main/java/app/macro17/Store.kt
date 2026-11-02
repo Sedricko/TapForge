@@ -1,6 +1,8 @@
 package app.macro17
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
@@ -8,6 +10,7 @@ import java.io.InputStream
 
 class Store(ctx: Context) {
     private val dir = File(ctx.filesDir, "macros").apply { mkdirs() }
+    private val tdir = File(ctx.filesDir, "templates").apply { mkdirs() }
     private val prefs = ctx.getSharedPreferences("macro17", Context.MODE_PRIVATE)
 
     var selected: String?
@@ -26,6 +29,23 @@ class Store(ctx: Context) {
     var opacity: Int // 30..100: abaixo de 30% a bolha some e não dá para pará-la
         get() = prefs.getInt("opacity", 100).coerceIn(30, 100)
         set(v) = prefs.edit().putInt("opacity", v.coerceIn(30, 100)).apply()
+
+    // --- recortes de imagem dos passos IMAGE (um PNG por id) ---
+    fun newTemplateId(): String = java.util.UUID.randomUUID().toString()
+
+    fun saveTemplate(id: String, b: Bitmap) {
+        require(ID.matches(id)) { "id inválido" }
+        File(tdir, "$id.png").outputStream().use { check(b.compress(Bitmap.CompressFormat.PNG, 100, it)) { "falha ao gravar a imagem" } }
+    }
+
+    /** Só UUID vira nome de arquivo; arquivo ausente ou corrompido devolve null. */
+    fun template(id: String): Gray? {
+        if (!ID.matches(id)) return null
+        val f = File(tdir, "$id.png").takeIf { it.exists() } ?: return null
+        val b = BitmapFactory.decodeFile(f.path) ?: return null
+        val px = IntArray(b.width * b.height).also { b.getPixels(it, 0, b.width, 0, 0, b.width, b.height) }
+        return Gray.fromArgb(px, b.width, b.height).also { b.recycle() }
+    }
 
     /** Horário "HH:mm" do alarme de cada macro; vale só se o alarme ainda existir (ver Alarms.isScheduled). */
     fun scheduleTime(id: String): String? = prefs.getString("at_$id", null)

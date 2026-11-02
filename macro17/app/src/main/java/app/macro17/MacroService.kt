@@ -5,10 +5,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.Display
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -138,7 +140,8 @@ class MacroService : AccessibilityService() {
         }.placed(38, 57, 15)
         val stop = circleBtn(Ic.STOP, C.DARK, 38, "Parar macro") { engine.stop(); setOrb(false) }.placed(38, 77, 49)
         recBtn = circleBtn(Ic.REC, C.DARK, 38, "Gravar", C.RED) { if (recView == null) startRecording() else stopRecording(save = true) }.placed(38, 57, 83)
-        fan = listOf(play, stop, recBtn)
+        val capture = circleBtn(Ic.SEARCH, C.DARK, 38, "Capturar imagem para a macro selecionada") { captureImage() }.placed(38, 5, 100)
+        fan = listOf(play, stop, recBtn, capture)
         fan.forEach { it.visibility = View.GONE }
         orbBtn = circleBtn(Ic.TAP, C.BLUE, 48, "Controle de macros") { setOrb(!orbOpen) }.placed(48, 0, 0)
 
@@ -165,6 +168,71 @@ class MacroService : AccessibilityService() {
         bubble = frame
         frame.alpha = store.opacity / 100f
         wm.addView(frame, lp)
+    }
+
+    // --- captura de imagem ---------------------------------------------------------------
+
+    /** Orbe → Capturar: congela a tela, deixa recortar e acrescenta um passo IMAGE ao fim da macro selecionada. */
+    private fun captureImage() {
+        val m = store.selected?.let { store.get(it) } ?: return toast("Selecione uma macro no app antes de capturar")
+        if (recView != null || engine.running) return toast("Pare a gravação ou a macro antes de capturar")
+        setOrb(false)
+        bubble?.visibility = View.INVISIBLE // o orbe não pode aparecer no quadro
+        toast("Capturando em 2 s: deixe visível o que quer achar")
+        ui.postDelayed({ shoot(m.id) }, 2000)
+    }
+
+    private fun shotFailed(msg: String) { toast(msg); bubble?.visibility = View.VISIBLE }
+
+    private fun shoot(macroId: String) {
+        takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
+            override fun onSuccess(r: AccessibilityService.ScreenshotResult) {
+                val hb = r.hardwareBuffer
+                val bmp = try { Bitmap.wrapHardwareBuffer(hb, r.colorSpace)?.copy(Bitmap.Config.ARGB_8888, false) } finally { hb.close() }
+                if (bmp == null) shotFailed("Captura falhou") else pick(macroId, bmp)
+            }
+            override fun onFailure(code: Int) = shotFailed("Captura recusada (código $code)")
+        })
+    }
+
+    private fun pick(macroId: String, shot: Bitmap) {
+        val picker = RegionPicker(this, shot)
+        val root = FrameLayout(this)
+        fun close() {
+            runCatching { wm.removeView(root) }
+            shot.recycle()
+            bubble?.visibility = View.VISIBLE
+        }
+        fun save() {
+            val r = picker.region() ?: return toast("Marque uma área de pelo menos ${RegionPicker.MIN} px")
+            val m = store.get(macroId) ?: run { close(); return toast("Macro não encontrada") }
+            try {
+                val tid = store.newTemplateId()
+                val next = m.copy(steps = m.steps.afterInsert(m.steps.size, Step(Type.IMAGE, ms = 5000, text = tid)))
+                next.validate()?.let { throw IllegalArgumentException(it) } // antes de gravar o PNG, para não deixar arquivo solto
+                store.saveTemplate(tid, Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height()))
+                store.save(next)
+                toast("Imagem adicionada como passo ${next.steps.size} de “${m.name}”")
+            } catch (e: Exception) { toast("Falha: ${e.message}") }
+            close()
+        }
+        val bar = android.widget.LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            background = glass(28)
+            setPadding(dp(16), dp(6), dp(6), dp(6))
+            addView(label("Arraste sobre o que quer achar", 13f, C.TEXT2).apply { setPadding(0, 0, dp(12), 0) })
+            addView(circleBtn(Ic.BACK, C.DARK, 44, "Cancelar") { close() })
+            addView(circleBtn(Ic.OK, C.BLUE, 44, "Salvar recorte") { save() })
+        }
+        root.addView(picker, FrameLayout.LayoutParams(-1, -1))
+        root.addView(bar, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.bottomMargin = dp(64) })
+        val lp = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply { layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS }
+        wm.addView(root, lp)
     }
 
     // --- gravação ------------------------------------------------------------------------

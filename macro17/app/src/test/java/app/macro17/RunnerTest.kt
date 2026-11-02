@@ -12,11 +12,19 @@ private class Fake(
     val rolls: ArrayDeque<Int> = ArrayDeque(),
     val failGesture: Boolean = false,
     val stopAfterGestures: Int = Int.MAX_VALUE,
+    val frame: Gray? = null,                       // quadro que screen() devolve quando a fila está vazia
+    val templates: Map<String, Gray> = emptyMap(),
 ) : Ports {
+    val queue = ArrayDeque<Gray?>()                // quadros em ordem; null simula captura que falhou
+    var shots = 0
+    var clock = 0L
     val events = ArrayList<String>()
     var gestures = 0
     val sleeps = ArrayList<Long>()
-    override fun sleep(ms: Long) { sleeps += ms }
+    override fun sleep(ms: Long) { sleeps += ms; clock += ms }
+    override fun now() = clock
+    override fun screen(): Gray? { shots++; return if (queue.isNotEmpty()) queue.removeFirst() else frame }
+    override fun template(id: String) = templates[id]
     override fun gesture(strokes: List<Stroke>, ms: Int) {
         if (failGesture) throw IllegalStateException("gesto rejeitado")
         if (gestures++ >= stopAfterGestures) throw InterruptedException()
@@ -185,5 +193,64 @@ class RunnerTest {
         val m = macro(Step(Type.CALL, text = "c"), Step(Type.CALL, text = "c"))
         val (_, f) = run(m, Fake(macros = mapOf("c" to childC)))
         assertEquals(listOf("9", "8", "9", "8"), xs(f))
+    }
+
+    // --- busca de imagem ---
+    private fun noise(w: Int, h: Int, seed: Int): Gray { val r = kotlin.random.Random(seed); return Gray(w, h, IntArray(w * h) { r.nextInt(256) }) }
+    private fun plant(hay: Gray, n: Gray, x: Int, y: Int) {
+        for (j in 0 until n.h) for (i in 0 until n.w) hay.d[(y + j) * hay.w + x + i] = n.d[j * n.w + i]
+    }
+    private val needle = noise(30, 20, 7)
+    private fun screenWith(x: Int, y: Int) = noise(200, 150, 8).also { plant(it, needle, x, y) }  // x e y pares: a busca grossa reduz por 2
+    private fun image(goto: Int = 0, fail: Int = 0, ms: Int = 1000) = Step(Type.IMAGE, ms = ms, text = "t", goto = goto, fail = fail, cycle = 100, thr = 95)
+    private fun fakeWith(frame: Gray?) = Fake(frame = frame, templates = mapOf("t" to needle))
+
+    @Test fun imageFoundTapsCenter() {
+        val (o, f) = run(macro(image()), fakeWith(screenWith(50, 60)))
+        assertTrue(o is Outcome.Done)
+        assertEquals(listOf("g:65,70>65,70@50"), f.events)        // centro do recorte: (50+15, 60+10)
+    }
+
+    @Test fun imageSuccessFollowsGotoAndFailureFollowsFail() {
+        val m = macro(image(goto = 3, fail = 2), tap(1), tap(2))
+        assertEquals(listOf("2"), tapXs(run(m, fakeWith(screenWith(50, 60))).second))   // achou: pula para o passo 3
+        assertEquals(listOf("1", "2"), tapXs(run(m, fakeWith(noise(200, 150, 9))).second)) // não achou: vai ao passo 2
+    }
+
+    // só os toques dos passos (10 ms); o toque do achado dura 50 ms e fica de fora
+    private fun tapXs(f: Fake) = f.events.filter { it.startsWith("g:") && !it.endsWith("@50") }.map { it.substring(2, 3) }
+
+    @Test fun imageTimesOutAfterRetrying() {
+        val (_, f) = run(macro(image(ms = 500)), fakeWith(noise(200, 150, 9)))
+        assertEquals(6, f.shots)                                   // 0, 100, ..., 500 ms
+        assertTrue(f.events.isEmpty())                             // nada achado, nada tocado
+    }
+
+    @Test fun imageFoundOnThirdAttempt() {
+        val f = fakeWith(null)
+        f.queue.addAll(listOf(noise(200, 150, 9), null, screenWith(50, 60)))  // uma tela sem o recorte, uma captura que falhou
+        run(macro(image()), f)
+        assertEquals(3, f.shots)
+        assertEquals(listOf("g:65,70>65,70@50"), f.events)
+    }
+
+    @Test fun imageSearchAreaIsCroppedAndMappedBack() {
+        val area = image().copy(x1 = 100, y1 = 60, x2 = 180, y2 = 140)
+        val (_, inside) = run(macro(area), fakeWith(screenWith(120, 80)))
+        assertEquals(listOf("g:135,90>135,90@50"), inside.events)   // (120+15, 80+10) em coordenadas da tela inteira
+        val (_, outside) = run(macro(area), fakeWith(screenWith(10, 10)))
+        assertTrue(outside.events.isEmpty())                        // fora da área: não conta
+    }
+
+    @Test fun imageWithoutTapOrWithSkipStillJumps() {
+        val m = macro(image(goto = 3).copy(tap = false), tap(1), tap(2))
+        assertEquals(listOf("g:2,100>2,100@10"), run(m, fakeWith(screenWith(50, 60))).second.events)
+        val m2 = macro(image(goto = 3).copy(skip = true), tap(1), tap(2))
+        assertEquals(listOf("g:2,100>2,100@10"), run(m2, fakeWith(screenWith(50, 60))).second.events)
+    }
+
+    @Test fun imageMissingTemplateFails() {
+        val (o, _) = run(macro(image()), Fake(frame = screenWith(50, 60)))
+        assertTrue((o as Outcome.Failed).why.contains("imagem do passo 1"))
     }
 }

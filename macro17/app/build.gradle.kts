@@ -16,6 +16,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
-    // Nenhuma dependência de runtime além do stdlib do Kotlin. JUnit é só de teste.
-    testImplementation("junit:junit:4.13.2")
+    // Tudo vem do repositório (macro17/libs, ver THIRD_PARTY.md): nenhuma biblioteca é baixada de repositório remoto.
+    implementation(files("../libs/kotlin-stdlib-2.1.0.jar", "../libs/annotations-13.0.jar"))
+    testImplementation(files("../libs/junit-4.13.2.jar", "../libs/hamcrest-core-1.3.jar"))
 }

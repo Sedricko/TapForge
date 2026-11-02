@@ -2,7 +2,10 @@ package app.macro17
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.graphics.Bitmap
 import android.graphics.Path
+import android.os.SystemClock
+import android.view.Display
 import android.view.WindowManager
 import java.util.Random
 import java.util.concurrent.CountDownLatch
@@ -74,6 +77,36 @@ class Engine(
         override fun status(text: String, ms: Int) { say(text); Thread.sleep(ms.toLong()) }
 
         override fun resolve(id: String) = store.get(id)
+        override fun now() = SystemClock.elapsedRealtime()
+
+        // Cache: o PNG não precisa ser decodificado a cada tentativa. Ids são únicos por captura, então nunca fica velho.
+        private val templates = HashMap<String, Gray?>()
+        override fun template(id: String) = templates.getOrPut(id) { store.template(id) }
+
+        override fun screen(): Gray? {
+            val latch = CountDownLatch(1)
+            var shot: AccessibilityService.ScreenshotResult? = null
+            var err = 0
+            // O callback roda na thread principal; a conversão pesada fica nesta thread, fora dela.
+            svc.takeScreenshot(Display.DEFAULT_DISPLAY, svc.mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
+                override fun onSuccess(r: AccessibilityService.ScreenshotResult) { shot = r; latch.countDown() }
+                override fun onFailure(code: Int) { err = code; latch.countDown() }
+            })
+            check(latch.await(3, TimeUnit.SECONDS)) { "captura de tela sem resposta do sistema" }
+            val r = shot
+            if (r == null) {
+                // Intervalo mínimo entre capturas se resolve na próxima tentativa; os outros erros não.
+                check(err == AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) { "captura de tela recusada (código $err)" }
+                return null
+            }
+            val hb = r.hardwareBuffer
+            try {
+                val hw = Bitmap.wrapHardwareBuffer(hb, r.colorSpace) ?: return null
+                val bmp = hw.copy(Bitmap.Config.ARGB_8888, false).also { hw.recycle() } ?: return null
+                val px = IntArray(bmp.width * bmp.height).also { bmp.getPixels(it, 0, bmp.width, 0, 0, bmp.width, bmp.height) }
+                return Gray.fromArgb(px, bmp.width, bmp.height).also { bmp.recycle() }
+            } finally { hb.close() }
+        }
         override fun nextInt(bound: Int) = rnd.nextInt(bound)
         override fun log(line: String) = say(line)
     }
