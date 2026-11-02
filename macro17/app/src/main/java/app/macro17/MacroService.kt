@@ -47,9 +47,10 @@ class MacroService : AccessibilityService() {
         // Ao terminar (qualquer motivo) a tela volta a poder apagar.
         engine = Engine(this, { toast(it); ui.post { awake(false) } }, ::toast)
         instance = this
+        Diag.d("serviço", "acessibilidade conectada (gestos/captura/janelas conforme accessibility_config)")
         showBubble()
         lock = object : BroadcastReceiver() {
-            override fun onReceive(c: Context, i: Intent) { if (store.stopOnLock) engine.stop() }
+            override fun onReceive(c: Context, i: Intent) { Diag.d("sistema", "tela apagou; parar ao bloquear=${store.stopOnLock}"); if (store.stopOnLock) engine.stop() }
         }
         val off = IntentFilter(Intent.ACTION_SCREEN_OFF)
         // A versão com flags só existe na API 33; nas 31 e 32 o registro simples já basta para broadcast do sistema.
@@ -57,9 +58,10 @@ class MacroService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(e: AccessibilityEvent?) = Unit
-    override fun onInterrupt() = engine.stop()
+    override fun onInterrupt() { Diag.d("serviço", "onInterrupt (sistema interrompeu o feedback de acessibilidade)"); engine.stop() }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        Diag.d("serviço", "acessibilidade desconectada")
         engine.stop()
         stopRecording(save = false)
         lock?.let { runCatching { unregisterReceiver(it) } }
@@ -70,13 +72,14 @@ class MacroService : AccessibilityService() {
         return super.onUnbind(intent)
     }
 
-    fun stopMacro() = engine.stop()
+    fun stopMacro() { Diag.d("serviço", "parar macro pedido"); engine.stop() }
 
     fun toast(msg: String) { ui.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() } }
 
     /** Chamável de qualquer thread (alarme, app). */
     fun runMacro(id: String) {
         val m = store.get(id)
+        Diag.d("serviço", "executar macro id=$id -> ${m?.name ?: "NÃO ENCONTRADA"} (rodando=${engine.running}, gravando=${recView != null})")
         when {
             m == null -> toast("Macro não encontrada")
             recView != null -> toast("Termine a gravação primeiro")
@@ -182,7 +185,7 @@ class MacroService : AccessibilityService() {
         ui.postDelayed({ shoot(m.id) }, 2000)
     }
 
-    private fun shotFailed(msg: String) { toast(msg); bubble?.visibility = View.VISIBLE }
+    private fun shotFailed(msg: String) { Diag.e("captura", msg); toast(msg); bubble?.visibility = View.VISIBLE }
 
     private fun shoot(macroId: String) {
         takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
@@ -261,6 +264,7 @@ class MacroService : AccessibilityService() {
     // Captura sem repassar o toque ao app de baixo (injeção de volta reentraria no overlay).
 
     private fun startRecording() {
+        Diag.d("gravação", "início")
         if (engine.running) return toast("Pare a macro antes de gravar")
         rec.clear()
         val slop = ViewConfiguration.get(this).scaledTouchSlop
@@ -299,6 +303,7 @@ class MacroService : AccessibilityService() {
     }
 
     private fun stopRecording(save: Boolean) {
+        Diag.d("gravação", "fim (salvar=$save)")
         val v = recView ?: return
         runCatching { wm.removeView(v) }
         recView = null

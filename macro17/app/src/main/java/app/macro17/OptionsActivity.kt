@@ -41,6 +41,21 @@ class OptionsActivity : Activity() {
                 addView(LinearLayout(this@OptionsActivity).apply {
                     orientation = LinearLayout.VERTICAL
                     layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
+                    addView(label("Diagnóstico e logs", 15f, bold = true))
+                    addView(label("Registro de eventos, relatório do sistema e exportação para enviar a quem corrige.", 12f, C.TEXT2))
+                })
+                addView(glyph(Ic.CHEVRON, C.TEXT, 22))
+                setOnClickListener { startActivity(Intent(this@OptionsActivity, DiagActivity::class.java)) }
+            })
+            addView(LinearLayout(this@OptionsActivity).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                background = tileBg()
+                foreground = ripple(16)
+                setPadding(dp(14), dp(12), dp(10), dp(12))
+                layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(8) }
+                addView(LinearLayout(this@OptionsActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
                     addView(label("Leitor de números", 15f, bold = true))
                     addView(label("Ensine os dígitos de um jogo ou contador para o passo “Ler número”.", 12f, C.TEXT2))
                 })

@@ -17,6 +17,8 @@ private class Fake(
     val glyphSet: GlyphSet = GlyphSet(),
     val crashGesture: Boolean = false,             // simula falha inesperada (RuntimeException fora do contrato)
 ) : Ports {
+    val traces = ArrayList<String>()
+    override fun trace(line: String) { traces += line }
     val texts = ArrayDeque<Pair<Int, Int>?>()      // resultados de findText em ordem; esgotada = nada achado
     val textQueries = ArrayList<String>()
     override fun findText(query: String, exact: Boolean, area: IntArray?): Pair<Int, Int>? {
@@ -491,5 +493,19 @@ class RunnerTest {
         assertTrue(o is Outcome.Done)
         assertTrue(f.clock >= 500)
         assertEquals(listOf("1", "2"), tapXs(f))
+    }
+
+    // --- rastro de diagnóstico ---
+    @Test fun traceRecordsEveryExecutedStepAndSearchResults() {
+        val f = Fake().also { it.nodes.add(10 to 20) }
+        run(macro(tap(1), node(), tap(2)), f)
+        assertEquals(3, f.traces.count { it.startsWith("passo ") && it.contains("/3 ") })     // início de cada passo
+        assertTrue(f.traces.any { it == "passo 2 elemento: (10, 20)" })                       // resultado da busca
+    }
+
+    @Test fun traceReportsAMissWithoutHidingIt() {
+        val f = Fake()
+        run(macro(node(ms = 100)), f)
+        assertTrue(f.traces.any { it == "passo 1 elemento: não achou" })
     }
 }

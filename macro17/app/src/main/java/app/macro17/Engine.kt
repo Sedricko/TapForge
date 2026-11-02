@@ -42,13 +42,16 @@ class Engine(
 
     private fun run(m: Macro) {
         // Throwable (ex.: OutOfMemoryError ao decodificar quadro): o report sempre roda, para soltar a tela e a bolha.
+        val t0 = SystemClock.elapsedRealtime()
+        Diag.d("run", "início \"${m.name}\" passos=${m.steps.size} repetições=${m.loops}")
         val msg = try {
             when (val o = Runner(ports).run(m)) {
                 Outcome.Done -> "Macro concluída"
                 Outcome.Stopped -> "Macro parada"
                 is Outcome.Failed -> "Erro: ${o.why}"
             }
-        } catch (t: Throwable) { "Erro inesperado: ${t.javaClass.simpleName}" }
+        } catch (t: Throwable) { Diag.e("run", "Throwable no executor", t); "Erro inesperado: ${t.javaClass.simpleName}" }
+        Diag.d("run", "fim: $msg (${SystemClock.elapsedRealtime() - t0} ms)")
         report(msg)
     }
 
@@ -75,23 +78,31 @@ class Engine(
             }
             val done = CountDownLatch(1)
             var ok = false // escrito na thread principal antes do countDown; lido depois do await
+            Diag.d("gesto", strokes.joinToString(" | ") { "${it.x1},${it.y1}>${it.x2},${it.y2}" } + " @${ms}ms")
             val accepted = svc.dispatchGesture(b.build(), object : AccessibilityService.GestureResultCallback() {
                 override fun onCompleted(d: GestureDescription) { ok = true; done.countDown() }
                 override fun onCancelled(d: GestureDescription) { done.countDown() }
             }, null)
+            if (!accepted) Diag.e("gesto", "dispatchGesture recusou")
             check(accepted) { "gesto rejeitado (serviço sem permissão de gestos?)" }
             check(done.await(ms + 3000L, TimeUnit.MILLISECONDS)) { "gesto sem resposta do sistema" }
+            if (!ok) Diag.e("gesto", "gesto cancelado pelo sistema")
             check(ok) { "gesto cancelado (tela bloqueada ou app protegido)" }
         }
 
         override fun key(code: Int) { check(svc.performGlobalAction(code)) { "tecla recusada pelo sistema" } }
 
-        override fun status(text: String, ms: Int) { say(text); Thread.sleep(ms.toLong()) }
+        override fun status(text: String, ms: Int) { Diag.d("alerta", text); say(text); Thread.sleep(ms.toLong()) }
 
         override fun resolve(id: String) = store.get(id)
         override fun glyphs() = store.glyphs()
-        override fun matchNcc(hay: Gray, needle: Gray, th: Float, probe: TemplateMatcher.Probe) =
-            if (Cv.ok) Cv.ncc(hay, needle, th, probe) else TemplateMatcher.findNcc(hay, needle, th, probe)
+        override fun matchNcc(hay: Gray, needle: Gray, th: Float, probe: TemplateMatcher.Probe): TemplateMatcher.Hit? {
+            val t0 = SystemClock.elapsedRealtime()
+            val r = if (Cv.ok) Cv.ncc(hay, needle, th, probe) else TemplateMatcher.findNcc(hay, needle, th, probe)
+            val dt = SystemClock.elapsedRealtime() - t0
+            if (dt > 250) Diag.d("visão", "casamento lento: $dt ms (${if (Cv.ok) "OpenCV" else "Kotlin"}) área ${hay.w}x${hay.h} modelo ${needle.w}x${needle.h}")
+            return r
+        }
         override fun now() = SystemClock.elapsedRealtime()
 
         // Cache: o PNG não precisa ser decodificado a cada tentativa. Ids são únicos por captura, então nunca fica velho.
@@ -126,6 +137,7 @@ class Engine(
 
         /** Captura a tela como Bitmap ARGB_8888 (o chamador faz recycle); null só no intervalo mínimo entre capturas. */
         private fun capture(): Bitmap? {
+            val t0 = SystemClock.elapsedRealtime()
             val latch = CountDownLatch(1)
             var shot: AccessibilityService.ScreenshotResult? = null
             var err = 0
@@ -134,10 +146,13 @@ class Engine(
                 override fun onSuccess(r: AccessibilityService.ScreenshotResult) { shot = r; latch.countDown() }
                 override fun onFailure(code: Int) { err = code; latch.countDown() }
             })
-            check(latch.await(3, TimeUnit.SECONDS)) { "captura de tela sem resposta do sistema" }
+            if (!latch.await(3, TimeUnit.SECONDS)) Diag.e("captura", "sem resposta em 3 s")
+            check(latch.count == 0L) { "captura de tela sem resposta do sistema" }
+            SystemClock.elapsedRealtime().minus(t0).let { if (it > 400) Diag.d("captura", "lenta: $it ms") }
             val r = shot
             if (r == null) {
                 // Intervalo mínimo entre capturas se resolve na próxima tentativa; os outros erros não.
+                if (err != AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) Diag.e("captura", "recusada, código $err")
                 check(err == AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) { "captura de tela recusada (código $err)" }
                 return null
             }
@@ -186,7 +201,9 @@ class Engine(
         override fun nextInt(bound: Int) = rnd.nextInt(bound)
         private var lastJump = 0L
         // Laço GOTO rápido gera milhares de "Passo N → Passo M"; no máximo um por segundo vai à tela (diagnósticos passam sempre).
+        override fun trace(line: String) = Diag.d("passo", line)
         override fun log(line: String) {
+            Diag.d("aviso", line)
             if (line.contains(" → Passo ")) { val t = now(); if (t - lastJump < 1000) return; lastJump = t }
             say(line)
         }

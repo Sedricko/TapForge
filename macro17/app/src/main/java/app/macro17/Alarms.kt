@@ -10,6 +10,7 @@ import java.util.Calendar
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, i: Intent) {
         val id = i.getStringExtra("id") ?: return
+        Diag.d("alarme", "disparou macro id=$id (serviço conectado=${MacroService.instance != null})")
         Store(c).setScheduleTime(id, null) // alarme de uma vez só: já disparou
         MacroService.instance?.runMacro(id)
             ?: android.widget.Toast.makeText(c, "Macro agendada não rodou: serviço de acessibilidade desligado", android.widget.Toast.LENGTH_LONG).show()

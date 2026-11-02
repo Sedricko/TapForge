@@ -40,6 +40,7 @@ class MainActivity : Activity() {
         drawer = Drawer(this, listOf(
             Triple(Ic.HOME, "Home") {},
             Triple(Ic.GEAR, "Configurações") { startActivity(Intent(this, OptionsActivity::class.java)) },
+            Triple(Ic.INFO, "Diagnóstico e logs") { startActivity(Intent(this, DiagActivity::class.java)) },
         ))
         val root = FrameLayout(this).apply {
             setBackgroundColor(B.BG)

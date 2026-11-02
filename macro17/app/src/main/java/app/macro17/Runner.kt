@@ -37,6 +37,9 @@ interface Ports {
     fun now(): Long // ms monotônicos, para o prazo da busca
     fun nextInt(bound: Int): Int
     fun log(line: String)
+
+    /** Rastro de cada passo e resultado (diagnóstico). Padrão: nada. */
+    fun trace(line: String) {}
 }
 
 sealed class Outcome {
@@ -77,6 +80,7 @@ class Runner(private val p: Ports) {
             val f = stack[stack.lastIndex]
             if (f.resume) { f.resume = false; advance(stack, f, f.pc + 1); continue }
             val s = f.macro.steps[f.pc]
+            p.trace("passo ${f.pc + 1}/${f.macro.steps.size} ${s.type}" + (if (s.skip) " (pular)" else "") + " atraso=${delayOf(s)}ms")
 
             // Mínimo de 1 ms por passo: macro infinita sem nenhuma espera não pode virar laço quente.
             p.sleep(maxOf(1, delayOf(s)).toLong())
@@ -93,6 +97,7 @@ class Runner(private val p: Ports) {
                 Type.IMAGE -> {
                     val needle = p.template(s.text) ?: return Outcome.Failed("imagem do passo ${f.pc + 1} não encontrada no aparelho")
                     val hit = search(s, needle, f.pc + 1)
+                    p.trace("passo ${f.pc + 1} imagem: " + (hit?.let { "achou em ${it.x},${it.y} semelhança ${(it.score * 100).toInt()}%" } ?: "não achou"))
                     if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.x, hit.y, hit.x, hit.y)), TAP_MS)
                     jump = if (hit != null) s.goto else s.fail
                 }
@@ -105,16 +110,19 @@ class Runner(private val p: Ports) {
                         val oy = s.y1.coerceIn(0, frame.h)
                         Digits.read(frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1), set)?.takeIf { holds(s, it) }
                     }
+                    p.trace("passo ${f.pc + 1} número: ${read ?: "condição não satisfeita no prazo"}")
                     jump = if (read != null) s.goto else s.fail
                 }
                 Type.NODE -> {
                     val hit = poll(s) { p.findNode(s.text, s.exact) }
+                    p.trace("passo ${f.pc + 1} elemento: ${hit ?: "não achou"}")
                     if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.first, hit.second, hit.first, hit.second)), TAP_MS)
                     jump = if (hit != null) s.goto else s.fail
                 }
                 Type.TEXT -> {
                     val area = if (s.x2 > s.x1 && s.y2 > s.y1) intArrayOf(s.x1, s.y1, s.x2, s.y2) else null
                     val hit = poll(s) { p.findText(s.text, s.exact, area) }
+                    p.trace("passo ${f.pc + 1} texto: ${hit ?: "não achou"}")
                     if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.first, hit.second, hit.first, hit.second)), TAP_MS)
                     jump = if (hit != null) s.goto else s.fail
                 }

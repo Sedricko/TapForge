@@ -25,6 +25,14 @@ class Store(ctx: Context) {
         get() = prefs.getBoolean("keepOn", true)
         set(v) = prefs.edit().putBoolean("keepOn", v).apply()
 
+    // Diagnóstico: grava eventos em arquivo (ligado por padrão); diagRoot inclui log do sistema via su, só se o usuário pedir.
+    var diag: Boolean
+        get() = prefs.getBoolean("diag", true)
+        set(v) { prefs.edit().putBoolean("diag", v).apply(); Diag.enabled = v }
+    var diagRoot: Boolean
+        get() = prefs.getBoolean("diagRoot", false)
+        set(v) = prefs.edit().putBoolean("diagRoot", v).apply()
+
     var stopOnLock: Boolean
         get() = prefs.getBoolean("stopOnLock", true)
         set(v) = prefs.edit().putBoolean("stopOnLock", v).apply()
