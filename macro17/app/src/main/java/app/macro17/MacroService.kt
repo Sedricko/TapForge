@@ -155,7 +155,16 @@ class MacroService : AccessibilityService() {
             store.selected?.let { runMacro(it) } ?: toast("Selecione uma macro no app")
             setOrb(false)
         }.placed(38, 57, 15)
-        val stop = circleBtn(Ic.STOP, C.DARK, 38, "Parar macro") { engine.stop(); setOrb(false) }.placed(38, 77, 49)
+        // Um botão para o que estiver acontecendo: gravando, salva a gravação (segurar descarta); senão, para a macro.
+        val stop = circleBtn(Ic.STOP, C.DARK, 38, "Parar macro ou gravação (segure para descartar a gravação)") {
+            if (recView != null) stopRecording(save = true) else engine.stop()
+            setOrb(false)
+        }.placed(38, 77, 49).apply {
+            setOnLongClickListener {
+                if (recView == null) return@setOnLongClickListener false
+                stopRecording(save = false); toast("Gravação descartada"); setOrb(false); true
+            }
+        }
         recBtn = circleBtn(Ic.REC, C.DARK, 38, "Gravar", C.RED) { if (recView == null) startRecording() else stopRecording(save = true) }.placed(38, 57, 83)
         val capture = circleBtn(Ic.SEARCH, C.DARK, 38, "Capturar imagem para a macro selecionada") { captureImage() }.placed(38, 5, 100)
         fan = listOf(play, stop, recBtn, capture)
@@ -319,7 +328,8 @@ class MacroService : AccessibilityService() {
         // Reanexa a bolha: janelas do mesmo tipo empilham pela ordem de adição.
         bubble?.let { b -> val p = b.layoutParams; wm.removeView(b); wm.addView(b, p) }
         recBtn.restyle(Ic.STOP, C.RED)
-        toast("Gravando: toque nos pontos. Os toques não chegam ao app.")
+        orbBtn.restyle(Ic.TAP, C.RED) // bolha vermelha = gravando, mesmo com o leque fechado
+        toast("Gravando: toque nos pontos. Para parar: ■ na bolha (segure para descartar).")
     }
 
     private fun stopRecording(save: Boolean) {
@@ -328,6 +338,7 @@ class MacroService : AccessibilityService() {
         runCatching { wm.removeView(v) }
         recView = null
         recBtn.restyle(Ic.REC, C.DARK, C.RED)
+        orbBtn.restyle(Ic.TAP, C.BLUE)
         if (!save) return
         if (rec.isEmpty()) return toast("Nada gravado")
         val m = Macro(UUID.randomUUID().toString(), "Gravação " + SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault()).format(Date()), 1, rec.toList())
