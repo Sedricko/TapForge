@@ -46,6 +46,7 @@ dependencyResolutionManagement {
             "com.google.mlkit",
             "javax.inject",
             "org.opencv",
+                "org.sonatype.oss",
                 ).forEach { includeGroup(it) }
             }
         }
