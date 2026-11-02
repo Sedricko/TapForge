@@ -47,6 +47,9 @@ class ModelTest {
         assertNotNull(Step(Type.COUNTER, counter = 1, cases = listOf(Case(2, 9))).validate(2))   // destino fora
         assertNotNull(Step(Type.COUNTER, counter = 1, cases = List(MAX_CASES + 1) { Case(it + 1, 0) }).validate(2))
         assertNotNull(Step(Type.CALL, text = "").validate(1))
+        assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", confirm = 0).validate(1))                // confirmações fora de 1..5
+        assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", confirm = 6).validate(1))
+        assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", method = 2).validate(1))                 // método inexistente
         assertNotNull(Step(Type.NUMBER, 0, 0, 0, 0, ms = 3000).validate(1))                              // sem área
         assertNotNull(Step(Type.NUMBER, 50, 50, 10, 10, ms = 3000).validate(1))                          // área invertida
         assertNotNull(Step(Type.NUMBER, 10, 10, 90, 90, ms = 3000, cmp = 4).validate(1))                 // condição inexistente

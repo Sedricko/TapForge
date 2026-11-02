@@ -1,5 +1,7 @@
 package app.macro17
 
+import kotlin.math.abs
+
 /** Uma trilha de dedo: toque é uma trilha com início = fim. */
 data class Stroke(val x1: Int, val y1: Int, val x2: Int, val y2: Int)
 
@@ -78,7 +80,7 @@ class Runner(private val p: Ports) {
                 Type.COUNTER -> jump = counterJump(f, s)
                 Type.IMAGE -> {
                     val needle = p.template(s.text) ?: return Outcome.Failed("imagem do passo ${f.pc + 1} não encontrada no aparelho")
-                    val hit = search(s, needle)
+                    val hit = search(s, needle, f.pc + 1)
                     if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.x, hit.y, hit.x, hit.y)), TAP_MS)
                     jump = if (hit != null) s.goto else s.fail
                 }
@@ -121,14 +123,36 @@ class Runner(private val p: Ports) {
      * Tenta achar [needle] na tela a cada [Step.cycle] ms até [Step.ms]. A primeira tentativa é imediata.
      * Devolve o centro do achado em coordenadas da tela inteira (a área de busca é recortada antes).
      */
-    private fun search(s: Step, needle: Gray): TemplateMatcher.Hit? = poll(s) {
-        val frame = p.screen() ?: return@poll null
-        val whole = s.x1 == 0 && s.y1 == 0 && s.x2 == 0 && s.y2 == 0
-        val ox = if (whole) 0 else s.x1.coerceIn(0, frame.w)
-        val oy = if (whole) 0 else s.y1.coerceIn(0, frame.h)
-        val hay = if (whole) frame else frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1)
+    /**
+     * Procura [needle] até o prazo. Com [Step.confirm] > 1, só vale o achado que se repete em quadros seguidos no mesmo lugar
+     * (evita agir sobre um quadro de transição ou de animação). Ao falhar, diz o quanto faltou.
+     */
+    private fun search(s: Step, needle: Gray, number: Int): TemplateMatcher.Hit? {
+        val probe = TemplateMatcher.Probe()
+        var streak = 0
+        var last: TemplateMatcher.Hit? = null
         val th = s.thr / 100f
-        (if (s.scales) TemplateMatcher.findNccScaled(hay, needle, th) else TemplateMatcher.findNcc(hay, needle, th))?.let { it.copy(x = it.x + ox, y = it.y + oy) }
+        val hit = poll(s) {
+            val frame = p.screen() ?: return@poll null
+            val whole = s.x1 == 0 && s.y1 == 0 && s.x2 == 0 && s.y2 == 0
+            val ox = if (whole) 0 else s.x1.coerceIn(0, frame.w)
+            val oy = if (whole) 0 else s.y1.coerceIn(0, frame.h)
+            val hay = if (whole) frame else frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1)
+            // Dentro da área, compara os pixels com o modelo e confere com a % configurada.
+            val find = { n: Gray -> if (s.method == 1) TemplateMatcher.findNcc(hay, n, th, probe) else TemplateMatcher.findSqdiff(hay, n, th, s.mono, probe) }
+            val h = (if (s.scales) TemplateMatcher.scaled(needle, find) else find(needle))?.let { it.copy(x = it.x + ox, y = it.y + oy) }
+            val prev = last
+            if (h == null) { streak = 0; last = null; return@poll null }
+            streak = if (prev != null && abs(prev.x - h.x) <= STILL_PX && abs(prev.y - h.y) <= STILL_PX) streak + 1 else 1
+            last = h
+            if (streak >= s.confirm) h else null
+        }
+        if (hit == null) p.log(
+            "Passo $number: imagem não achada. " +
+                (if (probe.best <= 0f) "Nada parecido na área" else "Melhor semelhança ${(probe.best * 100).toInt()}%") +
+                " (exigido ${s.thr}%" + (if (s.confirm > 1) ", ${s.confirm} quadros seguidos" else "") + ")"
+        )
+        return hit
     }
 
     /** A leitura satisfaz a condição do passo (≥, ≤, =, entre)? */
@@ -188,5 +212,5 @@ class Runner(private val p: Ports) {
         }
     }
 
-    private companion object { const val MAX_DEPTH = 8; const val TAP_MS = 50 }
+    private companion object { const val MAX_DEPTH = 8; const val TAP_MS = 50; const val STILL_PX = 3 }
 }

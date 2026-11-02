@@ -219,8 +219,10 @@ class RunnerTest {
     @Test fun imageFoundOnADimmerScreen() {
         // a mesma tela com brilho e contraste menores: o SAD perderia o recorte, a correlação não
         val dimmed = screenWith(50, 60).let { f -> Gray(f.w, f.h, IntArray(f.d.size) { (f.d[it] * 5 / 10 + 40).coerceIn(0, 255) }) }
-        val (_, f) = run(macro(image()), fakeWith(dimmed))
-        assertEquals(listOf("g:65,70>65,70@50"), f.events)
+        val (_, f) = run(macro(image().copy(method = 1)), fakeWith(dimmed))
+        assertEquals(listOf("g:65,70>65,70@50"), gestures(f))
+        // o método padrão é o do app de referência, sensível a brilho: a mesma tela mais escura não conta
+        assertTrue(gestures(run(macro(image()), fakeWith(dimmed)).second).isEmpty())
     }
 
     @Test fun imageSuccessFollowsGotoAndFailureFollowsFail() {
@@ -238,7 +240,8 @@ class RunnerTest {
     @Test fun imageTimesOutAfterRetrying() {
         val (_, f) = run(macro(image(ms = 500)), fakeWith(noise(200, 150, 9)))
         assertEquals(6, f.shots)                                   // 0, 100, ..., 500 ms
-        assertTrue(f.events.isEmpty())                             // nada achado, nada tocado
+        assertTrue(gestures(f).isEmpty())                          // nada achado, nada tocado
+        assertTrue(f.events.any { it.startsWith("l:Passo 1: imagem não achada") })   // e diz por quê
     }
 
     @Test fun imageFoundOnThirdAttempt() {
@@ -254,7 +257,7 @@ class RunnerTest {
         val (_, inside) = run(macro(area), fakeWith(screenWith(120, 80)))
         assertEquals(listOf("g:135,90>135,90@50"), inside.events)   // (120+15, 80+10) em coordenadas da tela inteira
         val (_, outside) = run(macro(area), fakeWith(screenWith(10, 10)))
-        assertTrue(outside.events.isEmpty())                        // fora da área: não conta
+        assertTrue(gestures(outside).isEmpty())                     // fora da área: não conta
     }
 
     @Test fun imageWithoutTapOrWithSkipStillJumps() {
@@ -355,5 +358,44 @@ class RunnerTest {
         val f = Fake(frame = blank, glyphSet = trainedSet())
         run(m, f)
         assertEquals(listOf("1", "2"), tapXs(f))
+    }
+
+    // --- fidelidade ao app de referência e confirmação em quadros seguidos ---
+    @Test fun imageFollowsTheConfiguredPercentage() {
+        // 10% dos pixels do modelo diferentes: com 75% configurado acha, com 99% não
+        val tpl = noise(20, 20, 31)
+        val frame = noise(60, 60, 32).also { plant(it, tpl, 20, 20) }          // fundo texturizado: sem outra janela idêntica
+        for (i in 0 until 40) { val k = (20 + i / 20) * 60 + 20 + i % 20; frame.d[k] = (frame.d[k] + 128) % 256 }
+        fun hits(thr: Int): Boolean {
+            val f = Fake(frame = frame, templates = mapOf("t" to tpl))
+            run(macro(Step(Type.IMAGE, ms = 100, text = "t", thr = thr, cycle = 100)), f)
+            return gestures(f).isNotEmpty()
+        }
+        assertTrue(hits(75)); assertTrue(!hits(99))
+    }
+
+    @Test fun imageFailureReportsHowCloseItGot() {
+        val f = fakeWith(noise(200, 150, 9))
+        run(macro(image(ms = 100)), f)
+        val line = f.events.single { it.startsWith("l:Passo 1: imagem não achada") }
+        assertTrue(line.contains("exigido 95%"))
+    }
+
+    @Test fun confirmRequiresConsecutiveFramesAtTheSamePlace() {
+        val hit = screenWith(50, 60); val miss = noise(200, 150, 9)
+        val f = fakeWith(null)
+        f.queue.addAll(listOf(hit, miss, hit, hit))            // achou, sumiu, achou, achou de novo
+        run(macro(image().copy(confirm = 2)), f)
+        assertEquals(4, f.shots)                               // só o 4º quadro fecha dois seguidos
+        assertEquals(listOf("g:65,70>65,70@50"), f.events.filter { it.startsWith("g:") })
+    }
+
+    @Test fun confirmIgnoresAFrameWhereTheMatchMoved() {
+        val a = screenWith(50, 60); val b = screenWith(100, 40)
+        val f = fakeWith(null)
+        f.queue.addAll(listOf(a, b, b))                        // em lugares diferentes não conta como confirmado
+        run(macro(image().copy(confirm = 2)), f)
+        assertEquals(3, f.shots)
+        assertEquals(listOf("g:115,50>115,50@50"), f.events.filter { it.startsWith("g:") })
     }
 }

@@ -208,7 +208,7 @@ class MacroService : AccessibilityService() {
             val m = store.get(macroId) ?: run { close(); return toast("Macro não encontrada") }
             try {
                 val tid = store.newTemplateId()
-                val next = m.copy(steps = m.steps.afterInsert(m.steps.size, Step(Type.IMAGE, ms = 5000, text = tid)))
+                val next = m.copy(steps = m.steps.afterInsert(m.steps.size, Step(Type.IMAGE, ms = 5000, text = tid, thr = 95)))
                 next.validate()?.let { throw IllegalArgumentException(it) } // antes de gravar o PNG, para não deixar arquivo solto
                 store.saveTemplate(tid, Bitmap.createBitmap(shot, r.left, r.top, r.width(), r.height()))
                 store.save(next)

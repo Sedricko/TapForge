@@ -35,14 +35,14 @@ class EditorActivity : Activity() {
     private val X1 = 0; private val Y1 = 1; private val X2 = 2; private val Y2 = 3; private val MS = 4
     private val DELAY = 5; private val RND = 6; private val JIT = 7; private val RMIN = 8; private val GOTO = 9; private val CNT = 10; private val CASE0 = 11
     private val THR = CASE0 + MAX_CASES * 2; private val CYC = THR + 1; private val FAIL = THR + 2
-    private val CMP = FAIL + 1; private val LO = FAIL + 2; private val HI = FAIL + 3
+    private val CMP = FAIL + 1; private val LO = FAIL + 2; private val HI = FAIL + 3; private val CONF = FAIL + 4; private val METH = FAIL + 5
 
     private val labels = mapOf(
         X1 to "X", Y1 to "Y", X2 to "X final", Y2 to "Y final", MS to "Duração (ms)",
         DELAY to "Atraso antes da ação (ms)", RND to "Atraso aleatório: máximo (ms, 0 = desligado)", RMIN to "Atraso aleatório: mínimo (ms)",
         JIT to "Jitter (px)", GOTO to "Ir para o passo (0 = seguir)", CNT to "Contador (1 a $MAX_COUNTERS)",
-        THR to "Semelhança mínima (20 a 100%; 90 é um bom começo)", CYC to "Intervalo entre tentativas (ms)", FAIL to "Se não achar, ir para o passo (0 = seguir)",
-        CMP to "Condição (0 ≥, 1 ≤, 2 =, 3 entre)", LO to "Valor (ou o mínimo, se “entre”)", HI to "Máximo (só para “entre”)",
+        THR to "Semelhança mínima (20 a 100%): % de pixels que precisam bater com o modelo", CYC to "Intervalo entre tentativas (ms)", FAIL to "Se não achar, ir para o passo (0 = seguir)",
+        METH to "Método (0 = do app original, 1 = tolerante a brilho)", CONF to "Confirmações seguidas, no mesmo lugar (1 a 5; 1 = como o original)", CMP to "Condição (0 ≥, 1 ≤, 2 =, 3 entre)", LO to "Valor (ou o mínimo, se “entre”)", HI to "Máximo (só para “entre”)",
     )
     private val common = intArrayOf(DELAY, RMIN, RND)
     private val fields = mapOf(
@@ -57,7 +57,7 @@ class EditorActivity : Activity() {
         Type.COUNTER to intArrayOf(CNT, GOTO) + IntArray(MAX_CASES * 2) { CASE0 + it } + common,
         Type.RESET to intArrayOf(CNT) + common,
         Type.CALL to common,
-        Type.IMAGE to intArrayOf(X1, Y1, X2, Y2, MS, CYC, THR, GOTO, FAIL) + common,
+        Type.IMAGE to intArrayOf(X1, Y1, X2, Y2, MS, CYC, THR, METH, CONF, GOTO, FAIL) + common,
         Type.NODE to intArrayOf(MS, CYC, GOTO, FAIL) + common,
         Type.NUMBER to intArrayOf(X1, Y1, X2, Y2, MS, CYC, CMP, LO, HI, GOTO, FAIL) + common,
     )
@@ -178,7 +178,7 @@ class EditorActivity : Activity() {
                 " · até ${s.ms} ms · vale → " + (if (s.goto == 0) "seguir" else s.goto) + " · não → " + (if (s.fail == 0) "seguir" else s.fail)
             Type.NODE -> "“${s.text}”" + (if (s.exact) " (igual)" else "") + " · até ${s.ms} ms · achou → " + (if (s.goto == 0) "seguir" else s.goto) +
                 " · não → " + (if (s.fail == 0) "seguir" else s.fail) + if (s.tap) " · toca" else ""
-            Type.IMAGE -> "≥ ${s.thr}%" + (if (s.scales) " (escalas)" else "") + " · até ${s.ms} ms · " + (if (s.x2 > s.x1) "área (${s.x1}, ${s.y1})–(${s.x2}, ${s.y2}) · " else "tela toda · ") +
+            Type.IMAGE -> "≥ ${s.thr}%" + (if (s.method == 1) " tolerante" else "") + (if (s.mono) " cinza" else "") + (if (s.confirm > 1) " ×${s.confirm}" else "") + (if (s.scales) " (escalas)" else "") + " · até ${s.ms} ms · " + (if (s.x2 > s.x1) "área (${s.x1}, ${s.y1})–(${s.x2}, ${s.y2}) · " else "tela toda · ") +
                 "achou → " + (if (s.goto == 0) "seguir" else s.goto) + " · não → " + (if (s.fail == 0) "seguir" else s.fail) + if (s.tap) " · toca" else ""
             Type.CALL -> (store.get(s.text)?.name ?: "macro removida") + if (s.ret) " · volta ao terminar" else " · substitui esta"
         } + skip
@@ -222,9 +222,9 @@ class EditorActivity : Activity() {
 
     /** [total] é o número de passos depois da edição, para validar os destinos de salto. */
     private fun editStep(type: Type, s: Step, total: Int, done: (Step) -> Unit) {
-        val v = IntArray(HI + 1)
+        val v = IntArray(METH + 1)
         v[X1] = s.x1; v[Y1] = s.y1; v[X2] = s.x2; v[Y2] = s.y2; v[MS] = s.ms; v[DELAY] = s.delay; v[RND] = s.rnd
-        v[JIT] = s.jitter; v[RMIN] = s.rndMin; v[GOTO] = s.goto; v[CNT] = s.counter; v[THR] = s.thr; v[CYC] = s.cycle; v[FAIL] = s.fail; v[CMP] = s.cmp; v[LO] = s.lo; v[HI] = s.hi
+        v[JIT] = s.jitter; v[RMIN] = s.rndMin; v[GOTO] = s.goto; v[CNT] = s.counter; v[THR] = s.thr; v[CYC] = s.cycle; v[FAIL] = s.fail; v[CMP] = s.cmp; v[LO] = s.lo; v[HI] = s.hi; v[CONF] = s.confirm; v[METH] = s.method
         s.cases.forEachIndexed { k, c -> v[CASE0 + 2 * k] = c.n; v[CASE0 + 2 * k + 1] = c.to }
 
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(4)) }
@@ -264,6 +264,8 @@ class EditorActivity : Activity() {
 
         val exactSw = if (type == Type.NODE)
             Switch(this).apply { isChecked = s.exact; contentDescription = "Texto inteiro igual" }.also { col.addView(labeled("Texto inteiro igual (desligado = contém)", it)) } else null
+        val monoSw = if (type == Type.IMAGE)
+            Switch(this).apply { isChecked = s.mono; contentDescription = "Comparar em cinza" }.also { col.addView(labeled("Comparar em cinza (ignora a cor)", it)) } else null
         val scalesSw = if (type == Type.IMAGE)
             Switch(this).apply { isChecked = s.scales; contentDescription = "Tolerar variação de escala" }.also { col.addView(labeled("Tolerar variação de escala (mais lento)", it)) } else null
         val tapSw = if (type == Type.IMAGE || type == Type.NODE)
@@ -285,7 +287,7 @@ class EditorActivity : Activity() {
                 type, nv[X1], nv[Y1], nv[X2], nv[Y2], nv[MS], nv[DELAY], nv[RND], nv[RMIN], nv[JIT],
                 skipSw?.isChecked ?: false, nv[GOTO], if (nv[CNT] == 0) 1 else nv[CNT], if (type == Type.COUNTER) cases else emptyList(),
                 if (type == Type.STATUS || type == Type.NODE) textEdit!!.text.toString().trim() else if (type == Type.CALL || type == Type.IMAGE) text else "", retSw?.isChecked ?: true,
-                nv[THR], nv[CYC], nv[FAIL], tapSw?.isChecked ?: true, exactSw?.isChecked ?: false, scalesSw?.isChecked ?: false, nv[CMP], nv[LO], nv[HI],
+                nv[THR], nv[CYC], nv[FAIL], tapSw?.isChecked ?: true, exactSw?.isChecked ?: false, scalesSw?.isChecked ?: false, nv[CMP], nv[LO], nv[HI], nv[METH], monoSw?.isChecked ?: false, nv[CONF],
             )
             val err = ns.validate(total)
             if (err != null) { toast(err); return@setOnClickListener }

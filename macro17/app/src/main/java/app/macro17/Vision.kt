@@ -8,13 +8,15 @@ import kotlin.math.sqrt
 // Buscador reaproveitado do TapForge (mesmo repositório): SAD em tons de cinza, busca grossa e depois refino.
 // shortcut: sensível a brilho e escala; tolerância a escala só em findScaled. Trocar por correlação normalizada se falhar em campo.
 /** Imagem em tons de cinza (0..255). Independente de Android, testável na JVM. */
-class Gray(val w: Int, val h: Int, val d: IntArray) {
+/** [rgb] (ARGB por pixel) é opcional: quando existe, o modo estrito também confere a cor. */
+class Gray(val w: Int, val h: Int, val d: IntArray, val rgb: IntArray? = null) {
     fun crop(x: Int, y: Int, cw: Int, ch: Int): Gray {
         val x0 = x.coerceIn(0, w); val y0 = y.coerceIn(0, h)
         val w2 = max(0, min(cw, w - x0)); val h2 = max(0, min(ch, h - y0))
         val out = IntArray(w2 * h2)
         for (j in 0 until h2) System.arraycopy(d, (y0 + j) * w + x0, out, j * w2, w2)
-        return Gray(w2, h2, out)
+        val rgbOut = rgb?.let { src -> IntArray(w2 * h2).also { o -> for (j in 0 until h2) System.arraycopy(src, (y0 + j) * w + x0, o, j * w2, w2) } }
+        return Gray(w2, h2, out, rgbOut)
     }
 
     fun downscale(s: Int): Gray {
@@ -50,7 +52,7 @@ class Gray(val w: Int, val h: Int, val d: IntArray) {
         fun fromArgb(argb: IntArray, w: Int, h: Int) = Gray(w, h, IntArray(argb.size) {
             val p = argb[it]
             (((p shr 16) and 255) * 77 + ((p shr 8) and 255) * 151 + (p and 255) * 28) shr 8
-        })
+        }, argb)
     }
 }
 
@@ -159,6 +161,11 @@ object TemplateMatcher {
             val sc = zncc(hs, ns, x, y, nm, nSS, sums)
             if (sc >= min) all += Cand(x, y, sc)
         }
+        return nms(all, ns, k)
+    }
+
+    /** Melhores [k] candidatos, do mais parecido ao menos, sem vizinhos sobrepostos. */
+    private fun nms(all: MutableList<Cand>, ns: Gray, k: Int): List<Cand> {
         all.sortByDescending { it.score }
         val out = ArrayList<Cand>()
         for (c in all) {
@@ -168,8 +175,109 @@ object TemplateMatcher {
         return out
     }
 
+    /** Medidas da busca, para dizer ao usuário o quanto faltou quando não achou. */
+    class Probe { var best = 0f }
+
+    /**
+     * Sucesso como no app de referência: semelhança ESTRITAMENTE maior que o limiar configurado.
+     * Melhoria: 100% passa a significar "pixel idêntico"; no original, 100% nunca aceitaria nada.
+     */
+    fun meets(sim: Float, threshold: Float) = sim > threshold || (threshold >= 1f && sim >= 0.9999f)
+
+    // ---- método do app de referência: TM_SQDIFF_NORMED (distância; semelhança = 1 − distância) ----
+    // Dentro da área, compara os pixels com o modelo: semelhança = 1 − Σ(T−I)² / sqrt(ΣT²·ΣI²).
+
+    /**
+     * Semelhança exata da janela de [hay] em (x,y) com [needle]. Em cor soma os canais R, G, B e A (como o OpenCV
+     * com imagens RGBA, que é o que o app de referência compara); [mono] compara só o cinza.
+     */
+    fun sqdiffSim(hay: Gray, needle: Gray, x: Int, y: Int, mono: Boolean): Float {
+        val hr = hay.rgb; val nr = needle.rgb
+        var num = 0L; var t2 = 0L; var i2 = 0L
+        if (mono || hr == null || nr == null) {
+            for (j in 0 until needle.h) {
+                val hb = (y + j) * hay.w + x; val nb = j * needle.w
+                for (i in 0 until needle.w) {
+                    val t = needle.d[nb + i]; val v = hay.d[hb + i]; val d = t - v
+                    num += d * d; t2 += t * t; i2 += v * v
+                }
+            }
+        } else {
+            for (j in 0 until needle.h) {
+                val hb = (y + j) * hay.w + x; val nb = j * needle.w
+                for (i in 0 until needle.w) {
+                    val t = nr[nb + i]; val v = hr[hb + i]
+                    val tr = (t shr 16) and 255; val tg = (t shr 8) and 255; val tb = t and 255; val ta = (t ushr 24) and 255
+                    val vr = (v shr 16) and 255; val vg = (v shr 8) and 255; val vb = v and 255; val va = (v ushr 24) and 255
+                    num += (tr - vr) * (tr - vr) + (tg - vg) * (tg - vg) + (tb - vb) * (tb - vb) + (ta - va) * (ta - va)
+                    t2 += tr * tr + tg * tg + tb * tb + ta * ta
+                    i2 += vr * vr + vg * vg + vb * vb + va * va
+                }
+            }
+        }
+        val den = sqrt(t2.toDouble() * i2.toDouble())
+        val dist = if (den < 1e-9) (if (num == 0L) 0.0 else 1.0) else num / den
+        return (1.0 - dist).toFloat()
+    }
+
+    /** Candidatos na escala reduzida: a soma dos quadrados é interrompida assim que passa do que a semelhança mínima admite. */
+    private fun coarseSqdiff(hs: Gray, ns: Gray, minSim: Float, k: Int): List<Cand> {
+        var t2 = 0L
+        for (v in ns.d) t2 += v.toLong() * v
+        val sums = integral(hs)
+        val maxDist = 1.0 - minSim
+        val all = ArrayList<Cand>()
+        for (y in 0..hs.h - ns.h) for (x in 0..hs.w - ns.w) {
+            val i2 = sums.rect(sums.q, x, y, ns.w, ns.h).toDouble()
+            val den = sqrt(t2.toDouble() * i2)
+            if (den < 1e-9) continue
+            val limit = (maxDist * den).toLong() + 1
+            var acc = 0L
+            var j = 0
+            while (j < ns.h && acc <= limit) {
+                val hb = (y + j) * hs.w + x; val nb = j * ns.w
+                for (i in 0 until ns.w) { val d = hs.d[hb + i] - ns.d[nb + i]; acc += d * d }
+                j++
+            }
+            if (acc <= limit) all += Cand(x, y, (1.0 - acc / den).toFloat())
+        }
+        return nms(all, ns, k)
+    }
+
+    /** Procura [needle] em [hay] pelo método do app de referência. Score = semelhança 0..1. */
+    fun findSqdiff(hay: Gray, needle: Gray, threshold: Float, mono: Boolean, probe: Probe? = null): Hit? {
+        if (needle.w == 0 || needle.h == 0 || needle.w > hay.w || needle.h > hay.h) return null
+        val s = step(needle)
+        val hs = hay.downscale(s); val ns = needle.downscale(s)
+        if (ns.w == 0 || ns.h == 0 || ns.w > hs.w || ns.h > hs.h) return null
+        var best: Hit? = null
+        for (c in coarseSqdiff(hs, ns, maxOf(0.2f, threshold - 0.15f), 8)) {
+            var bx = 0; var by = 0; var bs = -2f
+            for (y in max(0, c.y * s - s - 1)..min(hay.h - needle.h, c.y * s + s + 1)) {
+                for (x in max(0, c.x * s - s - 1)..min(hay.w - needle.w, c.x * s + s + 1)) {
+                    val sc = sqdiffSim(hay, needle, x, y, mono)
+                    if (sc > bs) { bs = sc; bx = x; by = y }
+                }
+            }
+            probe?.let { it.best = maxOf(it.best, bs) }
+            if (meets(bs, threshold) && (best == null || bs > best.score)) best = Hit(bx + needle.w / 2, by + needle.h / 2, bs, needle.w, needle.h)
+        }
+        return best
+    }
+
+    /** Tenta o modelo em escalas próximas com o buscador [find]. Mais lento: até 5 buscas. O modelo reduzido perde a cor (cinza). */
+    fun scaled(needle: Gray, find: (Gray) -> Hit?): Hit? {
+        for (f in floatArrayOf(1f, 0.9f, 1.1f, 0.8f, 1.25f)) {
+            val n = if (f == 1f) needle else needle.resize((needle.w * f).toInt(), (needle.h * f).toInt())
+            find(n)?.let { return it }
+        }
+        return null
+    }
+
+    // ---- alternativa tolerante a brilho: correlação normalizada (ZNCC) ----
+
     /** Como [find], mas por correlação normalizada: acha o recorte mesmo com brilho e contraste diferentes. Score = ZNCC. */
-    fun findNcc(hay: Gray, needle: Gray, threshold: Float): Hit? {
+    fun findNcc(hay: Gray, needle: Gray, threshold: Float, probe: Probe? = null): Hit? {
         if (needle.w == 0 || needle.h == 0 || needle.w > hay.w || needle.h > hay.h) return null
         if (flat(needle)) return find(hay, needle, threshold)
         val s = step(needle)
@@ -185,19 +293,13 @@ object TemplateMatcher {
                     if (sc > bs) { bs = sc; bx = x; by = y }
                 }
             }
+            probe?.let { it.best = maxOf(it.best, bs) }
             if (bs >= threshold && (best == null || bs > best.score)) best = Hit(bx + needle.w / 2, by + needle.h / 2, bs, needle.w, needle.h)
         }
         return best
     }
 
-    /** [findNcc] em escalas próximas (telas de densidade diferente). Mais lento: até 5 buscas. */
-    fun findNccScaled(hay: Gray, needle: Gray, threshold: Float): Hit? {
-        for (f in floatArrayOf(1f, 0.9f, 1.1f, 0.8f, 1.25f)) {
-            val n = if (f == 1f) needle else needle.resize((needle.w * f).toInt(), (needle.h * f).toInt())
-            findNcc(hay, n, threshold)?.let { return it }
-        }
-        return null
-    }
+    fun findNccScaled(hay: Gray, needle: Gray, threshold: Float): Hit? = scaled(needle) { findNcc(hay, it, threshold) }
 
     private class Best(val x: Int, val y: Int, val score: Float, val sad: Long = 0)
 

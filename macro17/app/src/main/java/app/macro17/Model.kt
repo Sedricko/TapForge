@@ -46,6 +46,11 @@ data class Step(
     val cmp: Int = 0,
     val lo: Int = 0,
     val hi: Int = 0,
+    // IMAGE: method 0 = o do app de referência (diferença de pixels, sensível a brilho); 1 = tolerante a brilho (correlação).
+    // mono compara só o cinza; confirm = quadros seguidos no mesmo lugar antes de agir (1 = como o original).
+    val method: Int = 0,
+    val mono: Boolean = false,
+    val confirm: Int = 1,
 ) {
     /** [size] é o total de passos da macro, para validar os alvos de salto. */
     fun validate(size: Int): String? = when {
@@ -66,6 +71,8 @@ data class Step(
         type == Type.CALL && (text.isBlank() || text.length > 64) -> "escolha a macro a chamar"
         type == Type.IMAGE && text.isBlank() -> "passo sem imagem: capture pelo orbe"
         type == Type.IMAGE && thr !in 20..100 -> "semelhança deve ser de 20 a 100%"
+        type == Type.IMAGE && confirm !in 1..5 -> "confirmações seguidas devem ser de 1 a 5"
+        type == Type.IMAGE && method !in 0..1 -> "método deve ser 0 (do app original) ou 1 (tolerante a brilho)"
         type == Type.IMAGE && (cycle !in 50..MAX_MS || ms < 100) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de pelo menos 100 ms"
         type == Type.IMAGE && !(listOf(x1, y1, x2, y2).all { it == 0 } || (x2 > x1 && y2 > y1)) -> "área de busca inválida: use tudo 0 ou X/Y finais maiores que os iniciais"
         type == Type.IMAGE && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
@@ -85,7 +92,7 @@ data class Step(
     fun toJson() = JSONObject().put("t", type.name).put("x1", x1).put("y1", y1).put("x2", x2).put("y2", y2)
         .put("ms", ms).put("d", delay).put("r", rnd).put("rm", rndMin).put("j", jitter).put("sk", skip)
         .put("g", goto).put("c", counter).put("tx", text).put("rt", ret)
-        .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact).put("sl", scales).put("cm", cmp).put("lo", lo).put("hi", hi)
+        .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact).put("sl", scales).put("cm", cmp).put("lo", lo).put("hi", hi).put("mt", method).put("mo", mono).put("cf", confirm)
         .put("cs", JSONArray().also { a -> cases.forEach { a.put(JSONObject().put("n", it.n).put("to", it.to)) } })
 
     companion object {
@@ -100,7 +107,7 @@ data class Step(
                 o.optInt("g"), o.optInt("c", 1),
                 List(minOf(cs?.length() ?: 0, MAX_CASES)) { Case(cs!!.getJSONObject(it).optInt("n"), cs.getJSONObject(it).optInt("to")) },
                 o.optString("tx"), o.optBoolean("rt", true),
-                o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"), o.optInt("cm"), o.optInt("lo"), o.optInt("hi"),
+                o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"), o.optInt("cm"), o.optInt("lo"), o.optInt("hi"), o.optInt("mt"), o.optBoolean("mo"), o.optInt("cf", 1),
             )
         }
     }
