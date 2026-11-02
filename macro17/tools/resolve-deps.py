@@ -146,6 +146,10 @@ def main(out, roots):
         if ext == "aar": blob = strip_abi(blob)
         write(out, p(g, a, v, ext), blob); total += len(blob)
         print(f"  {g}:{a}:{v}  {ext}  {len(blob)/1024:.0f} KB  (versões vistas: {sorted(seen[(g,a)], key=vkey)})")
+    # POMs que o Gradle também lê (pais e BOMs): o resolvedor os baixou para calcular as dependências, então devem ir junto.
+    for path, (data, _) in list(CACHE.items()):
+        if data and path.endswith((".pom", ".module")) and not os.path.exists(os.path.join(out, path)):
+            write(out, path, data); print(f"  + {path}")
     print(f"total de artefatos: {total/1e6:.1f} MB")
 
 def write(out, path, data):
