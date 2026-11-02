@@ -82,11 +82,19 @@ class MacroService : AccessibilityService() {
 
     fun isRunning() = engine.running
 
-    /** INICIAR da Home: mostra a bolha de controle com o leque aberto (gravar, executar, parar, capturar). */
+    /** INICIAR da Home: mostra o painel de controle. */
     fun showControls() {
-        Diag.d("serviço", "controles abertos pela Home")
+        Diag.d("serviço", "painel aberto pela Home")
         ui.post { bubble?.visibility = View.VISIBLE; openPanel(true) }
     }
+
+    /** PARAR da Home: fecha o painel (sobra só o orbe). */
+    fun hideControls() {
+        Diag.d("serviço", "painel fechado pela Home")
+        ui.post { stopRecording(save = false); openPanel(false) }
+    }
+
+    fun panelOpen() = ::panel.isInitialized && panel.visibility == View.VISIBLE
 
     /** Abre ou fecha o painel de registro ao vivo. Chamável de qualquer thread. */
     fun toggleLog() { ui.post { if (logPanel.shown) logPanel.hide() else logPanel.show() } }
@@ -223,7 +231,7 @@ class MacroService : AccessibilityService() {
             // TYPE_ACCESSIBILITY_OVERLAY dispensa a permissão "exibir sobre outros apps".
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT,
-        ).apply { gravity = Gravity.TOP or Gravity.START; x = 0; y = 360 }
+        ).apply { gravity = Gravity.TOP or Gravity.START; x = 0; y = dp(4) } // canto superior esquerdo, como no base
         recorder = Recorder(this, wm)
 
         row1 = android.widget.LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }

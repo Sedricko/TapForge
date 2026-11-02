@@ -112,7 +112,7 @@ class MainActivity : Activity() {
         content.addView(bigButton(Ic.FOLDER, "Arquivo") { fileDialog() })
         content.addView(bigButton(Ic.INFO, "Monitor e logs") { startActivity(Intent(this, DiagActivity::class.java)) })
         // Como no app base: INICIAR abre os controles flutuantes para montar (gravar) e rodar; não exige macro pronta.
-        content.addView(bigButton(Ic.TAP, "Iniciar") { start() })
+        content.addView(bigButton(Ic.TAP, if (MacroService.instance?.panelOpen() == true) "Parar" else "Iniciar") { start() })
     }
 
     /** Lista de macros (toque seleciona) + criar/importar. Substitui a grade: o base trabalha com uma macro atual. */
@@ -132,8 +132,9 @@ class MainActivity : Activity() {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             return
         }
-        svc.showControls()
-        moveTaskToBack(true) // sai da frente para o app/jogo onde a macro vai rodar
+        // Como no base: o botão alterna INICIAR/PARAR e o app continua na tela; o painel aparece por cima.
+        if (svc.panelOpen()) svc.hideControls() else svc.showControls()
+        content.postDelayed({ refresh() }, 150) // o painel abre/fecha na fila da thread principal; relê o estado depois
     }
 
     private fun play(id: String) { MacroService.instance?.runMacro(id) ?: toast("Ative o serviço de acessibilidade primeiro") }
