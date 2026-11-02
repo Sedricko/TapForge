@@ -23,6 +23,9 @@ interface Ports {
     fun template(id: String): Gray?
     fun glyphs(): GlyphSet // símbolos que o leitor de números já aprendeu
 
+    /** Casamento por correlação normalizada (método do app de referência). O padrão é o buscador em Kotlin; o Engine usa OpenCV quando carrega. */
+    fun matchNcc(hay: Gray, needle: Gray, th: Float, probe: TemplateMatcher.Probe): TemplateMatcher.Hit? = TemplateMatcher.findNcc(hay, needle, th, probe)
+
     /** Centro, em pixels da tela, do primeiro elemento visível que casa com [query]; null se não há (ou a janela está em transição). */
     fun findNode(query: String, exact: Boolean): Pair<Int, Int>?
     fun now(): Long // ms monotônicos, para o prazo da busca
@@ -140,7 +143,7 @@ class Runner(private val p: Ports) {
             val oy = if (whole) 0 else s.y1.coerceIn(0, frame.h)
             val hay = if (whole) frame else frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1)
             // Dentro da área, compara os pixels com o modelo e confere com a % configurada.
-            val find = { n: Gray -> if (s.method == 1) TemplateMatcher.findSqdiff(hay, n, th, s.mono, probe) else TemplateMatcher.findNcc(hay, n, th, probe) }
+            val find = { n: Gray -> if (s.method == 1) TemplateMatcher.findSqdiff(hay, n, th, s.mono, probe) else p.matchNcc(hay, n, th, probe) }
             val h = (if (s.scales) TemplateMatcher.scaled(needle, find) else find(needle))?.let { it.copy(x = it.x + ox, y = it.y + oy) }
             val prev = last
             if (h == null) { streak = 0; last = null; return@poll null }

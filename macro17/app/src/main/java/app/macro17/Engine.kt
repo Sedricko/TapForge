@@ -82,6 +82,8 @@ class Engine(
 
         override fun resolve(id: String) = store.get(id)
         override fun glyphs() = store.glyphs()
+        override fun matchNcc(hay: Gray, needle: Gray, th: Float, probe: TemplateMatcher.Probe) =
+            if (Cv.ok) Cv.ncc(hay, needle, th, probe) else TemplateMatcher.findNcc(hay, needle, th, probe)
         override fun now() = SystemClock.elapsedRealtime()
 
         // Cache: o PNG não precisa ser decodificado a cada tentativa. Ids são únicos por captura, então nunca fica velho.
