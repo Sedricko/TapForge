@@ -181,14 +181,18 @@ class VisionTest {
 
     @Test fun nccFindsTemplateAtOddCoordinatesAndEdges() {
         // O buscador grosso reduz por 2 ou 4: posições ímpares e encostadas nas bordas são onde ele erraria.
+        // Junta todas as falhas numa mensagem: o log do CI mostra quais posições e o que foi achado no lugar.
         val needle = noise(36, 28, 21)
+        val bad = ArrayList<String>()
         for ((x, y) in listOf(37 to 53, 1 to 1, 163 to 121, 0 to 0, 99 to 7)) {
             val hay = noise(200, 150, 22)
             plant(hay, needle, x, y)
             val hit = TemplateMatcher.findNcc(hay, needle, 0.9f)
-            assertNotNull("não achou em ($x,$y)", hit)
-            assertEquals("x em ($x,$y)", x + 18, hit!!.x); assertEquals("y em ($x,$y)", y + 14, hit.y)
+            val want = (x + 18) to (y + 14)
+            if (hit == null) bad += "($x,$y): não achou"
+            else if (hit.x to hit.y != want) bad += "($x,$y): esperado centro $want, achou ${hit.x},${hit.y} score ${hit.score}"
         }
+        assertTrue("posições com erro: $bad", bad.isEmpty())
     }
 
     @Test fun nccOnAreaCropReportsOnlyInsideTheArea() {
