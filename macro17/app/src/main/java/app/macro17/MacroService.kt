@@ -43,7 +43,7 @@ class MacroService : AccessibilityService() {
         wm = getSystemService(WindowManager::class.java)
         store = Store(this)
         // Ao terminar (qualquer motivo) a tela volta a poder apagar.
-        engine = Engine(this) { toast(it); ui.post { awake(false) } }
+        engine = Engine(this, { toast(it); ui.post { awake(false) } }, ::toast)
         instance = this
         showBubble()
         lock = object : BroadcastReceiver() {
@@ -184,10 +184,11 @@ class MacroService : AccessibilityService() {
                         // post: não remover a janela dentro do próprio dispatch de toque.
                         if (rec.size >= MAX_STEPS) { ui.post { stopRecording(save = true) }; return true }
                         val dur = (e.eventTime - downT).toInt().coerceIn(1, MAX_MS)
-                        if (rec.isNotEmpty()) rec[rec.lastIndex] = rec.last().copy(delay = (downT - lastUp).toInt().coerceIn(0, MAX_MS))
+                        // Atraso ANTES da ação: o intervalo desde o último toque pertence ao passo novo.
+                        val gap = if (rec.isEmpty()) 0 else (downT - lastUp).toInt().coerceIn(0, MAX_MS)
                         lastUp = e.eventTime
-                        rec += if (moved > slop) Step(Type.SWIPE, downX.toInt(), downY.toInt(), e.rawX.toInt(), e.rawY.toInt(), dur)
-                        else Step(Type.TAP, downX.toInt(), downY.toInt(), ms = dur)
+                        rec += if (moved > slop) Step(Type.SWIPE, downX.toInt(), downY.toInt(), e.rawX.toInt(), e.rawY.toInt(), dur, delay = gap)
+                        else Step(Type.TAP, downX.toInt(), downY.toInt(), ms = dur, delay = gap)
                     }
                 }
                 return true

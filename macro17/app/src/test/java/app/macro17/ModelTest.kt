@@ -3,6 +3,7 @@ package app.macro17
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.io.ByteArrayInputStream
@@ -12,30 +13,82 @@ class ModelTest {
     private val tap = Step(Type.TAP, 10, 20, ms = 50)
 
     @Test fun validSteps() {
-        assertNull(tap.validate())
-        assertNull(Step(Type.SWIPE, 0, 0, 100, 100, ms = 300).validate())
-        assertNull(Step(Type.WAIT, ms = 0).validate())
-        assertNull(Step(Type.KEY, x1 = 4).validate())
+        assertNull(tap.validate(1))
+        assertNull(Step(Type.SWIPE, 0, 0, 100, 100, ms = 300).validate(1))
+        assertNull(Step(Type.PINCH_IN, 100, 100, 300, 300, ms = 300).validate(1))
+        assertNull(Step(Type.WAIT, ms = 0).validate(1))
+        assertNull(Step(Type.KEY, x1 = 4).validate(1))
+        assertNull(Step(Type.STATUS, ms = 1000, text = "oi").validate(1))
+        assertNull(Step(Type.GOTO, goto = 2).validate(2))
+        assertNull(Step(Type.COUNTER, counter = 3, goto = 0, cases = listOf(Case(3, 1), Case(5, 0))).validate(2))
+        assertNull(Step(Type.RESET, counter = 10).validate(1))
+        assertNull(Step(Type.CALL, text = "abc").validate(1))
     }
 
     @Test fun invalidSteps() {
-        assertNotNull(Step(Type.TAP, -1, 0, ms = 50).validate())        // coordenada negativa
-        assertNotNull(Step(Type.TAP, MAX_COORD + 1, 0, ms = 50).validate())
-        assertNotNull(Step(Type.TAP, 1, 1, ms = 0).validate())          // gesto sem duração
-        assertNotNull(Step(Type.WAIT, ms = MAX_MS + 1).validate())
-        assertNotNull(Step(Type.KEY, x1 = 0).validate())                // tecla inexistente
-        assertNotNull(Step(Type.KEY, x1 = 5).validate())
-        assertNotNull(tap.copy(jitter = 501).validate())
+        assertNotNull(Step(Type.TAP, -1, 0, ms = 50).validate(1))              // coordenada negativa
+        assertNotNull(Step(Type.TAP, MAX_COORD + 1, 0, ms = 50).validate(1))
+        assertNotNull(Step(Type.TAP, 1, 1, ms = 0).validate(1))                // gesto sem duração
+        assertNotNull(Step(Type.WAIT, ms = MAX_MS + 1).validate(1))
+        assertNotNull(Step(Type.KEY, x1 = 0).validate(1))                      // tecla inexistente
+        assertNotNull(tap.copy(jitter = 501).validate(1))
+        assertNotNull(tap.copy(rnd = 100, rndMin = 200).validate(1))           // mínimo > máximo
+        assertNotNull(Step(Type.PINCH_OUT, 5, 5, 5, 5, ms = 100).validate(1))  // pinça com um ponto só
+        assertNotNull(Step(Type.STATUS, ms = 100, text = " ").validate(1))
+        assertNotNull(Step(Type.GOTO, goto = 0).validate(3))                   // GOTO sem destino
+        assertNotNull(Step(Type.GOTO, goto = 4).validate(3))                   // destino fora da lista
+        assertNotNull(Step(Type.COUNTER, counter = 0).validate(1))
+        assertNotNull(Step(Type.COUNTER, counter = 1, cases = listOf(Case(0, 1))).validate(2))   // limiar 0
+        assertNotNull(Step(Type.COUNTER, counter = 1, cases = listOf(Case(2, 9))).validate(2))   // destino fora
+        assertNotNull(Step(Type.COUNTER, counter = 1, cases = List(MAX_CASES + 1) { Case(it + 1, 0) }).validate(2))
+        assertNotNull(Step(Type.CALL, text = "").validate(1))
     }
 
     @Test fun macroRules() {
-        assertNull(Macro("i", "ok", 0, listOf(tap)).validate())         // 0 = infinito
-        assertNotNull(Macro("i", " ", 1, listOf(tap)).validate())       // nome em branco
+        assertNull(Macro("i", "ok", 0, listOf(tap)).validate())                // 0 = infinito
+        assertNotNull(Macro("i", " ", 1, listOf(tap)).validate())              // nome em branco
         assertNotNull(Macro("i", "n", -1, listOf(tap)).validate())
         assertNotNull(Macro("i", "n", MAX_LOOPS + 1, listOf(tap)).validate())
         assertNotNull(Macro("i", "n", 1, List(MAX_STEPS + 1) { tap }).validate())
         val msg = Macro("i", "n", 1, listOf(tap, tap.copy(ms = 0))).validate()
-        assertEquals(true, msg!!.startsWith("passo 2:"))                // aponta o passo ruim
+        assertTrue(msg!!.startsWith("passo 2:"))                               // aponta o passo ruim
+        assertNotNull(Macro("i", "n", 1, listOf(Step(Type.GOTO, goto = 5), tap)).validate())      // alvo fora
+    }
+
+    // --- renumeração dos alvos ao editar a lista ---
+    private val a = tap.copy(x1 = 1)
+    private val b = tap.copy(x1 = 2)
+    private fun jumpTo(n: Int) = Step(Type.GOTO, goto = n)
+
+    @Test fun deleteRenumbers() {
+        val steps = listOf(jumpTo(3), a, b, jumpTo(2)) // passos 1..4: 1→3, 4→2
+        val out = steps.afterDelete(1)                  // apaga o passo 2
+        assertEquals(3, out.size)
+        assertEquals(2, out[0].goto)                    // 3 desce para 2
+        assertEquals(0, out[2].goto)                    // apontava para o apagado: vira "seguir"
+    }
+
+    @Test fun swapKeepsTargets() {
+        val steps = listOf(jumpTo(2), a, jumpTo(1))     // 1→2, 3→1
+        val out = steps.afterSwap(0, 1)                 // troca passos 1 e 2
+        assertEquals(a, out[0])
+        assertEquals(1, out[1].goto)                    // o GOTO foi para a posição 2 e ainda aponta para o mesmo passo (agora 1)
+        assertEquals(2, out[2].goto)                    // o passo 3 apontava para o antigo 1, agora na posição 2
+    }
+
+    @Test fun insertShiftsTargets() {
+        val steps = listOf(jumpTo(2), a)                // 1→2
+        val out = steps.afterInsert(1, b)               // insere na posição 2 (0-based 1)
+        assertEquals(3, out.size)
+        assertEquals(3, out[0].goto)                    // o passo 2 virou 3
+        assertEquals(b, out[1])
+    }
+
+    @Test fun counterCasesAreRenumbered() {
+        val c = Step(Type.COUNTER, goto = 3, cases = listOf(Case(2, 2), Case(4, 3)))
+        val out = listOf(c, a, b).afterDelete(1)
+        assertEquals(2, out[0].goto)
+        assertEquals(listOf(Case(2, 0), Case(4, 2)), out[0].cases)
     }
 
     @Test fun readLimited() {

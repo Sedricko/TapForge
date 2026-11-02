@@ -8,8 +8,15 @@ import java.util.Random
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** Executa uma macro numa thread própria; [report] recebe o motivo do fim (de qualquer thread). */
-class Engine(private val svc: AccessibilityService, private val report: (String) -> Unit) {
+/**
+ * Executa uma macro numa thread própria. A mecânica está em [Runner]; aqui ficam só gestos, teclas e a thread.
+ * [report] recebe o motivo do fim; [say] recebe mensagens durante a execução (alerta de status, saltos).
+ */
+class Engine(
+    private val svc: AccessibilityService,
+    private val report: (String) -> Unit,
+    private val say: (String) -> Unit,
+) {
     @Volatile private var thread: Thread? = null
     val running get() = thread?.isAlive == true
 
@@ -23,57 +30,51 @@ class Engine(private val svc: AccessibilityService, private val report: (String)
     @Synchronized fun stop() { thread?.interrupt() }
 
     private fun run(m: Macro) {
-        val rnd = Random()
         report(
-            try {
-                if (m.steps.isEmpty()) "Macro vazia"
-                else {
-                    var i = 0
-                    while (m.loops == 0 || i < m.loops) {
-                        for (s in m.steps) {
-                            exec(s, rnd)
-                            pause(s.delay + if (s.rnd > 0) rnd.nextInt(s.rnd + 1) else 0)
-                        }
-                        i++
-                    }
-                    "Macro concluída"
-                }
-            } catch (e: InterruptedException) {
-                "Macro parada"
-            } catch (e: Exception) {
-                "Erro: ${e.message}"
+            when (val o = Runner(ports).run(m)) {
+                Outcome.Done -> "Macro concluída"
+                Outcome.Stopped -> "Macro parada"
+                is Outcome.Failed -> "Erro: ${o.why}"
             }
         )
     }
 
-    // Mínimo de 1 ms por passo: macro infinita só com esperas de 0 ms não pode virar laço quente.
-    private fun pause(ms: Int) = Thread.sleep(maxOf(1, ms).toLong())
+    private val rnd = Random()
+    private val store by lazy { Store(svc) }
 
-    private fun exec(s: Step, r: Random) {
-        when (s.type) {
-            Type.WAIT -> pause(s.ms)
-            Type.KEY -> check(svc.performGlobalAction(s.x1)) { "tecla recusada pelo sistema" }
-            else -> gesture(s, r)
-        }
-    }
+    private val ports = object : Ports {
+        private val bounds get() = svc.getSystemService(WindowManager::class.java).maximumWindowMetrics.bounds
+        override val width get() = bounds.width()
+        override val height get() = bounds.height()
 
-    private fun gesture(s: Step, r: Random) {
-        // Reavalia a cada gesto: a tela pode ter girado desde o passo anterior.
-        val b = svc.getSystemService(WindowManager::class.java).maximumWindowMetrics.bounds
-        fun px(v: Int, max: Int) = (v + if (s.jitter > 0) r.nextInt(2 * s.jitter + 1) - s.jitter else 0).coerceIn(0, max - 1)
-        val p = Path().apply {
-            moveTo(px(s.x1, b.width()).toFloat(), px(s.y1, b.height()).toFloat())
-            if (s.type == Type.SWIPE) lineTo(px(s.x2, b.width()).toFloat(), px(s.y2, b.height()).toFloat())
+        override fun sleep(ms: Long) = Thread.sleep(ms)
+
+        override fun gesture(strokes: List<Stroke>, ms: Int) {
+            val b = GestureDescription.Builder()
+            for (s in strokes) {
+                val path = Path().apply {
+                    moveTo(s.x1.toFloat(), s.y1.toFloat())
+                    if (s.x1 != s.x2 || s.y1 != s.y2) lineTo(s.x2.toFloat(), s.y2.toFloat())
+                }
+                b.addStroke(GestureDescription.StrokeDescription(path, 0, ms.toLong()))
+            }
+            val done = CountDownLatch(1)
+            var ok = false // escrito na thread principal antes do countDown; lido depois do await
+            val accepted = svc.dispatchGesture(b.build(), object : AccessibilityService.GestureResultCallback() {
+                override fun onCompleted(d: GestureDescription) { ok = true; done.countDown() }
+                override fun onCancelled(d: GestureDescription) { done.countDown() }
+            }, null)
+            check(accepted) { "gesto rejeitado (serviço sem permissão de gestos?)" }
+            check(done.await(ms + 3000L, TimeUnit.MILLISECONDS)) { "gesto sem resposta do sistema" }
+            check(ok) { "gesto cancelado (tela bloqueada ou app protegido)" }
         }
-        val g = GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(p, 0, s.ms.toLong())).build()
-        val done = CountDownLatch(1)
-        var ok = false // escrito na thread principal antes do countDown; lido depois do await
-        val accepted = svc.dispatchGesture(g, object : AccessibilityService.GestureResultCallback() {
-            override fun onCompleted(d: GestureDescription) { ok = true; done.countDown() }
-            override fun onCancelled(d: GestureDescription) { done.countDown() }
-        }, null)
-        check(accepted) { "gesto rejeitado (serviço sem permissão de gestos?)" }
-        check(done.await(s.ms + 3000L, TimeUnit.MILLISECONDS)) { "gesto sem resposta do sistema" }
-        check(ok) { "gesto cancelado (tela bloqueada ou app protegido)" }
+
+        override fun key(code: Int) { check(svc.performGlobalAction(code)) { "tecla recusada pelo sistema" } }
+
+        override fun status(text: String, ms: Int) { say(text); Thread.sleep(ms.toLong()) }
+
+        override fun resolve(id: String) = store.get(id)
+        override fun nextInt(bound: Int) = rnd.nextInt(bound)
+        override fun log(line: String) = say(line)
     }
 }
