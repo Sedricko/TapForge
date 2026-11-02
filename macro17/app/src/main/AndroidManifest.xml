@@ -22,12 +22,13 @@
         <!-- configChanges: o editor guarda o estado em memória; evita perdê-lo ao girar a tela. -->
         <activity
             android:name=".EditorActivity"
+            android:theme="@style/Theme.Macro17.Dark"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
-        <activity android:name=".OptionsActivity" android:exported="false" />
-        <activity android:name=".ReaderActivity" android:exported="false" />
+        <activity android:name=".OptionsActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
+        <activity android:name=".ReaderActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
 
         <service
             android:name=".MacroService"

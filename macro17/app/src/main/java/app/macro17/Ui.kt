@@ -69,7 +69,7 @@ fun Context.label(s: String, sp: Float = 14f, color: Int = C.TEXT, bold: Boolean
 
 // --- ícones desenhados em Canvas: sem drawables, sem glifos Unicode (que viram emoji em alguns aparelhos) ---
 
-enum class Ic { PLAY, STOP, REC, ADD, BACK, MOVE, OK, TAP, SWIPE, WAIT, KEY, WARN, GEAR, IMPORT, SEARCH, CHEVRON, EDIT, NUM }
+enum class Ic { PLAY, STOP, REC, ADD, BACK, MOVE, OK, TAP, SWIPE, WAIT, KEY, WARN, GEAR, IMPORT, SEARCH, CHEVRON, EDIT, NUM, MENU, HOME, BOX, INFO, FOLDER, LOCK }
 
 class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
     private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
@@ -123,6 +123,22 @@ class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
                         c.drawLine(cx - s * .35f, cy - s, cx - s * .35f, cy + s, p); c.drawLine(cx + s * .35f, cy - s, cx + s * .35f, cy + s, p)
                         c.drawLine(cx - s, cy - s * .35f, cx + s, cy - s * .35f, p); c.drawLine(cx - s, cy + s * .35f, cx + s, cy + s * .35f, p)
                     }
+                    Ic.MENU -> for (k in -1..1) c.drawLine(cx - s, cy + k * s * .7f, cx + s, cy + k * s * .7f, p)
+                    Ic.HOME -> c.drawPath(Path().apply {
+                        moveTo(cx - s, cy); lineTo(cx, cy - s); lineTo(cx + s, cy)
+                        moveTo(cx - s * .7f, cy - s * .1f); lineTo(cx - s * .7f, cy + s); lineTo(cx + s * .7f, cy + s); lineTo(cx + s * .7f, cy - s * .1f)
+                    }, p)
+                    Ic.BOX -> {
+                        c.drawRoundRect(cx - s, cy - s, cx + s, cy + s, s * .2f, s * .2f, p)
+                        c.drawLine(cx, cy - s * .5f, cx, cy + s * .4f, p)
+                        c.drawLine(cx, cy + s * .4f, cx - s * .45f, cy - s * .05f, p); c.drawLine(cx, cy + s * .4f, cx + s * .45f, cy - s * .05f, p)
+                    }
+                    Ic.INFO -> { c.drawCircle(cx, cy, s, p); c.drawLine(cx, cy - s * .1f, cx, cy + s * .55f, p); p.style = Paint.Style.FILL; c.drawCircle(cx, cy - s * .5f, s * .15f, p) }
+                    Ic.FOLDER -> c.drawPath(Path().apply {
+                        moveTo(cx - s, cy + s * .8f); lineTo(cx - s, cy - s * .8f); lineTo(cx - s * .2f, cy - s * .8f); lineTo(cx + s * .1f, cy - s * .45f)
+                        lineTo(cx + s, cy - s * .45f); lineTo(cx + s, cy + s * .8f); close()
+                    }, p)
+                    Ic.LOCK -> { c.drawRoundRect(cx - s * .8f, cy - s * .1f, cx + s * .8f, cy + s, s * .2f, s * .2f, p); c.drawArc(cx - s * .5f, cy - s, cx + s * .5f, cy + s * .1f, 180f, 180f, false, p) }
                     Ic.EDIT -> { c.drawLine(cx - s, cy + s, cx + s * .8f, cy - s * .8f, p); c.drawLine(cx - s, cy + s, cx - s * .2f, cy + s, p) }
                     else -> c.drawPath(Path().apply { moveTo(cx - s, cy); lineTo(cx - s * .25f, cy + s * .7f); lineTo(cx + s, cy - s * .7f) }, p)
                 }
