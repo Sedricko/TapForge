@@ -2,9 +2,7 @@ package app.macro17
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -13,8 +11,8 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -34,7 +32,7 @@ class MacroService : AccessibilityService() {
     private var bubble: View? = null
     private var recView: View? = null
     private val rec = ArrayList<Step>()
-    private lateinit var recBtn: TextView
+    private lateinit var recBtn: ImageView
 
     override fun onServiceConnected() {
         wm = getSystemService(WindowManager::class.java)
@@ -71,13 +69,6 @@ class MacroService : AccessibilityService() {
 
     // --- bolha ---------------------------------------------------------------------------
 
-    private fun bubbleBtn(label: String, desc: String, click: () -> Unit) = TextView(this).apply {
-        text = label; textSize = 20f; setTextColor(Color.WHITE); contentDescription = desc
-        minimumWidth = (48 * resources.displayMetrics.density).toInt()
-        minimumHeight = minimumWidth; gravity = Gravity.CENTER
-        setOnClickListener { click() }
-    }
-
     private fun showBubble() {
         val lp = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
@@ -86,7 +77,7 @@ class MacroService : AccessibilityService() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.TOP or Gravity.START; x = 0; y = 300 }
 
-        val handle = bubbleBtn("⠿", "Mover") {}.apply {
+        val handle = circleBtn(Ic.MOVE, C.HANDLE, 44, "Mover") {}.apply {
             var dx = 0f; var dy = 0f; var sx = 0; var sy = 0
             setOnTouchListener { _, e ->
                 when (e.actionMasked) {
@@ -99,14 +90,16 @@ class MacroService : AccessibilityService() {
                 true
             }
         }
-        recBtn = bubbleBtn("●", "Gravar") { if (recView == null) startRecording() else stopRecording(save = true) }
+        recBtn = circleBtn(Ic.REC, C.DARK, 44, "Gravar") { if (recView == null) startRecording() else stopRecording(save = true) }
         val v = LinearLayout(this).apply {
-            background = GradientDrawable().apply { setColor(0xCC202124.toInt()); cornerRadius = 48f }
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+            background = rounded(C.BG, 28, C.LINE)
             addView(handle)
-            addView(bubbleBtn("▶", "Executar macro selecionada") {
+            addView(circleBtn(Ic.PLAY, C.DARK, 44, "Executar macro selecionada") {
                 store.selected?.let { runMacro(it) } ?: toast("Selecione uma macro no app")
             })
-            addView(bubbleBtn("■", "Parar macro") { engine.stop() })
+            addView(circleBtn(Ic.STOP, C.DARK, 44, "Parar macro") { engine.stop() })
             addView(recBtn)
         }
         bubble = v
@@ -149,7 +142,7 @@ class MacroService : AccessibilityService() {
         recView = v
         // Reanexa a bolha: janelas do mesmo tipo empilham pela ordem de adição.
         bubble?.let { b -> val p = b.layoutParams; wm.removeView(b); wm.addView(b, p) }
-        recBtn.text = "⏹"
+        recBtn.restyle(Ic.STOP, C.RED)
         toast("Gravando: toque nos pontos. Os toques não chegam ao app.")
     }
 
@@ -157,7 +150,7 @@ class MacroService : AccessibilityService() {
         val v = recView ?: return
         runCatching { wm.removeView(v) }
         recView = null
-        recBtn.text = "●"
+        recBtn.restyle(Ic.REC, C.DARK)
         if (!save) return
         if (rec.isEmpty()) return toast("Nada gravado")
         val m = Macro(UUID.randomUUID().toString(), "Gravação " + SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault()).format(Date()), 1, rec.toList())

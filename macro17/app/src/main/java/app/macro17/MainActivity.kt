@@ -4,11 +4,19 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.app.TimePickerDialog
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.widget.BaseAdapter
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -21,41 +29,84 @@ import java.util.UUID
 class MainActivity : Activity() {
     private lateinit var store: Store
     private lateinit var status: TextView
+    private lateinit var dot: View
     private lateinit var list: ListView
     private var macros = emptyList<Macro>()
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         store = Store(this)
-        status = TextView(this).apply { textSize = 16f; setPadding(0, 0, 0, dp(8)) }
+
+        dot = View(this).apply { layoutParams = LinearLayout.LayoutParams(dp(12), dp(12)).also { it.setMargins(0, 0, dp(10), 0) } }
+        status = label("", 14f, bold = true).apply { layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) }
+        val banner = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(14), dp(14), dp(14))
+            background = rounded(Color.WHITE, 4, C.LINE)
+            elevation = dp(2).toFloat()
+            addView(dot); addView(status)
+        }
+        val actions = LinearLayout(this).apply {
+            setPadding(0, dp(10), 0, dp(6))
+            addView(outlineBtn("Acessibilidade") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) })
+            addView(outlineBtn("Importar") { importFile() })
+        }
+        val empty = label("Nenhuma macro. Toque em + ou grave pela bolha.", 14f, C.GRAY).apply { setPadding(dp(8), dp(24), dp(8), 0) }
         list = ListView(this).apply {
-            emptyView = TextView(this@MainActivity).apply { text = "Nenhuma macro. Use “Nova” ou grave pela bolha."; visibility = android.view.View.GONE }
+            divider = ColorDrawable(C.LINE); dividerHeight = 1
+            clipToPadding = false; setPadding(0, 0, 0, dp(88)) // vão para o FAB não cobrir a última linha
+            emptyView = empty
             setOnItemClickListener { _, _, i, _ -> menu(macros[i]) }
+            adapter = object : BaseAdapter() {
+                override fun getCount() = macros.size
+                override fun getItem(i: Int) = macros[i]
+                override fun getItemId(i: Int) = i.toLong()
+                override fun getView(i: Int, v: View?, p: ViewGroup) = row(macros[i])
+            }
         }
-        val row = LinearLayout(this).apply {
-            addView(button("Acessibilidade") { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) })
-            addView(button("Nova") { edit("new") })
-            addView(button("Importar") { importFile() })
-        }
-        setContentView(LinearLayout(this).apply {
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(status); addView(row)
-            addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-            addView(list.emptyView)
-            padForSystemBars(dp(16))
+            addView(banner, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            addView(actions)
+            addView(list, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+            addView(empty)
+            padForSystemBars(dp(12), top = false)
+        }
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(appBar("Macro17", back = false))
+            addView(content, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+        }
+        setContentView(FrameLayout(this).apply {
+            setBackgroundColor(C.BG)
+            addView(column, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            addView(fab("Nova macro") { edit("new") })
         })
     }
 
     override fun onResume() { super.onResume(); refresh() }
 
+    private fun row(m: Macro): View = LinearLayout(this).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(4), dp(12), dp(8), dp(12))
+        addView(label(if (m.id == store.selected) "★" else "", 18f, C.PRIMARY).apply {
+            gravity = Gravity.CENTER; layoutParams = LinearLayout.LayoutParams(dp(32), WRAP_CONTENT)
+        })
+        addView(LinearLayout(this@MainActivity).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
+            addView(label(m.name, 16f))
+            addView(label("${m.steps.size} passos · " + if (m.loops == 0) "repete sem parar" else "${m.loops}×", 13f, C.GRAY))
+        })
+    }
+
     private fun refresh() {
         val on = MacroService.instance != null
-        status.text = if (on) "Serviço ativo: bolha na tela." else
+        dot.background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (on) C.PRIMARY else C.RED) }
+        status.text = if (on) "Serviço de acessibilidade ativo. A bolha está na tela." else
             "Serviço desligado. Ative “Macro17” em Acessibilidade. Se estiver cinza (app instalado fora da loja), abra Informações do app > ⋮ > Permitir configurações restritas."
         macros = store.list()
-        list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, macros.map {
-            (if (it.id == store.selected) "★ " else "") + "${it.name}  (${it.steps.size} passos, ${if (it.loops == 0) "∞" else "${it.loops}×"})"
-        })
+        (list.adapter as BaseAdapter).notifyDataSetChanged()
     }
 
     private fun edit(id: String) = startActivity(Intent(this, EditorActivity::class.java).putExtra("id", id))

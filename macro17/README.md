@@ -3,6 +3,9 @@
 App de macros para Android 17 (API 37). Kotlin, só APIs da plataforma: sem AndroidX, Material, coroutines ou OCR.
 Projeto novo e independente do TapForge. Referência de funções: `../docs/ANALISE_TOUCHMACRO.md`.
 
+## Visual
+Segue o app de referência: barra teal `#008577`, destaque rosa `#D81B60`, fundo `#FAFAFA`, cards brancos, FAB rosa, bolha com botões circulares e diálogos de 24dp com campos em caixas cinza. Tema claro único. Ícones desenhados em `Canvas` (`Ui.kt`), nenhum recurso copiado.
+
 ## Uso
 1. Instale, abra e ative **Macro17** em Acessibilidade (app fora da loja: Informações do app > ⋮ > *Permitir configurações restritas*).
 2. A bolha aparece: `⠿` mover · `▶` executar a macro selecionada (★) · `■` parar · `●` gravar/parar gravação.

@@ -2,13 +2,20 @@ package app.macro17
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
-import android.text.InputType
+import android.view.View
 import android.view.ViewGroup
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.util.UUID
@@ -29,38 +36,52 @@ class EditorActivity : Activity() {
         Type.WAIT to intArrayOf(4),
         Type.KEY to intArrayOf(0, 5, 6),
     )
+    private val titles = mapOf(Type.TAP to "Toque", Type.SWIPE to "Deslizar", Type.WAIT to "Esperar", Type.KEY to "Tecla")
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         store = Store(this)
-        val given = intent.getStringExtra("id")
-        val existing = given?.let { store.get(it) }
+        val existing = intent.getStringExtra("id")?.let { store.get(it) }
         id = existing?.id ?: UUID.randomUUID().toString()
         steps.addAll(existing?.steps.orEmpty())
 
-        name = EditText(this).apply { hint = "Nome"; setText(existing?.name ?: "Nova macro"); setSingleLine() }
-        loops = EditText(this).apply { hint = "Repetições (0 = infinito)"; inputType = InputType.TYPE_CLASS_NUMBER; setText((existing?.loops ?: 1).toString()) }
+        name = field(existing?.name ?: "Nova macro", "Nome", numeric = false)
+        loops = field((existing?.loops ?: 1).toString(), "Repetições", numeric = true)
         list = ListView(this).apply {
+            divider = ColorDrawable(C.LINE); dividerHeight = 1
+            clipToPadding = false; setPadding(0, 0, 0, dp(88)) // vão para o FAB
             setOnItemClickListener { _, _, i, _ -> editStep(steps[i].type, steps[i]) { steps[i] = it; refresh() } }
             setOnItemLongClickListener { _, _, i, _ -> rowMenu(i); true }
         }
-        val row = LinearLayout(this).apply {
-            addView(button("+ Passo") { pickType() })
-            addView(button("Salvar") { save() })
-        }
-        setContentView(LinearLayout(this).apply {
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(name); addView(loops)
-            addView(TextView(this@EditorActivity).apply { text = "Toque num passo para editar; segure para mais opções." })
-            addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-            addView(row)
-            padForSystemBars(dp(16))
+            addView(labeled("Nome", name))
+            addView(labeled("Repetições (0 = infinito)", loops))
+            addView(label("Passos", 16f, bold = true).apply { setPadding(dp(2), dp(12), 0, 0) })
+            addView(label("Toque para editar; segure para duplicar, mover ou excluir.", 12f, C.GRAY).apply { setPadding(dp(2), 0, 0, dp(4)) })
+            addView(list, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+            padForSystemBars(dp(12), top = false)
+        }
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(appBar("Editar macro", back = true, action = Ic.OK to { save() }))
+            addView(content, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+        }
+        setContentView(FrameLayout(this).apply {
+            setBackgroundColor(C.BG)
+            addView(column, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            addView(fab("Adicionar passo") { pickType() })
         })
         refresh()
     }
 
     private fun refresh() {
-        list.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, steps.mapIndexed { i, s -> "${i + 1}. ${describe(s)}" })
+        list.adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, steps.mapIndexed { i, s -> "${i + 1}. ${describe(s)}" }) {
+            override fun getView(p: Int, v: View?, g: ViewGroup): View = (super.getView(p, v, g) as TextView).apply {
+                textSize = 14f; typeface = Typeface.MONOSPACE; setTextColor(Color.BLACK)
+                setPadding(dp(8), dp(12), dp(8), dp(12))
+            }
+        }
     }
 
     private fun describe(s: Step): String {
@@ -104,13 +125,12 @@ class EditorActivity : Activity() {
     private fun editStep(type: Type, s: Step, done: (Step) -> Unit) {
         val v = intArrayOf(s.x1, s.y1, s.x2, s.y2, s.ms, s.delay, s.rnd, s.jitter)
         val idx = fields.getValue(type)
-        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(8), dp(20), 0) }
-        val edits = idx.map { k ->
-            EditText(this).apply { hint = labels[k]; inputType = InputType.TYPE_CLASS_NUMBER; setText(v[k].toString()) }
-                .also { box.addView(TextView(this).apply { text = labels[k] }); box.addView(it) }
-        }
-        val dlg = AlertDialog.Builder(this).setView(android.widget.ScrollView(this).apply { addView(box) })
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(4)) }
+        col.addView(label(titles.getValue(type), 20f, bold = true).apply { setPadding(0, 0, 0, dp(8)) })
+        val edits = idx.map { k -> field(v[k].toString(), labels[k], numeric = true).also { col.addView(labeled(labels[k], it)) } }
+        val dlg = AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(col) })
             .setPositiveButton("OK", null).setNegativeButton("Cancelar", null).create()
+        dlg.window?.setBackgroundDrawable(rounded(Color.WHITE, 24)) // card de 24dp como no app de referência
         dlg.show()
         // Listener próprio: o padrão fecha o diálogo mesmo com valor inválido.
         dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
