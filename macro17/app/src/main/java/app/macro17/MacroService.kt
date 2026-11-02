@@ -77,6 +77,12 @@ class MacroService : AccessibilityService() {
 
     fun isRunning() = engine.running
 
+    /** INICIAR da Home: mostra a bolha de controle com o leque aberto (gravar, executar, parar, capturar). */
+    fun showControls() {
+        Diag.d("serviço", "controles abertos pela Home")
+        ui.post { bubble?.visibility = View.VISIBLE; setOrb(true) }
+    }
+
     /** Abre ou fecha o painel de registro ao vivo. Chamável de qualquer thread. */
     fun toggleLog() { ui.post { if (logPanel.shown) logPanel.hide() else logPanel.show() } }
 

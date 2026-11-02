@@ -111,7 +111,8 @@ class MainActivity : Activity() {
         content.addView(bigButton(Ic.EDIT, "Editor de macro") { edit(cur?.id ?: "new") })
         content.addView(bigButton(Ic.FOLDER, "Arquivo") { fileDialog() })
         content.addView(bigButton(Ic.INFO, "Monitor e logs") { startActivity(Intent(this, DiagActivity::class.java)) })
-        content.addView(bigButton(Ic.TAP, "Iniciar") { cur?.let { play(it.id) } ?: toast("Crie ou importe uma macro primeiro") })
+        // Como no app base: INICIAR abre os controles flutuantes para montar (gravar) e rodar; não exige macro pronta.
+        content.addView(bigButton(Ic.TAP, "Iniciar") { start() })
     }
 
     /** Lista de macros (toque seleciona) + criar/importar. Substitui a grade: o base trabalha com uma macro atual. */
@@ -122,6 +123,17 @@ class MainActivity : Activity() {
             add("Importar…" to { importFile() })
         }
         AlertDialog.Builder(this).setTitle("Arquivo").setItems(acts.map { it.first }.toTypedArray()) { _, w -> acts[w].second() }.show()
+    }
+
+    private fun start() {
+        val svc = MacroService.instance
+        if (svc == null) {
+            toast("Ative o serviço de acessibilidade do Macro17 primeiro")
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            return
+        }
+        svc.showControls()
+        moveTaskToBack(true) // sai da frente para o app/jogo onde a macro vai rodar
     }
 
     private fun play(id: String) { MacroService.instance?.runMacro(id) ?: toast("Ative o serviço de acessibilidade primeiro") }
