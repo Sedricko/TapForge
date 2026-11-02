@@ -158,7 +158,7 @@ class MacroService : AccessibilityService() {
         gravity = Gravity.CENTER
         background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(teal) }
         contentDescription = "Gravar"
-        layoutParams = android.widget.LinearLayout.LayoutParams(dp(38), dp(38)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) }
+        layoutParams = android.widget.LinearLayout.LayoutParams(dp(30), dp(30)).also { it.setMargins(dp(8), dp(8), dp(8), dp(8)) }
         setOnClickListener { click() }
     }
 

@@ -49,6 +49,15 @@ class Store(ctx: Context) {
         File(tdir, "$id.png").outputStream().use { check(b.compress(Bitmap.CompressFormat.PNG, 100, it)) { "falha ao gravar a imagem" } }
     }
 
+    /** Miniatura (lado maior [px]) do recorte de um passo IMAGE, para a lista do editor; null se não houver. */
+    fun templateThumb(id: String, px: Int): Bitmap? {
+        if (!ID.matches(id)) return null
+        val f = File(tdir, "$id.png").takeIf { it.exists() } ?: return null
+        val full = BitmapFactory.decodeFile(f.path) ?: return null
+        val k = px.toFloat() / maxOf(full.width, full.height)
+        return if (k >= 1f) full else Bitmap.createScaledBitmap(full, maxOf(1, (full.width * k).toInt()), maxOf(1, (full.height * k).toInt()), true).also { full.recycle() }
+    }
+
     /** Só UUID vira nome de arquivo; arquivo ausente ou corrompido devolve null. */
     fun template(id: String): Gray? {
         if (!ID.matches(id)) return null

@@ -4,6 +4,8 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.graphics.drawable.InsetDrawable
 import android.os.Bundle
 import android.view.Gravity
@@ -12,6 +14,13 @@ import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.BaseAdapter
+import android.widget.CheckBox
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.graphics.Bitmap
+import android.content.res.ColorStateList
+import android.text.InputType
+import android.view.WindowInsets
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
@@ -27,7 +36,6 @@ class EditorActivity : Activity() {
     private lateinit var name: EditText
     private lateinit var loops: EditText
     private lateinit var list: ListView
-    private lateinit var header: TextView
     private lateinit var emptyHint: TextView
     private var steps: List<Step> = emptyList()
 
@@ -78,23 +86,33 @@ class EditorActivity : Activity() {
         Type.KEY to C.TEAL, Type.STATUS to C.TEAL, Type.GOTO to C.ORANGE, Type.COUNTER to C.BLUE, Type.RESET to C.RED, Type.CALL to C.PURPLE, Type.IMAGE to C.ORANGE, Type.NODE to C.TEAL, Type.TEXT to C.TEAL, Type.NUMBER to C.PURPLE,
     )
 
+    private val selected = HashSet<Int>()
+    private val thumbs = HashMap<String, Bitmap?>()
+    private lateinit var existingId: String
+
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         store = Store(this)
         val existing = intent.getStringExtra("id")?.let { store.get(it) }
         id = existing?.id ?: UUID.randomUUID().toString()
+        existingId = id
         steps = existing?.steps.orEmpty()
 
-        name = field(existing?.name ?: "Nova macro", "Nome", numeric = false)
-        loops = field((existing?.loops ?: 1).toString(), "0 = ∞", numeric = true)
-        header = label("", 14f, bold = true)
-        emptyHint = label("Sem passos. Toque em + ou grave pela bolha.", 13f, C.TEXT2).apply { setPadding(dp(2), dp(12), dp(2), 0) }
+        // Como no editor do app base: barra verde, barra de ícones, nome com repetições, lista com seleção e botão + flutuante.
+        name = EditText(this).apply {
+            background = null; setTextColor(B.TEXT); setHintTextColor(B.TEXT2); textSize = 22f; hint = "Nome"; setSingleLine()
+            setText(existing?.name ?: "Nova macro"); setPadding(dp(16), dp(8), dp(16), 0)
+        }
+        loops = EditText(this).apply {
+            background = null; setTextColor(B.TEXT); textSize = 16f; inputType = InputType.TYPE_CLASS_NUMBER; setSingleLine()
+            setText((existing?.loops ?: 1).toString()); setPadding(dp(4), 0, dp(4), dp(8)); minWidth = dp(48); contentDescription = "Repetições (0 = infinito)"
+        }
+        emptyHint = label("Sem itens. Toque em + ou grave pelo painel.", 14f, B.TEXT2).apply { setPadding(dp(16), dp(16), dp(16), 0) }
         list = ListView(this).apply {
-            divider = InsetDrawable(ColorDrawable(0x1AFFFFFF), dp(48), 0, 0, 0) // linha começa depois do ícone
-            dividerHeight = 1
-            isVerticalScrollBarEnabled = true
+            divider = ColorDrawable(0x1F000000); dividerHeight = 1
             setOnItemClickListener { _, _, i, _ -> editStep(steps[i].type, steps[i], steps.size) { replace(i, it) } }
             setOnItemLongClickListener { _, _, i, _ -> rowMenu(i); true }
+            clipToPadding = false; setPadding(0, 0, 0, dp(96))
             adapter = object : BaseAdapter() {
                 override fun getCount() = steps.size
                 override fun getItem(i: Int) = steps[i]
@@ -102,61 +120,193 @@ class EditorActivity : Activity() {
                 override fun getView(i: Int, v: View?, p: ViewGroup) = stepRow(i, steps[i])
             }
         }
-        val bar = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            addView(circleBtn(Ic.BACK, Color.TRANSPARENT, 40, "Voltar") { finish() })
-            addView(label("Editar macro", 16f, bold = true).apply { setPadding(dp(4), 0, 0, 0); layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) })
-            addView(circleBtn(Ic.ADD, Color.TRANSPARENT, 40, "Adicionar passo") { pickType() })
-            addView(circleBtn(Ic.OK, C.BLUE, 40, "Salvar") { save() })
+        val more = ImageView(this).apply {
+            setImageDrawable(Icon(Ic.MORE, Color.WHITE)); setPadding(dp(10), dp(10), dp(10), dp(10)); foreground = ripple(24, 0x33FFFFFF)
+            contentDescription = "Mais opções"; layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)); setOnClickListener { overflow() }
         }
-        val fieldsRow = LinearLayout(this).apply {
-            addView(labeled("Nome", name, weight = 2f))
-            addView(labeled("Repetições", loops, weight = 1f))
+        fun tool(ic: Ic, desc: String, click: () -> Unit) = ImageView(this).apply {
+            setImageDrawable(Icon(ic, B.TEXT)); setPadding(dp(14), dp(14), dp(14), dp(14)); foreground = ripple(24, 0x1F000000)
+            contentDescription = desc; layoutParams = LinearLayout.LayoutParams(0, dp(56), 1f); setOnClickListener { click() }
         }
-        val stepsTile = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = tileBg()
-            setPadding(dp(12), dp(10), dp(8), dp(8))
-            addView(header)
-            addView(emptyHint)
-            addView(list, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f).also { it.topMargin = dp(6) })
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f).also { it.topMargin = dp(8) }
+        val tools = LinearLayout(this).apply {
+            setBackgroundColor(Color.WHITE); elevation = dp(2).toFloat()
+            addView(tool(Ic.SELECT, "Selecionar tudo") { toggleAll() })
+            addView(tool(Ic.UP, "Subir os selecionados") { moveSelected(up = true) })
+            addView(tool(Ic.DOWN, "Descer os selecionados") { moveSelected(up = false) })
+            addView(tool(Ic.COPY, "Duplicar os selecionados") { duplicateSelected() })
+            addView(tool(Ic.TRASH, "Excluir os selecionados") { deleteSelected() })
+            addView(tool(Ic.SAVE, "Salvar") { save() })
         }
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = glass()
-            elevation = dp(8).toFloat()
-            setPadding(dp(16), dp(12), dp(16), dp(16))
-            addView(bar); addView(fieldsRow); addView(stepsTile)
+        val head = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE)
+            addView(name)
+            addView(LinearLayout(this@EditorActivity).apply {
+                gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), 0, 0, 0)
+                addView(glyph(Ic.REPEAT, B.TEXT, 18)); addView(loops)
+            })
         }
-        setContentView(LinearLayout(this).apply {
-            addView(panel, LinearLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-            padForSystemBars(dp(12))
+        val fab = ImageView(this).apply {
+            setImageDrawable(Icon(Ic.ADD, Color.WHITE)); setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(B.PINK) }
+            foreground = RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), null, GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.WHITE) })
+            elevation = dp(6).toFloat(); contentDescription = "Adicionar item"; setOnClickListener { pickType() }
+            layoutParams = FrameLayout.LayoutParams(dp(56), dp(56), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(16), dp(16)) }
+            setOnApplyWindowInsetsListener { v, i -> (v.layoutParams as FrameLayout.LayoutParams).bottomMargin = dp(16) + i.getInsets(WindowInsets.Type.navigationBars()).bottom; v.requestLayout(); i }
+        }
+        setContentView(FrameLayout(this).apply {
+            setBackgroundColor(B.BG)
+            addView(LinearLayout(this@EditorActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(appBar("Editor de Macro", Ic.BACK, { finish() }, more))
+                addView(tools); addView(head); addView(emptyHint)
+                addView(list, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
+            }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            addView(fab)
         })
         refresh()
     }
 
     private fun refresh() {
-        header.text = "Passos · ${steps.size}"
+        selected.retainAll(steps.indices.toSet())
         emptyHint.visibility = if (steps.isEmpty()) View.VISIBLE else View.GONE
         (list.adapter as BaseAdapter).notifyDataSetChanged()
     }
 
     private fun replace(i: Int, s: Step) { steps = steps.toMutableList().also { it[i] = s }; refresh() }
 
-    private fun stepRow(i: Int, s: Step): View = LinearLayout(this).apply {
+    // --- seleção e operações em bloco -------------------------------------------------------
+
+    private fun marked(): List<Int> = selected.filter { it in steps.indices }.sorted()
+
+    private fun needSelection(): List<Int>? = marked().takeIf { it.isNotEmpty() } ?: run { toast("Marque os itens primeiro"); null }
+
+    private fun toggleAll() {
+        if (selected.size == steps.size) selected.clear() else { selected.clear(); selected.addAll(steps.indices) }
+        refresh()
+    }
+
+    /** Move cada item marcado uma posição; um bloco encostado na borda ou em outro marcado fica onde está. */
+    private fun moveSelected(up: Boolean) {
+        val idx = needSelection() ?: return
+        val cur = idx.toMutableSet()
+        for (i in if (up) idx else idx.reversed()) {
+            val j = if (up) i - 1 else i + 1
+            if (j in steps.indices && j !in cur) { steps = steps.afterSwap(i, j); cur.remove(i); cur.add(j) }
+        }
+        selected.clear(); selected.addAll(cur)
+        refresh()
+    }
+
+    private fun duplicateSelected() {
+        val idx = needSelection() ?: return
+        for (i in idx.reversed()) if (steps.size < MAX_STEPS) steps = steps.afterInsert(i + 1, steps[i].shiftedFrom(i + 1))
+        selected.clear(); refresh()
+    }
+
+    private fun deleteSelected() {
+        val idx = needSelection() ?: return
+        AlertDialog.Builder(this).setMessage("Excluir ${idx.size} ${if (idx.size == 1) "item" else "itens"}?")
+            .setPositiveButton("Excluir") { _, _ -> for (i in idx.reversed()) steps = steps.afterDelete(i); selected.clear(); refresh() }
+            .setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun overflow() {
+        val acts = listOf<Pair<String, () -> Unit>>(
+            "Alternar Pular" to { toggleSkip() },
+            "Editar Itens Selecionados" to { batchEdit() },
+            "Recarregar" to { reload() },
+        )
+        AlertDialog.Builder(this).setItems(acts.map { it.first }.toTypedArray()) { _, w -> acts[w].second() }.show()
+    }
+
+    private fun toggleSkip() {
+        val idx = needSelection() ?: return
+        steps = steps.mapIndexed { i, s -> if (i in idx) s.copy(skip = !s.skip) else s }
+        refresh()
+    }
+
+    private fun batchEdit() {
+        val idx = needSelection() ?: return
+        val opts = arrayOf("Tempo de atraso (ms)", "Duração (ms)", "Pular: ligar", "Pular: desligar")
+        AlertDialog.Builder(this).setTitle("Selecione o que editar.").setItems(opts) { _, w ->
+            when (w) {
+                0 -> askNumber("Tempo de atraso (ms)") { v -> applyBatch(idx) { it.copy(delay = v, rnd = 0, rndMin = 0) } }
+                1 -> askNumber("Duração (ms)") { v -> applyBatch(idx) { it.copy(ms = v) } }
+                2 -> applyBatch(idx) { it.copy(skip = true) }
+                else -> applyBatch(idx) { it.copy(skip = false) }
+            }
+        }.setNegativeButton("Cancelar", null).show()
+    }
+
+    /** Aplica [f] aos marcados; se algum ficar inválido, nada muda e o motivo aparece. */
+    private fun applyBatch(idx: List<Int>, f: (Step) -> Step) {
+        val next = steps.mapIndexed { i, s -> if (i in idx) f(s) else s }
+        next.forEachIndexed { i, s -> s.validate(next.size)?.let { return toast("Item ${i + 1}: $it") } }
+        steps = next; refresh()
+    }
+
+    private fun askNumber(title: String, then: (Int) -> Unit) {
+        val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER; setText("1000"); setPadding(dp(24), dp(16), dp(24), dp(8)) }
+        AlertDialog.Builder(this).setTitle(title).setView(et)
+            .setPositiveButton("Alterar tudo") { _, _ -> et.text.toString().toIntOrNull()?.let(then) ?: toast("Número inválido") }
+            .setNegativeButton("Cancelar", null).show()
+    }
+
+    /** Descarta as mudanças e relê a macro salva. */
+    private fun reload() {
+        AlertDialog.Builder(this).setMessage("Descartar as alterações e recarregar a macro salva?")
+            .setPositiveButton("Recarregar") { _, _ ->
+                val m = store.get(existingId)
+                steps = m?.steps.orEmpty(); name.setText(m?.name ?: "Nova macro"); loops.setText((m?.loops ?: 1).toString())
+                selected.clear(); refresh()
+            }.setNegativeButton("Cancelar", null).show()
+    }
+
+    // --- linha da lista ----------------------------------------------------------------------
+
+    private fun secs(ms: Int) = "%.1fs".format(ms / 1000.0)
+
+    private fun chip(ic: Ic, text: String) = LinearLayout(this).apply {
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(4), dp(10), dp(4), dp(10))
-        addView(badge(icons.getValue(s.type), tones.getValue(s.type), 36))
-        addView(LinearLayout(this@EditorActivity).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), 0, dp(8), 0)
-            layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-            addView(label("${i + 1}. ${titles.getValue(s.type)}", 15f, bold = true))
-            addView(label(detail(s), 13f, C.TEXT2))
-        })
-        val before = if (s.rnd > 0) "${s.rndMin}–${s.rnd} ms" else if (s.delay > 0) "${s.delay} ms" else ""
-        if (before.isNotEmpty()) addView(label("antes:\n$before", 12f, C.TEXT2).apply { gravity = Gravity.END })
+        layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.marginEnd = dp(14) }
+        addView(glyph(ic, B.TEXT, 16)); addView(label(text, 13f, B.TEXT).apply { setPadding(dp(4), 0, 0, 0) })
+    }
+
+    private fun stepRow(i: Int, s: Step): View {
+        val vision = s.type == Type.IMAGE || s.type == Type.TEXT || s.type == Type.NODE || s.type == Type.NUMBER
+        val thumb: View = (if (s.type == Type.IMAGE) thumbs.getOrPut(s.text) { store.templateThumb(s.text, 120) } else null)?.let { bmp ->
+            ImageView(this).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER; layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)) }
+        } ?: badge(icons.getValue(s.type), tones.getValue(s.type), 44).apply { layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) } }
+        val to = if (s.goto > 0) s.goto else i + 2
+        val arrow = if (vision) 0xFF2D2DDC.toInt() else 0xFFF44336.toInt()
+        val delayText = if (s.rnd > 0) "${secs(s.rndMin)}–${secs(s.rnd)}" else secs(s.delay)
+        return LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), dp(8), dp(12), dp(8))
+            alpha = if (s.skip) 0.45f else 1f
+            addView(CheckBox(this@EditorActivity).apply {
+                isChecked = i in selected; buttonTintList = ColorStateList.valueOf(B.TEXT2)
+                setOnCheckedChangeListener { _, on -> if (on) selected.add(i) else selected.remove(i) }
+            })
+            addView(thumb)
+            addView(LinearLayout(this@EditorActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(14), 0, dp(8), 0)
+                layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
+                addView(label("${i + 1}. ${titles.getValue(s.type)}" + if (s.skip) " (pular)" else "", 19f, 0xFF607D8B.toInt()))
+                addView(LinearLayout(this@EditorActivity).apply {
+                    setPadding(0, dp(4), 0, 0)
+                    addView(chip(if (vision) Ic.SEARCH else icons.getValue(s.type), secs(s.ms)))
+                    addView(chip(Ic.WAIT, delayText))
+                })
+                addView(label(detail(s), 12f, B.TEXT2).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(2), 0, 0) })
+            })
+            addView(LinearLayout(this@EditorActivity).apply {
+                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+                addView(glyph(Ic.JUMP, arrow, 22))
+                addView(label(if (to > steps.size) "fim" else to.toString(), 17f, arrow, bold = true))
+            })
+        }
     }
 
     private fun detail(s: Step): String {
@@ -207,10 +357,11 @@ class EditorActivity : Activity() {
                 Type.NUMBER -> Step(type, 100, 100, 400, 180, ms = 3000, cycle = 300)
             }
             editStep(type, base, steps.size + 1) { steps = steps.afterInsert(steps.size, it); refresh() }
-        }.showGlass(this)
+        }.show()
     }
 
     private fun rowMenu(i: Int) {
+        selected.clear()
         AlertDialog.Builder(this).setItems(arrayOf("Duplicar", "Mover para cima", "Mover para baixo", "Excluir")) { _, w ->
             when (w) {
                 0 -> if (steps.size < MAX_STEPS) steps = steps.afterInsert(i + 1, steps[i].shiftedFrom(i + 1))
@@ -219,7 +370,7 @@ class EditorActivity : Activity() {
                 3 -> steps = steps.afterDelete(i)
             }
             refresh()
-        }.showGlass(this)
+        }.show()
     }
 
     /** [total] é o número de passos depois da edição, para validar os destinos de salto. */
@@ -301,7 +452,7 @@ class EditorActivity : Activity() {
     private fun pickMacro(chosen: (Macro) -> Unit) {
         val others = store.list().filter { it.id != id }
         if (others.isEmpty()) return toast("Não há outra macro salva para chamar")
-        AlertDialog.Builder(this).setItems(others.map { it.name }.toTypedArray()) { _, w -> chosen(others[w]) }.showGlass(this)
+        AlertDialog.Builder(this).setItems(others.map { it.name }.toTypedArray()) { _, w -> chosen(others[w]) }.show()
     }
 
     private fun save() {
