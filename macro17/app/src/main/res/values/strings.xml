@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Macro17</string>
+    <string name="service_desc">Executa toques, deslizes e teclas globais gravados ou montados por você, e mostra uma bolha flutuante com iniciar, parar e gravar. Nada sai do aparelho.</string>
+</resources>
