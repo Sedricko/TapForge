@@ -4,13 +4,13 @@ App de macros para Android 17 (API 37). Kotlin, só APIs da plataforma: sem Andr
 Projeto novo e independente do TapForge. Referência de funções: `../docs/ANALISE_TOUCHMACRO.md`.
 
 ## Visual
-Segue o app de referência: barra teal `#008577`, destaque rosa `#D81B60`, fundo `#FAFAFA`, cards brancos, FAB rosa, bolha com botões circulares e diálogos de 24dp com campos em caixas cinza. Tema claro único. Ícones desenhados em `Canvas` (`Ui.kt`), nenhum recurso copiado.
+Conceito de vidro escuro: painel navy translúcido sobre fundo azul claro, tiles brancos a 12%, grade 2×2 de ícones de cor chapada, lista rolável com iniciais coloridas, pílula de busca no topo. Acento azul `#5B9DFF`. O vidro é simulado (translucidez e borda); não há blur real do que fica atrás. Ícones desenhados em `Canvas` (`Ui.kt`); nenhum recurso de terceiros.
 
 ## Uso
 1. Instale, abra e ative **Macro17** em Acessibilidade (app fora da loja: Informações do app > ⋮ > *Permitir configurações restritas*).
 2. A bolha aparece: `⠿` mover · `▶` executar a macro selecionada (★) · `■` parar · `●` gravar/parar gravação.
 3. Gravação: toque nos pontos desejados. **Os toques não chegam ao app de baixo** (só são capturados).
-4. No app: tocar numa macro abre Selecionar, Executar, Editar, Agendar, Exportar (JSON via SAF), Excluir. *Importar* lê JSON.
+4. No app: a grade 2×2 executa, para, importa e abre os ajustes; a busca filtra a lista; tocar numa macro abre Selecionar, Executar, Editar, Agendar, Exportar (JSON via SAF), Excluir. *Importar* lê JSON.
 
 ## Passos
 Toque, deslizar, esperar e tecla global (voltar, início, recentes, notificações). Cada passo tem pausa fixa depois, pausa extra aleatória e jitter de coordenada. Macro tem repetições (0 = infinito).

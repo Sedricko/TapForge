@@ -1,11 +1,10 @@
 <resources>
-    <!-- Visual de referência: barra teal, destaque rosa, fundo cinza claro. Tema claro único, como no app de referência. -->
-    <style name="Theme.Macro17" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:colorPrimary">#008577</item>
-        <item name="android:colorPrimaryDark">#00574B</item>
-        <item name="android:colorAccent">#D81B60</item>
-        <item name="android:windowBackground">#FAFAFA</item>
-        <item name="android:windowLightStatusBar">false</item>
+    <!-- Conceito: vidro escuro sobre fundo azul claro. Tema escuro (texto branco em diálogos), barras do sistema claras sobre o fundo claro. -->
+    <style name="Theme.Macro17" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#5B9DFF</item>
+        <item name="android:colorPrimary">#161C2B</item>
+        <item name="android:windowBackground">@drawable/bg_bloom</item>
+        <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
         <item name="android:dialogCornerRadius">24dp</item>
     </style>

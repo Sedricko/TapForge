@@ -54,6 +54,8 @@ class MacroService : AccessibilityService() {
         return super.onUnbind(intent)
     }
 
+    fun stopMacro() = engine.stop()
+
     fun toast(msg: String) { ui.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() } }
 
     /** Chamável de qualquer thread (alarme, app). */
@@ -77,7 +79,7 @@ class MacroService : AccessibilityService() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.TOP or Gravity.START; x = 0; y = 300 }
 
-        val handle = circleBtn(Ic.MOVE, C.HANDLE, 44, "Mover") {}.apply {
+        val handle = circleBtn(Ic.MOVE, C.EDGE, 44, "Mover") {}.apply {
             var dx = 0f; var dy = 0f; var sx = 0; var sy = 0
             setOnTouchListener { _, e ->
                 when (e.actionMasked) {
@@ -90,16 +92,16 @@ class MacroService : AccessibilityService() {
                 true
             }
         }
-        recBtn = circleBtn(Ic.REC, C.DARK, 44, "Gravar") { if (recView == null) startRecording() else stopRecording(save = true) }
+        recBtn = circleBtn(Ic.REC, C.EDGE, 44, "Gravar", C.RED) { if (recView == null) startRecording() else stopRecording(save = true) }
         val v = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(4), dp(4), dp(4), dp(4))
-            background = rounded(C.BG, 28, C.LINE)
+            background = glass(28)
             addView(handle)
-            addView(circleBtn(Ic.PLAY, C.DARK, 44, "Executar macro selecionada") {
+            addView(circleBtn(Ic.PLAY, C.BLUE, 44, "Executar macro selecionada") {
                 store.selected?.let { runMacro(it) } ?: toast("Selecione uma macro no app")
             })
-            addView(circleBtn(Ic.STOP, C.DARK, 44, "Parar macro") { engine.stop() })
+            addView(circleBtn(Ic.STOP, C.EDGE, 44, "Parar macro") { engine.stop() })
             addView(recBtn)
         }
         bubble = v
@@ -150,7 +152,7 @@ class MacroService : AccessibilityService() {
         val v = recView ?: return
         runCatching { wm.removeView(v) }
         recView = null
-        recBtn.restyle(Ic.REC, C.DARK)
+        recBtn.restyle(Ic.REC, C.EDGE, C.RED)
         if (!save) return
         if (rec.isEmpty()) return toast("Nada gravado")
         val m = Macro(UUID.randomUUID().toString(), "Gravação " + SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault()).format(Date()), 1, rec.toList())
