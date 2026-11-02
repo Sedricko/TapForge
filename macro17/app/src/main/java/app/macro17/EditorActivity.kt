@@ -40,7 +40,7 @@ class EditorActivity : Activity() {
         X1 to "X", Y1 to "Y", X2 to "X final", Y2 to "Y final", MS to "Duração (ms)",
         DELAY to "Atraso antes da ação (ms)", RND to "Atraso aleatório: máximo (ms, 0 = desligado)", RMIN to "Atraso aleatório: mínimo (ms)",
         JIT to "Jitter (px)", GOTO to "Ir para o passo (0 = seguir)", CNT to "Contador (1 a $MAX_COUNTERS)",
-        THR to "Semelhança mínima (20 a 100%)", CYC to "Intervalo entre tentativas (ms)", FAIL to "Se não achar, ir para o passo (0 = seguir)",
+        THR to "Semelhança mínima (20 a 100%; 90 é um bom começo)", CYC to "Intervalo entre tentativas (ms)", FAIL to "Se não achar, ir para o passo (0 = seguir)",
     )
     private val common = intArrayOf(DELAY, RMIN, RND)
     private val fields = mapOf(
@@ -172,7 +172,7 @@ class EditorActivity : Activity() {
             Type.RESET -> "contador ${s.counter} = 0"
             Type.NODE -> "“${s.text}”" + (if (s.exact) " (igual)" else "") + " · até ${s.ms} ms · achou → " + (if (s.goto == 0) "seguir" else s.goto) +
                 " · não → " + (if (s.fail == 0) "seguir" else s.fail) + if (s.tap) " · toca" else ""
-            Type.IMAGE -> "≥ ${s.thr}% · até ${s.ms} ms · " + (if (s.x2 > s.x1) "área (${s.x1}, ${s.y1})–(${s.x2}, ${s.y2}) · " else "tela toda · ") +
+            Type.IMAGE -> "≥ ${s.thr}%" + (if (s.scales) " (escalas)" else "") + " · até ${s.ms} ms · " + (if (s.x2 > s.x1) "área (${s.x1}, ${s.y1})–(${s.x2}, ${s.y2}) · " else "tela toda · ") +
                 "achou → " + (if (s.goto == 0) "seguir" else s.goto) + " · não → " + (if (s.fail == 0) "seguir" else s.fail) + if (s.tap) " · toca" else ""
             Type.CALL -> (store.get(s.text)?.name ?: "macro removida") + if (s.ret) " · volta ao terminar" else " · substitui esta"
         } + skip
@@ -254,6 +254,8 @@ class EditorActivity : Activity() {
 
         val exactSw = if (type == Type.NODE)
             Switch(this).apply { isChecked = s.exact; contentDescription = "Texto inteiro igual" }.also { col.addView(labeled("Texto inteiro igual (desligado = contém)", it)) } else null
+        val scalesSw = if (type == Type.IMAGE)
+            Switch(this).apply { isChecked = s.scales; contentDescription = "Tolerar variação de escala" }.also { col.addView(labeled("Tolerar variação de escala (mais lento)", it)) } else null
         val tapSw = if (type == Type.IMAGE || type == Type.NODE)
             Switch(this).apply { isChecked = s.tap; contentDescription = "Tocar no centro ao achar" }.also { col.addView(labeled("Tocar no centro do que achou", it)) } else null
 
@@ -273,7 +275,7 @@ class EditorActivity : Activity() {
                 type, nv[X1], nv[Y1], nv[X2], nv[Y2], nv[MS], nv[DELAY], nv[RND], nv[RMIN], nv[JIT],
                 skipSw?.isChecked ?: false, nv[GOTO], if (nv[CNT] == 0) 1 else nv[CNT], if (type == Type.COUNTER) cases else emptyList(),
                 if (type == Type.STATUS || type == Type.NODE) textEdit!!.text.toString().trim() else if (type == Type.CALL || type == Type.IMAGE) text else "", retSw?.isChecked ?: true,
-                nv[THR], nv[CYC], nv[FAIL], tapSw?.isChecked ?: true, exactSw?.isChecked ?: false,
+                nv[THR], nv[CYC], nv[FAIL], tapSw?.isChecked ?: true, exactSw?.isChecked ?: false, scalesSw?.isChecked ?: false,
             )
             val err = ns.validate(total)
             if (err != null) { toast(err); return@setOnClickListener }

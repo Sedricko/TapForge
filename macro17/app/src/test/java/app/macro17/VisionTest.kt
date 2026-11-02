@@ -40,4 +40,47 @@ class VisionTest {
         plant(hay, big.resize(43, 43), 60, 70)
         assertTrue(TemplateMatcher.findScaled(hay, big, 0.85f, 1).isNotEmpty())
     }
+
+    // --- correlação normalizada ---
+    /** g' = a·g + b, com recorte para 0..255: a mesma imagem numa tela mais escura e com menos contraste. */
+    private fun dim(n: Gray) = Gray(n.w, n.h, IntArray(n.d.size) { (n.d[it] * 5 / 10 + 40).coerceIn(0, 255) })
+
+    @Test fun nccFindsTemplateDespiteBrightnessAndContrast() {
+        val hay = noise(200, 150, 11)
+        val needle = noise(30, 20, 12)
+        plant(hay, dim(needle), 80, 60)
+        // O SAD é enganado pela diferença de brilho (similaridade ~0,86); a correlação não.
+        assertNull(TemplateMatcher.find(hay, needle, 0.9f))
+        val hit = TemplateMatcher.findNcc(hay, needle, 0.9f)
+        assertNotNull(hit); assertEquals(80 + 15, hit!!.x); assertEquals(60 + 10, hit.y)
+        assertTrue(hit.score > 0.99f)
+    }
+
+    @Test fun nccRejectsAbsentAndRandomTemplates() {
+        assertNull(TemplateMatcher.findNcc(noise(200, 150, 13), noise(30, 20, 14), 0.9f))
+    }
+
+    @Test fun nccPrefersTheTrueMatchAmongCandidates() {
+        val hay = noise(260, 160, 15)
+        val needle = noise(40, 30, 16)
+        plant(hay, needle, 40, 50)                       // o certo
+        plant(hay, dim(noise(40, 30, 17)), 160, 90)      // um impostor com outro conteúdo
+        val hit = TemplateMatcher.findNcc(hay, needle, 0.9f)
+        assertEquals(40 + 20, hit!!.x); assertEquals(50 + 15, hit.y)
+    }
+
+    @Test fun flatTemplateFallsBackToDifferenceMatching() {
+        val hay = Gray(120, 100, IntArray(120 * 100) { 30 })
+        val needle = Gray(24, 16, IntArray(24 * 16) { 220 })   // retângulo liso: sem variância, a ZNCC não existe
+        for (j in 0 until 16) for (i in 0 until 24) hay.d[(40 + j) * 120 + 60 + i] = 220
+        val hit = TemplateMatcher.findNcc(hay, needle, 0.95f)
+        assertNotNull(hit); assertEquals(60 + 12, hit!!.x); assertEquals(40 + 8, hit.y)
+    }
+
+    @Test fun nccScaledFindsAResizedTemplate() {
+        val big = Gray(48, 48, IntArray(48 * 48) { i -> if ((i % 48) / 12 % 2 == (i / 48) / 12 % 2) 230 else 20 })
+        val hay = Gray(200, 200, IntArray(200 * 200) { 128 })
+        plant(hay, big.resize(43, 43), 60, 70)
+        assertNotNull(TemplateMatcher.findNccScaled(hay, big, 0.85f))
+    }
 }

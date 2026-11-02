@@ -214,6 +214,13 @@ class RunnerTest {
         assertEquals(listOf("g:65,70>65,70@50"), f.events)        // centro do recorte: (50+15, 60+10)
     }
 
+    @Test fun imageFoundOnADimmerScreen() {
+        // a mesma tela com brilho e contraste menores: o SAD perderia o recorte, a correlação não
+        val dimmed = screenWith(50, 60).let { f -> Gray(f.w, f.h, IntArray(f.d.size) { (f.d[it] * 5 / 10 + 40).coerceIn(0, 255) }) }
+        val (_, f) = run(macro(image()), fakeWith(dimmed))
+        assertEquals(listOf("g:65,70>65,70@50"), f.events)
+    }
+
     @Test fun imageSuccessFollowsGotoAndFailureFollowsFail() {
         val m = macro(image(goto = 3, fail = 2), tap(1), tap(2))
         assertEquals(listOf("2"), tapXs(run(m, fakeWith(screenWith(50, 60))).second))   // achou: pula para o passo 3

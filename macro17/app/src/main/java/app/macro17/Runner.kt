@@ -115,7 +115,8 @@ class Runner(private val p: Ports) {
         val ox = if (whole) 0 else s.x1.coerceIn(0, frame.w)
         val oy = if (whole) 0 else s.y1.coerceIn(0, frame.h)
         val hay = if (whole) frame else frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1)
-        TemplateMatcher.find(hay, needle, s.thr / 100f)?.let { it.copy(x = it.x + ox, y = it.y + oy) }
+        val th = s.thr / 100f
+        (if (s.scales) TemplateMatcher.findNccScaled(hay, needle, th) else TemplateMatcher.findNcc(hay, needle, th))?.let { it.copy(x = it.x + ox, y = it.y + oy) }
     }
 
     /** Repete [attempt] a cada [Step.cycle] ms até dar certo ou passar [Step.ms]. A primeira tentativa é imediata. */

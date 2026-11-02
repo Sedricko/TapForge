@@ -41,6 +41,7 @@ data class Step(
     val tap: Boolean = true, // IMAGE e NODE: tocar no centro do que achou
     // NODE: text = texto do elemento (ou "id:nome" para o id de recurso); ms = prazo; cycle = intervalo; goto/fail como no IMAGE.
     val exact: Boolean = false, // NODE: texto inteiro igual (sem diferenciar maiúsculas); false = contém
+    val scales: Boolean = false, // IMAGE: tentar também escalas próximas (mais lento)
 ) {
     /** [size] é o total de passos da macro, para validar os alvos de salto. */
     fun validate(size: Int): String? = when {
@@ -75,7 +76,7 @@ data class Step(
     fun toJson() = JSONObject().put("t", type.name).put("x1", x1).put("y1", y1).put("x2", x2).put("y2", y2)
         .put("ms", ms).put("d", delay).put("r", rnd).put("rm", rndMin).put("j", jitter).put("sk", skip)
         .put("g", goto).put("c", counter).put("tx", text).put("rt", ret)
-        .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact)
+        .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact).put("sl", scales)
         .put("cs", JSONArray().also { a -> cases.forEach { a.put(JSONObject().put("n", it.n).put("to", it.to)) } })
 
     companion object {
@@ -90,7 +91,7 @@ data class Step(
                 o.optInt("g"), o.optInt("c", 1),
                 List(minOf(cs?.length() ?: 0, MAX_CASES)) { Case(cs!!.getJSONObject(it).optInt("n"), cs.getJSONObject(it).optInt("to")) },
                 o.optString("tx"), o.optBoolean("rt", true),
-                o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"),
+                o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"),
             )
         }
     }

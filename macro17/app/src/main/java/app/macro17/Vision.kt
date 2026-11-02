@@ -3,6 +3,7 @@ package app.macro17
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 // Buscador reaproveitado do TapForge (mesmo repositório): SAD em tons de cinza, busca grossa e depois refino.
 // shortcut: sensível a brilho e escala; tolerância a escala só em findScaled. Trocar por correlação normalizada se falhar em campo.
@@ -100,6 +101,102 @@ object TemplateMatcher {
             if (hits.isNotEmpty()) return hits
         }
         return emptyList()
+    }
+
+    // ---- correlação normalizada (ZNCC) ----
+    // Invariante a brilho e contraste (g' = a·g + b), ao contrário do SAD. Candidatos na escala reduzida, refino em escala cheia.
+
+    private fun mean(g: Gray): Double { var s = 0L; for (v in g.d) s += v; return s.toDouble() / g.d.size }
+    private fun sumSq(g: Gray, m: Double): Double { var s = 0.0; for (v in g.d) { val d = v - m; s += d * d }; return s }
+
+    /** Sem variância a correlação não existe: recorte liso cai para a diferença absoluta. Desvio-padrão < 4. */
+    private fun flat(n: Gray) = sumSq(n, mean(n)) / n.d.size < 16.0
+
+    /** Somas acumuladas de g e g² (imagem integral): média e variância de qualquer janela em O(1). */
+    private class Sums(val w1: Int, val s: LongArray, val q: LongArray) {
+        fun rect(a: LongArray, x: Int, y: Int, w: Int, h: Int) = a[(y + h) * w1 + x + w] - a[y * w1 + x + w] - a[(y + h) * w1 + x] + a[y * w1 + x]
+    }
+
+    private fun integral(g: Gray): Sums {
+        val w1 = g.w + 1
+        val s = LongArray(w1 * (g.h + 1)); val q = LongArray(w1 * (g.h + 1))
+        for (y in 1..g.h) {
+            var rs = 0L; var rq = 0L
+            for (x in 1..g.w) {
+                val v = g.d[(y - 1) * g.w + x - 1].toLong()
+                rs += v; rq += v * v
+                s[y * w1 + x] = s[(y - 1) * w1 + x] + rs; q[y * w1 + x] = q[(y - 1) * w1 + x] + rq
+            }
+        }
+        return Sums(w1, s, q)
+    }
+
+    /** ZNCC da janela de [hay] em (x,y) contra [n]; [sums] (se houver) dá as somas da janela sem percorrê-la. -1..1. */
+    private fun zncc(hay: Gray, n: Gray, x: Int, y: Int, nm: Double, nSS: Double, sums: Sums?): Float {
+        val cnt = n.w * n.h
+        var sp = 0L; var hs = 0L; var hq = 0L
+        for (j in 0 until n.h) {
+            val hb = (y + j) * hay.w + x; val nb = j * n.w
+            for (i in 0 until n.w) {
+                val h = hay.d[hb + i]
+                sp += h.toLong() * n.d[nb + i]
+                if (sums == null) { hs += h; hq += h.toLong() * h }
+            }
+        }
+        if (sums != null) { hs = sums.rect(sums.s, x, y, n.w, n.h); hq = sums.rect(sums.q, x, y, n.w, n.h) }
+        val hm = hs.toDouble() / cnt
+        val den = sqrt((hq - cnt * hm * hm) * nSS)
+        return if (den < 1e-6) 0f else ((sp - cnt * hm * nm) / den).toFloat()
+    }
+
+    private class Cand(val x: Int, val y: Int, val score: Float)
+
+    /** Melhores [k] posições na escala reduzida, sem vizinhas sobrepostas, com ZNCC ao menos [min]. */
+    private fun coarseNcc(hs: Gray, ns: Gray, min: Float, k: Int): List<Cand> {
+        val nm = mean(ns); val nSS = sumSq(ns, nm); val sums = integral(hs)
+        val all = ArrayList<Cand>()
+        for (y in 0..hs.h - ns.h) for (x in 0..hs.w - ns.w) {
+            val sc = zncc(hs, ns, x, y, nm, nSS, sums)
+            if (sc >= min) all += Cand(x, y, sc)
+        }
+        all.sortByDescending { it.score }
+        val out = ArrayList<Cand>()
+        for (c in all) {
+            if (out.size >= k) break
+            if (out.none { abs(it.x - c.x) <= ns.w / 2 && abs(it.y - c.y) <= ns.h / 2 }) out += c
+        }
+        return out
+    }
+
+    /** Como [find], mas por correlação normalizada: acha o recorte mesmo com brilho e contraste diferentes. Score = ZNCC. */
+    fun findNcc(hay: Gray, needle: Gray, threshold: Float): Hit? {
+        if (needle.w == 0 || needle.h == 0 || needle.w > hay.w || needle.h > hay.h) return null
+        if (flat(needle)) return find(hay, needle, threshold)
+        val s = step(needle)
+        val hs = hay.downscale(s); val ns = needle.downscale(s)
+        if (ns.w == 0 || ns.h == 0 || ns.w > hs.w || ns.h > hs.h || flat(ns)) return find(hay, needle, threshold)
+        val nm = mean(needle); val nSS = sumSq(needle, nm)
+        var best: Hit? = null
+        for (c in coarseNcc(hs, ns, threshold - 0.15f, 5)) {
+            var bx = 0; var by = 0; var bs = -2f
+            for (y in max(0, c.y * s - s - 1)..min(hay.h - needle.h, c.y * s + s + 1)) {
+                for (x in max(0, c.x * s - s - 1)..min(hay.w - needle.w, c.x * s + s + 1)) {
+                    val sc = zncc(hay, needle, x, y, nm, nSS, null)
+                    if (sc > bs) { bs = sc; bx = x; by = y }
+                }
+            }
+            if (bs >= threshold && (best == null || bs > best.score)) best = Hit(bx + needle.w / 2, by + needle.h / 2, bs, needle.w, needle.h)
+        }
+        return best
+    }
+
+    /** [findNcc] em escalas próximas (telas de densidade diferente). Mais lento: até 5 buscas. */
+    fun findNccScaled(hay: Gray, needle: Gray, threshold: Float): Hit? {
+        for (f in floatArrayOf(1f, 0.9f, 1.1f, 0.8f, 1.25f)) {
+            val n = if (f == 1f) needle else needle.resize((needle.w * f).toInt(), (needle.h * f).toInt())
+            findNcc(hay, n, threshold)?.let { return it }
+        }
+        return null
     }
 
     private class Best(val x: Int, val y: Int, val score: Float, val sad: Long = 0)
