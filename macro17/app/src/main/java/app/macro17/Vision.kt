@@ -19,6 +19,19 @@ class Gray(val w: Int, val h: Int, val d: IntArray, val rgb: IntArray? = null) {
         return Gray(w2, h2, out, rgbOut)
     }
 
+    /** Como [downscale], mas a grade de blocos começa em ([px],[py]): permite buscar o recorte em qualquer alinhamento. */
+    fun downscaleAt(s: Int, px: Int, py: Int): Gray {
+        val nw = (w - px) / s; val nh = (h - py) / s
+        if (nw <= 0 || nh <= 0) return Gray(0, 0, IntArray(0))
+        val out = IntArray(nw * nh)
+        for (y in 0 until nh) for (x in 0 until nw) {
+            var sum = 0
+            for (j in 0 until s) for (i in 0 until s) sum += d[(py + y * s + j) * w + px + x * s + i]
+            out[y * nw + x] = sum / (s * s)
+        }
+        return Gray(nw, nh, out)
+    }
+
     fun downscale(s: Int): Gray {
         if (s <= 1) return this
         val nw = w / s; val nh = h / s
@@ -286,14 +299,22 @@ object TemplateMatcher {
         if (needle.w == 0 || needle.h == 0 || needle.w > hay.w || needle.h > hay.h) return null
         if (flat(needle)) return find(hay, needle, threshold)
         val s = step(needle)
-        val hs = hay.downscale(s); val ns = needle.downscale(s)
-        if (ns.w == 0 || ns.h == 0 || ns.w > hs.w || ns.h > hs.h || flat(ns)) return find(hay, needle, threshold)
+        val ns = needle.downscale(s)
+        if (ns.w == 0 || ns.h == 0 || flat(ns)) return find(hay, needle, threshold)
         val nm = mean(needle); val nSS = sumSq(needle, nm)
+        // Busca grossa em todas as s×s fases da grade de redução: se o recorte não cai na grade, a média de blocos
+        // desalinhados destrói a correlação (ruído, bordas finas) e o acerto some. Alinhado a alguma fase, ele reaparece exato.
+        val cands = ArrayList<Cand>()
+        for (py in 0 until s) for (px in 0 until s) {
+            val hs = hay.downscaleAt(s, px, py)
+            if (ns.w > hs.w || ns.h > hs.h) continue
+            for (c in coarseNcc(hs, ns, threshold - 0.15f, 5)) cands += Cand(px + c.x * s, py + c.y * s, c.score)
+        }
         var best: Hit? = null
-        for (c in coarseNcc(hs, ns, threshold - 0.15f, 5)) {
+        for (c in nms(cands, needle, 8)) {
             var bx = 0; var by = 0; var bs = -2f
-            for (y in max(0, c.y * s - s - 1)..min(hay.h - needle.h, c.y * s + s + 1)) {
-                for (x in max(0, c.x * s - s - 1)..min(hay.w - needle.w, c.x * s + s + 1)) {
+            for (y in max(0, c.y - s)..min(hay.h - needle.h, c.y + s)) {
+                for (x in max(0, c.x - s)..min(hay.w - needle.w, c.x + s)) {
                     val sc = zncc(hay, needle, x, y, nm, nSS, null)
                     if (sc > bs) { bs = sc; bx = x; by = y }
                 }
