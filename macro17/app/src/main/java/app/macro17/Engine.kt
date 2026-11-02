@@ -10,7 +10,13 @@ import android.view.Display
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.WindowManager
 import java.util.Random
+import com.google.android.gms.tasks.Tasks
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -116,7 +122,8 @@ class Engine(
             return null
         }
 
-        override fun screen(): Gray? {
+        /** Captura a tela como Bitmap ARGB_8888 (o chamador faz recycle); null só no intervalo mínimo entre capturas. */
+        private fun capture(): Bitmap? {
             val latch = CountDownLatch(1)
             var shot: AccessibilityService.ScreenshotResult? = null
             var err = 0
@@ -135,10 +142,44 @@ class Engine(
             val hb = r.hardwareBuffer
             try {
                 val hw = Bitmap.wrapHardwareBuffer(hb, r.colorSpace) ?: return null
-                val bmp = hw.copy(Bitmap.Config.ARGB_8888, false).also { hw.recycle() } ?: return null
-                val px = IntArray(bmp.width * bmp.height).also { bmp.getPixels(it, 0, bmp.width, 0, 0, bmp.width, bmp.height) }
-                return Gray.fromArgb(px, bmp.width, bmp.height).also { bmp.recycle() }
+                return hw.copy(Bitmap.Config.ARGB_8888, false).also { hw.recycle() }
             } finally { hb.close() }
+        }
+
+        override fun screen(): Gray? {
+            val bmp = capture() ?: return null
+            val px = IntArray(bmp.width * bmp.height).also { bmp.getPixels(it, 0, bmp.width, 0, 0, bmp.width, bmp.height) }
+            return Gray.fromArgb(px, bmp.width, bmp.height).also { bmp.recycle() }
+        }
+
+        private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+
+        /**
+         * OCR (ML Kit, alfabeto latino, no aparelho). Alvos separados por vírgula ou "|"; palavras são testadas antes das linhas.
+         * [exact]: texto inteiro igual, diferenciando maiúsculas; senão "contém" sem diferenciar.
+         * shortcut: só alfabeto latino; para outros idiomas trocar o reconhecedor.
+         */
+        override fun findText(query: String, exact: Boolean, area: IntArray?): Pair<Int, Int>? {
+            val targets = query.split(',', '|').map { it.trim() }.filter { it.isNotEmpty() }
+            if (targets.isEmpty()) return null
+            val full = capture() ?: return null
+            var crop: Bitmap? = null
+            try {
+                val x0 = (area?.get(0) ?: 0).coerceIn(0, full.width - 1)
+                val y0 = (area?.get(1) ?: 0).coerceIn(0, full.height - 1)
+                val x1 = (area?.get(2) ?: full.width).coerceIn(x0 + 1, full.width)
+                val y1 = (area?.get(3) ?: full.height).coerceIn(y0 + 1, full.height)
+                crop = Bitmap.createBitmap(full, x0, y0, x1 - x0, y1 - y0)
+                val text = try {
+                    Tasks.await(recognizer.process(InputImage.fromBitmap(crop, 0)), 10, TimeUnit.SECONDS)
+                } catch (e: ExecutionException) { throw IllegalStateException("OCR falhou: ${e.cause?.message ?: e.message}") }
+                  catch (e: TimeoutException) { throw IllegalStateException("OCR sem resposta em 10 s") }
+                val hit = { t: String -> targets.any { if (exact) t == it else t.contains(it, ignoreCase = true) } }
+                val lines = text.textBlocks.flatMap { it.lines }
+                val cands = lines.flatMap { it.elements.map { e -> e.text to e.boundingBox } } + lines.map { it.text to it.boundingBox }
+                for ((t, box) in cands) if (box != null && hit(t)) return (x0 + box.centerX()) to (y0 + box.centerY())
+                return null
+            } finally { crop?.recycle(); full.recycle() }
         }
         override fun nextInt(bound: Int) = rnd.nextInt(bound)
         override fun log(line: String) = say(line)

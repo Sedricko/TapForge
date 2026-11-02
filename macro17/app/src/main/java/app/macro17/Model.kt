@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Ordem importa: o editor usa o índice do enum no menu de tipos. */
-enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER }
+enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER, TEXT }
 
 const val MAX_STEPS = 5000
 const val MAX_MS = 60_000      // getMaxGestureDuration() do sistema é 60 s
@@ -79,6 +79,10 @@ data class Step(
         type == Type.NODE && (text.isBlank() || text.length > 200) -> "texto do elemento vazio ou maior que 200 caracteres"
         type == Type.NODE && (cycle !in 50..MAX_MS || ms < 100) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de pelo menos 100 ms"
         type == Type.NODE && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
+        type == Type.TEXT && (text.isBlank() || text.length > 200) -> "texto vazio ou maior que 200 caracteres"
+        type == Type.TEXT && !(x1 == 0 && y1 == 0 && x2 == 0 && y2 == 0) && !(x2 > x1 && y2 > y1) -> "área inválida: deixe tudo 0 (tela toda) ou X e Y finais maiores que os iniciais"
+        type == Type.TEXT && (cycle !in 200..MAX_MS || ms < 100) -> "intervalo de 200 ms a $MAX_MS (o reconhecimento é pesado) e tempo máximo de pelo menos 100 ms"
+        type == Type.TEXT && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
         type == Type.NUMBER && !(x2 > x1 && y2 > y1) -> "área do número inválida: X e Y finais devem ser maiores que os iniciais"
         type == Type.NUMBER && cmp !in 0..3 -> "condição deve ser 0 (≥), 1 (≤), 2 (=) ou 3 (entre)"
         type == Type.NUMBER && (lo < 0 || hi < 0 || (cmp == 3 && hi < lo)) -> "valores não podem ser negativos; em 'entre' o máximo não pode ser menor que o mínimo"

@@ -25,6 +25,8 @@ class ModelTest {
         assertNull(Step(Type.CALL, text = "abc").validate(1))
         assertNull(Step(Type.NUMBER, 10, 10, 200, 80, ms = 3000, cmp = 3, lo = 100, hi = 900).validate(1))
         assertNull(Step(Type.NODE, ms = 3000, text = "Entrar").validate(1))
+        assertNull(Step(Type.TEXT, ms = 3000, text = "Entrar|Login", cycle = 500).validate(1))                 // OCR, tela toda
+        assertNull(Step(Type.TEXT, 10, 10, 300, 200, ms = 3000, text = "ok", cycle = 500).validate(1))        // OCR em área
         assertNull(Step(Type.NODE, ms = 3000, text = "id:btn_ok", exact = true, goto = 2, fail = 1).validate(2))
         assertNull(Step(Type.IMAGE, ms = 3000, text = "id").validate(1))
         assertNull(Step(Type.IMAGE, x1 = 10, y1 = 10, x2 = 200, y2 = 300, ms = 3000, text = "id", goto = 2, fail = 1).validate(2))
@@ -56,6 +58,9 @@ class ModelTest {
         assertNotNull(Step(Type.NUMBER, 10, 10, 90, 90, ms = 3000, cmp = 3, lo = 500, hi = 100).validate(1)) // entre com máximo < mínimo
         assertNotNull(Step(Type.NUMBER, 10, 10, 90, 90, ms = 3000, lo = -1).validate(1))                 // negativo
         assertNotNull(Step(Type.NUMBER, 10, 10, 90, 90, ms = 50).validate(1))                            // prazo curto
+        assertNotNull(Step(Type.TEXT, ms = 3000, text = " ", cycle = 500).validate(1))                         // OCR sem texto
+        assertNotNull(Step(Type.TEXT, 10, 10, 5, 5, ms = 3000, text = "x", cycle = 500).validate(1))          // OCR com área invertida
+        assertNotNull(Step(Type.TEXT, ms = 3000, text = "x", cycle = 100).validate(1))                         // OCR com intervalo curto demais
         assertNotNull(Step(Type.NODE, ms = 3000, text = " ").validate(1))                             // elemento sem texto
         assertNotNull(Step(Type.NODE, ms = 50, text = "x").validate(1))                               // prazo curto
         assertNotNull(Step(Type.NODE, ms = 3000, text = "x", fail = 9).validate(2))                   // destino fora

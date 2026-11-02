@@ -26,6 +26,12 @@ interface Ports {
     /** Casamento por correlação normalizada (método do app de referência). O padrão é o buscador em Kotlin; o Engine usa OpenCV quando carrega. */
     fun matchNcc(hay: Gray, needle: Gray, th: Float, probe: TemplateMatcher.Probe): TemplateMatcher.Hit? = TemplateMatcher.findNcc(hay, needle, th, probe)
 
+    /**
+     * Centro do primeiro texto reconhecido por OCR que casa com [query] (alvos separados por vírgula ou "|").
+     * [area] = x1,y1,x2,y2 em pixels, ou null para a tela toda. Padrão: sem OCR (testes).
+     */
+    @Throws(InterruptedException::class) fun findText(query: String, exact: Boolean, area: IntArray?): Pair<Int, Int>? = null
+
     /** Centro, em pixels da tela, do primeiro elemento visível que casa com [query]; null se não há (ou a janela está em transição). */
     fun findNode(query: String, exact: Boolean): Pair<Int, Int>?
     fun now(): Long // ms monotônicos, para o prazo da busca
@@ -100,6 +106,12 @@ class Runner(private val p: Ports) {
                 }
                 Type.NODE -> {
                     val hit = poll(s) { p.findNode(s.text, s.exact) }
+                    if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.first, hit.second, hit.first, hit.second)), TAP_MS)
+                    jump = if (hit != null) s.goto else s.fail
+                }
+                Type.TEXT -> {
+                    val area = if (s.x2 > s.x1 && s.y2 > s.y1) intArrayOf(s.x1, s.y1, s.x2, s.y2) else null
+                    val hit = poll(s) { p.findText(s.text, s.exact, area) }
                     if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.first, hit.second, hit.first, hit.second)), TAP_MS)
                     jump = if (hit != null) s.goto else s.fail
                 }
