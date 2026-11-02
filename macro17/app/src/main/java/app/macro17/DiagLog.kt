@@ -8,13 +8,16 @@ import java.io.FileOutputStream
  * do OpenCV, animações e reportes de compatibilidade. Avisos e erros (W, E, F) ficam sempre, de qualquer origem.
  * Formato threadtime: "MM-DD HH:MM:SS.mmm PID TID NIVEL TAG: texto".
  */
+private val SPACES = Regex("\\s+")
+
 fun filterLogcat(raw: String): String {
     val noise = listOf(
         " Macro17/", "OpenGLRenderer: endAllActiveAnimators", "CompatibilityChangeReporter", "GraphicsEnvironment",
         "NetworkSecurityConfig", "Late-enabling -Xcheck:jni", "libEGL  : loaded",
     )
     return raw.lineSequence().filter { line ->
-        val level = line.split(' ', limit = 7).filter { it.isNotEmpty() }.getOrNull(4)
+        // Há espaços duplos (antes do PID e do TID): dividir por "um ou mais espaços", senão o nível cai no campo errado.
+        val level = SPACES.split(line.trim(), 6).getOrNull(4)
         when {
             level == "W" || level == "E" || level == "F" -> true
             line.contains("OpenCV/StaticHelper") -> line.contains("loaded") || line.contains("is OK")
