@@ -25,10 +25,12 @@ class ItemEditorActivity : Activity() {
     private var total = 1
     private var index = -1
     private var scrollY = 0
+    private lateinit var store: Store
     private var scroller: android.widget.ScrollView? = null
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
+        store = Store(this)
         s = Step.fromJson(JSONObject(intent.getStringExtra("step") ?: "{}"))
         total = intent.getIntExtra("total", 1); index = intent.getIntExtra("index", -1)
         render()
@@ -40,7 +42,7 @@ class ItemEditorActivity : Activity() {
         scroller?.let { scrollY = it.scrollY }
         val p = Prefs(this)
         build(p)
-        setContentView(p.page("Editar item", Ic.BACK, { leave() }))
+        setContentView(p.page("Editor de Macro", Ic.BACK, { leave() }))
         scroller = p.scrollView
         p.scrollView.post { p.scrollView.scrollTo(0, scrollY) }
     }
@@ -65,7 +67,59 @@ class ItemEditorActivity : Activity() {
 
     // --- tela --------------------------------------------------------------------------------
 
+    private val simple = setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL)
+    private val keyNames = mapOf(1 to "Voltar", 2 to "Início", 3 to "Recentes", 4 to "Notificações", KEY_SCREENSHOT to "Captura de tela")
+    private val titleOf = mapOf(
+        Type.WAIT to "Esperar", Type.KEY to "Evento de Teclado", Type.STATUS to "Alertas de status", Type.GOTO to "Ir Para",
+        Type.RESET to "Reiniciar Contador de Execuções", Type.CALL to "Arquivo de Macro",
+    )
+
+    /** Itens que não são toque: mesma estrutura (nome, categoria do tipo, valores, atraso), só com as linhas de cada tipo. */
+    private fun buildSimple(p: Prefs) {
+        val title = titleOf.getValue(s.type)
+        p.valueRow("Nome", s.name.ifBlank { title }) { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
+        p.category(title, Ic.GEAR)
+        when (s.type) {
+            Type.WAIT -> p.valueRow("Tempo de Espera", secs(s.ms)) { secDialog("Tempo de Espera (segundos)", null, s.ms) { v -> s = s.copy(ms = v); render() } }
+            Type.KEY -> p.valueRow("Tecla", keyNames[s.x1] ?: "Voltar") {
+                val codes = keyNames.keys.toList()
+                AlertDialog.Builder(this).setTitle("Tecla").setSingleChoiceItems(codes.map { keyNames.getValue(it) }.toTypedArray(), codes.indexOf(s.x1)) { d, w ->
+                    s = s.copy(x1 = codes[w]); d.dismiss(); render()
+                }.setNegativeButton("Cancelar", null).show()
+            }
+            Type.STATUS -> {
+                p.valueRow("Mensagem", s.text.ifBlank { "(vazia)" }) { textDialog("Mensagem", s.text) { v -> s = s.copy(text = v.trim()); render() } }
+                p.valueRow("Duração", secs(s.ms)) { secDialog("Duração (segundos)", null, s.ms) { v -> s = s.copy(ms = v); render() } }
+                p.switchRow("Som", "Toca o som de alarme do aparelho.", s.snd) { v -> s = s.copy(snd = v); render() }
+                p.switchRow("Vibração", "Vibra junto com o alerta.", s.vib) { v -> s = s.copy(vib = v); render() }
+            }
+            Type.GOTO -> p.valueRow("Ir para o passo", if (s.goto == 0) "Seguir para o próximo" else "Passo ${s.goto}") { gotoDialog("Ir para o passo", s.goto) { v -> s = s.copy(goto = v); render() } }
+            Type.RESET -> p.valueRow("Contador", "Contador ${s.counter}") {
+                AlertDialog.Builder(this).setTitle("Contador").setSingleChoiceItems(Array(MAX_COUNTERS) { "Contador ${it + 1}" }, (s.counter - 1).coerceIn(0, MAX_COUNTERS - 1)) { d, w ->
+                    s = s.copy(counter = w + 1); d.dismiss(); render()
+                }.setNegativeButton("Cancelar", null).show()
+            }
+            else -> { // CALL
+                val target = store.get(s.text)
+                p.valueRow("Arquivo de Macro", target?.name ?: "Nenhum arquivo alocado.") {
+                    val others = store.list().filter { it.id != intent.getStringExtra("self") }
+                    if (others.isEmpty()) toast("Nenhum arquivo de macro")
+                    else AlertDialog.Builder(this).setTitle("Arquivos de Macro").setItems(others.map { it.name }.toTypedArray()) { _, w -> s = s.copy(text = others[w].id); render() }
+                        .setNegativeButton("Cancelar", null).show()
+                }
+                p.switchRow("Voltar ao terminar", "Desligado: o arquivo escolhido substitui esta macro.", s.ret) { v -> s = s.copy(ret = v); render() }
+            }
+        }
+        if (s.type != Type.WAIT) {
+            p.category("Atraso", Ic.WAIT)
+            val delayOn = s.delay > 0
+            p.switchRow("Atraso", "O item será processado após o tempo de atraso.", delayOn) { on -> s = s.copy(delay = if (on) 1000 else 0); render() }
+            p.valueRow("Tempo de Atraso", secs(s.delay), delayOn) { secDialog("Tempo de Atraso (segundos)", null, s.delay) { v -> s = s.copy(delay = v); render() } }
+        }
+    }
+
     private fun build(p: Prefs) {
+        if (s.type in simple) return buildSimple(p)
         val swipe = s.type == Type.SWIPE
         p.valueRow("Nome", s.name.ifBlank { kind() }) { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
 
