@@ -22,6 +22,7 @@ class AddItemsActivity : Activity() {
         Entry(Type.GOTO, Ic.JUMP, "Ir Para", "Ir para uma macro específica"),
         Entry(Type.COUNTER, Ic.REPEAT, "Contador de Execuções", "Conta as execuções da macro e aciona ações específicas quando a contagem de execuções excede um número definido."),
         Entry(Type.RESET, Ic.REPEAT, "Reiniciar Contador de Execuções", "Selecione o contador de execuções a reiniciar."),
+        Entry(Type.STOP, Ic.STOP, "Parar Macro", "Parar reprodução de macro"),
         Entry(Type.CALL, Ic.ARCHIVE, "Arquivo de Macro", "Abrir e reproduzir novo arquivo"),
         Entry(Type.STATUS, Ic.WARN, "Alertas de status", "Progresso da macro de alerta via som, vibração ou caixa de diálogo pop-up."),
         Entry(Type.KEY, Ic.KEY, "Evento de Teclado", "Realiza ações de captura de tela, tecla de voltar, tecla home e tecla de recentes."),

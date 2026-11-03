@@ -72,21 +72,22 @@ class EditorActivity : Activity() {
         Type.NODE to intArrayOf(MS, CYC, GOTO, FAIL, OX, OY) + common,
         Type.TEXT to intArrayOf(X1, Y1, X2, Y2, MS, CYC, MINC, GOTO, FAIL, OX, OY) + common,
         Type.NUMBER to intArrayOf(X1, Y1, X2, Y2, MS, CYC, CMP, LO, HI, GOTO, FAIL) + common,
+        Type.STOP to common,
     )
     private val optional = setOf(DELAY, RND, JIT, RMIN, GOTO, FAIL, CMP, LO, HI, OX, OY, MINC) + (CASE0 until CASE0 + MAX_CASES * 2) // em branco vale 0
 
     private val titles = mapOf(
         Type.TAP to "Toque", Type.SWIPE to "Deslizar", Type.PINCH_IN to "Pinça para dentro", Type.PINCH_OUT to "Pinça para fora",
         Type.WAIT to "Esperar", Type.KEY to "Tecla", Type.STATUS to "Alerta de status", Type.GOTO to "Ir para o passo",
-        Type.COUNTER to "Contador de execução", Type.RESET to "Zerar contador", Type.CALL to "Chamar macro", Type.IMAGE to "Buscar imagem", Type.NODE to "Achar por texto", Type.TEXT to "Ler texto da tela (OCR)", Type.NUMBER to "Ler número",
+        Type.COUNTER to "Contador de execução", Type.RESET to "Zerar contador", Type.CALL to "Chamar macro", Type.IMAGE to "Buscar imagem", Type.NODE to "Achar por texto", Type.TEXT to "Ler texto da tela (OCR)", Type.NUMBER to "Ler número", Type.STOP to "Parar Macro",
     )
     private val icons = mapOf(
         Type.TAP to Ic.TAP, Type.SWIPE to Ic.SWIPE, Type.PINCH_IN to Ic.SWIPE, Type.PINCH_OUT to Ic.SWIPE, Type.WAIT to Ic.WAIT,
-        Type.KEY to Ic.KEY, Type.STATUS to Ic.WARN, Type.GOTO to Ic.CHEVRON, Type.COUNTER to Ic.ADD, Type.RESET to Ic.BACK, Type.CALL to Ic.PLAY, Type.IMAGE to Ic.SEARCH, Type.NODE to Ic.SEARCH, Type.TEXT to Ic.SEARCH, Type.NUMBER to Ic.NUM,
+        Type.KEY to Ic.KEY, Type.STATUS to Ic.WARN, Type.GOTO to Ic.CHEVRON, Type.COUNTER to Ic.ADD, Type.RESET to Ic.BACK, Type.CALL to Ic.PLAY, Type.IMAGE to Ic.SEARCH, Type.NODE to Ic.SEARCH, Type.TEXT to Ic.SEARCH, Type.NUMBER to Ic.NUM, Type.STOP to Ic.STOP,
     )
     private val tones = mapOf(
         Type.TAP to C.BLUE, Type.SWIPE to C.PURPLE, Type.PINCH_IN to C.PURPLE, Type.PINCH_OUT to C.PURPLE, Type.WAIT to C.ORANGE,
-        Type.KEY to C.TEAL, Type.STATUS to C.TEAL, Type.GOTO to C.ORANGE, Type.COUNTER to C.BLUE, Type.RESET to C.RED, Type.CALL to C.PURPLE, Type.IMAGE to C.ORANGE, Type.NODE to C.TEAL, Type.TEXT to C.TEAL, Type.NUMBER to C.PURPLE,
+        Type.KEY to C.TEAL, Type.STATUS to C.TEAL, Type.GOTO to C.ORANGE, Type.COUNTER to C.BLUE, Type.RESET to C.RED, Type.CALL to C.PURPLE, Type.IMAGE to C.ORANGE, Type.NODE to C.TEAL, Type.TEXT to C.TEAL, Type.NUMBER to C.PURPLE, Type.STOP to C.RED,
     )
 
     private val REQ_ITEM = 21
@@ -183,7 +184,7 @@ class EditorActivity : Activity() {
 
     /** Toque e deslizar têm a tela própria no formato do base; os demais tipos seguem no diálogo até migrarem. */
     private fun openItem(type: Type, step: Step, index: Int) {
-        if (type == Type.TAP || type == Type.SWIPE || type in setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL)) {
+        if (type == Type.TAP || type == Type.SWIPE || type in setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP)) {
             startActivityForResult(
                 android.content.Intent(this, ItemEditorActivity::class.java)
                     .putExtra("step", step.toJson().toString()).putExtra("total", if (index >= 0) steps.size else steps.size + 1).putExtra("index", index).putExtra("self", id), REQ_ITEM,
@@ -386,6 +387,7 @@ class EditorActivity : Activity() {
                 " · não → " + (if (s.fail == 0) "seguir" else s.fail) + if (s.tap) " · toca" else ""
             Type.IMAGE -> "≥ ${s.thr}%" + (if (s.method == 1) " pixels" else "") + (if (s.mono) " cinza" else "") + (if (s.confirm > 1) " ×${s.confirm}" else "") + (if (s.scales) " (escalas)" else "") + " · até ${s.ms} ms · " + (if (s.x2 > s.x1) "área (${s.x1}, ${s.y1})–(${s.x2}, ${s.y2}) · " else "tela toda · ") +
                 "achou → " + (if (s.goto == 0) "seguir" else s.goto) + " · não → " + (if (s.fail == 0) "seguir" else s.fail) + if (s.tap) " · toca" else ""
+            Type.STOP -> "encerra a reprodução"
             Type.CALL -> (store.get(s.text)?.name ?: "macro removida") + if (s.ret) " · volta ao terminar" else " · substitui esta"
         } + skip
     }
@@ -402,7 +404,7 @@ class EditorActivity : Activity() {
             Type.STATUS -> Step(type, ms = 5000, snd = true, text = "Alerta de status")
             Type.GOTO -> Step(type, goto = 0)
             Type.RESET, Type.COUNTER -> Step(type, counter = 1)
-            Type.CALL -> Step(type)
+            Type.CALL, Type.STOP -> Step(type)
             else -> null
         }
         if (direct != null) { steps = steps.afterInsert(steps.size, direct); refresh(); list.setSelection(steps.size - 1); return }
@@ -422,6 +424,7 @@ class EditorActivity : Activity() {
                 Type.NODE -> Step(type, ms = 3000)
                 Type.TEXT -> Step(type, ms = 5000, cycle = 500)
                 Type.NUMBER -> Step(type, 100, 100, 400, 180, ms = 3000, cycle = 300)
+                Type.STOP -> Step(type)
             }
             openItem(type, base, -1)
         }

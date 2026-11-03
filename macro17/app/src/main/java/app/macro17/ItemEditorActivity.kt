@@ -67,11 +67,11 @@ class ItemEditorActivity : Activity() {
 
     // --- tela --------------------------------------------------------------------------------
 
-    private val simple = setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL)
+    private val simple = setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP)
     private val keyNames = mapOf(1 to "Voltar", 2 to "Início", 3 to "Recentes", 4 to "Notificações", KEY_SCREENSHOT to "Captura de tela")
     private val titleOf = mapOf(
         Type.WAIT to "Esperar", Type.KEY to "Evento de Teclado", Type.STATUS to "Alertas de status", Type.GOTO to "Ir Para",
-        Type.RESET to "Reiniciar Contador de Execuções", Type.CALL to "Arquivo de Macro",
+        Type.RESET to "Reiniciar Contador de Execuções", Type.CALL to "Arquivo de Macro", Type.STOP to "Parar Macro",
     )
 
     /** Itens que não são toque: mesma estrutura (nome, categoria do tipo, valores, atraso), só com as linhas de cada tipo. */
@@ -99,6 +99,7 @@ class ItemEditorActivity : Activity() {
                     s = s.copy(counter = w + 1); d.dismiss(); render()
                 }.setNegativeButton("Cancelar", null).show()
             }
+            Type.STOP -> p.note("Encerra a reprodução da macro neste ponto.")
             else -> { // CALL
                 val target = store.get(s.text)
                 p.valueRow("Arquivo de Macro", target?.name ?: "Nenhum arquivo alocado.") {

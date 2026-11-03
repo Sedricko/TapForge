@@ -68,6 +68,12 @@ class RunnerTest {
         assertEquals(listOf("g:1,100>1,100@10", "g:2,100>2,100@10", "g:1,100>1,100@10", "g:2,100>2,100@10"), f.events)
     }
 
+    @Test fun stopItemEndsThePlaybackEvenWithLoopsLeft() {
+        val (o, f) = run(macro(tap(1), Step(Type.STOP), tap(2), loops = 3))
+        assertTrue(o is Outcome.Done)
+        assertEquals(listOf("g:1,100>1,100@10"), f.events) // nada depois do Parar Macro, nem nas próximas voltas
+    }
+
     @Test fun disabledItemIsPassedWithoutDelayOrAction() {
         val (o, f) = run(macro(tap(1), tap(2, delay = 500).copy(off = true), tap(3)))
         assertTrue(o is Outcome.Done)

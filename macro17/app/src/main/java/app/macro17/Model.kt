@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Ordem importa: o editor usa o índice do enum no menu de tipos. */
-enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER, TEXT }
+enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER, TEXT, STOP }
 
 const val MAX_STEPS = 5000
 const val KEY_SCREENSHOT = 9   // GLOBAL_ACTION_TAKE_SCREENSHOT

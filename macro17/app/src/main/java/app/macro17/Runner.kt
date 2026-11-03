@@ -117,6 +117,7 @@ class Runner(private val p: Ports) {
                 Type.WAIT -> p.sleep(s.ms.toLong())
                 Type.STATUS -> if (!s.skip) { if (s.vib || s.snd) p.alert(s.vib, s.snd); p.status(s.text, s.ms) }
                 Type.GOTO -> jump = s.goto
+                Type.STOP -> return Outcome.Done // "Parar Macro" do base: encerra a reprodução aqui
                 Type.RESET -> f.counters[s.counter] = 0
                 Type.COUNTER -> jump = counterJump(f, s)
                 Type.IMAGE -> {
