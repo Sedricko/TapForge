@@ -11,7 +11,7 @@ object TmcZip {
     class Summary(val macros: Int, val images: Int, val notes: List<String>)
 
     private fun readEntry(z: ZipInputStream, max: Long): ByteArray {
-        val out = java.io.ByteArrayOutputStream(); val buf = ByteArray(8192); var n: Int; var total = 0L
+        val out = java.io.ByteArrayOutputStream(); val buf = ByteArray(8192); var n = 0; var total = 0L
         while (z.read(buf).also { n = it } > 0) { total += n; if (total > max) throw IOException("arquivo grande demais no backup"); out.write(buf, 0, n) }
         return out.toByteArray()
     }
