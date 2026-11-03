@@ -69,12 +69,77 @@ fun Context.label(s: String, sp: Float = 14f, color: Int = C.TEXT, bold: Boolean
 
 // --- ícones desenhados em Canvas: sem drawables, sem glifos Unicode (que viram emoji em alguns aparelhos) ---
 
-enum class Ic { PLAY, STOP, REC, ADD, BACK, MOVE, OK, TAP, SWIPE, WAIT, KEY, WARN, GEAR, IMPORT, SEARCH, CHEVRON, EDIT, NUM, MENU, HOME, BOX, INFO, FOLDER, LOCK, EYE, PAUSE, MINUS, CLOSE, TARGET, ARROW, ADDLIST, FRAME, UP, DOWN, COPY, TRASH, SAVE, SELECT, REPEAT, MORE, JUMP }
+enum class Ic { PLAY, STOP, REC, ADD, BACK, MOVE, OK, TAP, SWIPE, WAIT, KEY, WARN, GEAR, IMPORT, SEARCH, CHEVRON, EDIT, NUM, MENU, HOME, BOX, INFO, FOLDER, LOCK, EYE, PAUSE, MINUS, CLOSE, TARGET, ARROW, ADDLIST, FRAME, UP, DOWN, COPY, TRASH, SAVE, SELECT, REPEAT, MORE, JUMP, EYE_OFF, ANDROID, ALARM, ARTICLE, GESTURE, IMAGE, CANCEL, CLOCK, IMAGE_SEARCH, ARCHIVE }
+
+
+/** Ícones Material (Apache-2.0, ver THIRD_PARTY.md), os mesmos que o app base usa. Sem recurso para um [Ic], o [Icon] cai no desenho antigo. */
+object IconRes {
+    @Volatile var ctx: Context? = null
+    private val RES = mapOf(
+    Ic.PLAY to R.drawable.ic_play_arrow,
+    Ic.STOP to R.drawable.ic_stop,
+    Ic.ADD to R.drawable.ic_add,
+    Ic.BACK to R.drawable.ic_arrow_back,
+    Ic.MOVE to R.drawable.ic_drag_indicator,
+    Ic.OK to R.drawable.ic_check,
+    Ic.TAP to R.drawable.ic_touch_app,
+    Ic.SWIPE to R.drawable.ic_swipe,
+    Ic.WAIT to R.drawable.ic_timer,
+    Ic.KEY to R.drawable.ic_keyboard,
+    Ic.WARN to R.drawable.ic_warning,
+    Ic.GEAR to R.drawable.ic_settings,
+    Ic.IMPORT to R.drawable.ic_file_download,
+    Ic.SEARCH to R.drawable.ic_search,
+    Ic.CHEVRON to R.drawable.ic_chevron_right,
+    Ic.EDIT to R.drawable.ic_edit,
+    Ic.NUM to R.drawable.ic_pin,
+    Ic.MENU to R.drawable.ic_menu,
+    Ic.HOME to R.drawable.ic_home,
+    Ic.BOX to R.drawable.ic_move_to_inbox,
+    Ic.INFO to R.drawable.ic_info,
+    Ic.FOLDER to R.drawable.ic_folder,
+    Ic.LOCK to R.drawable.ic_lock,
+    Ic.EYE to R.drawable.ic_visibility,
+    Ic.EYE_OFF to R.drawable.ic_visibility_off,
+    Ic.PAUSE to R.drawable.ic_pause,
+    Ic.MINUS to R.drawable.ic_remove,
+    Ic.CLOSE to R.drawable.ic_close,
+    Ic.TARGET to R.drawable.ic_my_location,
+    Ic.ARROW to R.drawable.ic_navigation,
+    Ic.ADDLIST to R.drawable.ic_playlist_add,
+    Ic.FRAME to R.drawable.ic_crop_free,
+    Ic.UP to R.drawable.ic_arrow_upward,
+    Ic.DOWN to R.drawable.ic_arrow_downward,
+    Ic.COPY to R.drawable.ic_content_copy,
+    Ic.TRASH to R.drawable.ic_delete,
+    Ic.SAVE to R.drawable.ic_save,
+    Ic.SELECT to R.drawable.ic_check_circle,
+    Ic.REPEAT to R.drawable.ic_repeat,
+    Ic.MORE to R.drawable.ic_more_vert,
+    Ic.JUMP to R.drawable.ic_redo,
+    Ic.ANDROID to R.drawable.ic_android,
+    Ic.ALARM to R.drawable.ic_alarm,
+    Ic.ARTICLE to R.drawable.ic_article,
+    Ic.GESTURE to R.drawable.ic_gesture,
+    Ic.IMAGE to R.drawable.ic_image,
+    Ic.CANCEL to R.drawable.ic_cancel,
+    Ic.CLOCK to R.drawable.ic_watch_later,
+    Ic.IMAGE_SEARCH to R.drawable.ic_image_search,
+    Ic.ARCHIVE to R.drawable.ic_archive,
+    )
+    fun drawable(ic: Ic): Drawable? = RES[ic]?.let { id -> ctx?.getDrawable(id) }
+}
 
 class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
+    private val vd: Drawable? = IconRes.drawable(ic)?.mutate()?.also { it.setTint(color) }
     private val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = color; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
 
     override fun draw(c: Canvas) {
+        vd?.let { d ->
+            // O vetor já traz margem própria; a folga extra mantém o peso visual dos botões antigos.
+            val k = (minOf(bounds.width(), bounds.height()) * 0.12f).toInt()
+            d.setBounds(bounds.left + k, bounds.top + k, bounds.right - k, bounds.bottom - k); d.draw(c); return
+        }
         val cx = bounds.exactCenterX()
         val cy = bounds.exactCenterY()
         val s = minOf(bounds.width(), bounds.height()) * 0.28f // meia-largura do glifo
@@ -188,7 +253,7 @@ class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
         }
     }
 
-    override fun setAlpha(a: Int) { p.alpha = a }
+    override fun setAlpha(a: Int) { p.alpha = a; vd?.alpha = a }
     override fun setColorFilter(f: ColorFilter?) { p.colorFilter = f }
     @Suppress("OVERRIDE_DEPRECATION")
     override fun getOpacity() = PixelFormat.TRANSLUCENT

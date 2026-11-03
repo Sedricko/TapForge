@@ -19,7 +19,7 @@ import android.widget.ImageView
  */
 class Recorder(private val ctx: Context, private val wm: WindowManager) {
     enum class Mode(val label: String, val ic: Ic) {
-        TAP("Tocar", Ic.TAP), SWIPE("Deslizar", Ic.SWIPE), IMAGE("Imagem", Ic.FRAME);
+        TAP("Tocar", Ic.TAP), SWIPE("Deslizar", Ic.SWIPE), IMAGE("Imagem", Ic.IMAGE);
         fun next() = values()[(ordinal + 1) % values().size]
     }
 

@@ -298,7 +298,7 @@ class EditorActivity : Activity() {
                 addView(label("${i + 1}. ${titles.getValue(s.type)}" + if (s.skip) " (pular)" else "", 19f, 0xFF607D8B.toInt()))
                 addView(LinearLayout(this@EditorActivity).apply {
                     setPadding(0, dp(4), 0, 0)
-                    addView(chip(if (vision) Ic.SEARCH else icons.getValue(s.type), secs(s.ms)))
+                    addView(chip(if (vision) Ic.IMAGE_SEARCH else icons.getValue(s.type), secs(s.ms)))
                     addView(chip(Ic.WAIT, delayText))
                 })
                 addView(label(detail(s), 12f, B.TEXT2).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(2), 0, 0) })

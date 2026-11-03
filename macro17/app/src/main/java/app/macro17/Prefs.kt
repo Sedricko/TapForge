@@ -109,10 +109,10 @@ fun Activity.mainDrawer(selected: Int): Drawer {
     }
     return Drawer(this, listOf(
         Triple(Ic.HOME, "Home") { if (this !is MainActivity) go(MainActivity::class.java, top = true) },
-        Triple(Ic.LOCK, "Permissões") { if (this !is PermissionsActivity) go(PermissionsActivity::class.java) },
+        Triple(Ic.ANDROID, "Permissões") { if (this !is PermissionsActivity) go(PermissionsActivity::class.java) },
         Triple(Ic.BOX, "Backup e Restauração") { if (this !is BackupActivity) go(BackupActivity::class.java) },
         Triple(Ic.GEAR, "Configurações") { if (this !is OptionsActivity) go(OptionsActivity::class.java) },
         Triple(Ic.SEARCH, "Monitor e logs") { if (this !is DiagActivity) go(DiagActivity::class.java) },
-        Triple(Ic.INFO, "Sobre o Aplicativo") { if (this !is AboutActivity) go(AboutActivity::class.java) },
+        Triple(Ic.ARTICLE, "Sobre o Aplicativo") { if (this !is AboutActivity) go(AboutActivity::class.java) },
     ), selected)
 }

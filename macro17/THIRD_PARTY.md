@@ -44,3 +44,6 @@ o compilador gera. Copiar a cadeia de build inteira para o repositório (centena
 
 
 `json-20240303.jar` (org.json, só testes na JVM, domínio público/JSON License): SHA-1 `0ebb88e8fb5122b7506d5cf1d69f1ccdb790d22a`. O `android.jar` traz `org.json` apenas como stub que lança "not mocked", então os testes de ida e volta do JSON precisam desta implementação real.
+
+## Ícones
+Os ícones da interface (`macro17/app/src/main/res/drawable/ic_*.xml`, 50 arquivos) são os **Material Icons** do Google, copiados do pacote npm `@material-design-icons/svg` 0.14.13 (https://github.com/marella/material-design-icons) e convertidos em vetores do Android. Licença **Apache-2.0**. São os mesmos ícones que o app base usa.

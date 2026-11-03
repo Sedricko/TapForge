@@ -287,7 +287,7 @@ class MacroService : AccessibilityService() {
             })
             addView(pbtn(Ic.GEAR, "Configurações") { startActivity(Intent(this@MacroService, OptionsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
             addView(pbtn(Ic.INFO, "Registro ao vivo") { toggleLog() })
-            addView(pbtn(Ic.CLOSE, "Fechar o painel") { openPanel(false) })
+            addView(pbtn(Ic.CANCEL, "Fechar o painel") { openPanel(false) })
         }
         panel = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL

@@ -11,6 +11,7 @@ import android.os.Process
 class App : Application() {
     override fun onCreate() {
         super.onCreate()
+        IconRes.ctx = applicationContext
         Diag.init(this)
         Diag.d("app", "processo iniciado pid=${Process.myPid()}")
         val prev = Thread.getDefaultUncaughtExceptionHandler()
