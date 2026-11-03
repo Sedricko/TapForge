@@ -28,15 +28,15 @@ class OptionsActivity : Activity() {
         store = Store(this)
         val p = Prefs(this)
 
-        val sizes = intArrayOf(40, 60, 80, 100, 120, 160)
+        val sizes = intArrayOf(5, 10, 20, 40, 80, 120, 160)
         var sizeTxt: TextView? = null
         sizeTxt = p.valueRow("Tamanho da imagem a salvar", "${store.thumbPx} Pixel") {
             AlertDialog.Builder(this).setTitle("Tamanho da imagem a salvar").setSingleChoiceItems(sizes.map { "$it Pixel" }.toTypedArray(), sizes.indexOf(store.thumbPx)) { d, w ->
                 store.thumbPx = sizes[w]; sizeTxt?.text = "${sizes[w]} Pixel"; d.dismiss()
             }.setNegativeButton("Cancelar", null).show()
         }
-        p.switchRow("Parar Reprodução com Tecla de Volume", "Qualquer tecla de volume, ao soltar, para a macro em execução.", store.stopVolume) { store.stopVolume = it }
-        p.switchRow("Iniciar macro com tecla de volume.", "Com o app ocioso, soltar a tecla de volume inicia a macro selecionada.", store.startVolume) { store.startVolume = it }
+        p.switchRow("Parar Reprodução com Tecla de Volume", "", store.stopVolume) { store.stopVolume = it }
+        p.switchRow("Iniciar macro com tecla de volume.", "", store.startVolume) { store.startVolume = it }
         p.switchRow("Mostrar Toques", "Mostrar feedback visual para reproduções", store.showTouches) { store.showTouches = it }
         p.switchRow("Manter Tela Ligada", "A tela permanecerá ligada enquanto o Macro17 estiver em execução.", store.keepOn) { store.keepOn = it }
         p.switchRow("Depurar", "Exibir informações de depuração na tela: abre o registro ao vivo ao iniciar uma macro.", store.debugOverlay) { store.debugOverlay = it }
@@ -47,8 +47,8 @@ class OptionsActivity : Activity() {
             startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
         }
 
-        p.category("Janela Pop-up", Ic.FRAME)
-        val tr = p.valueRow("Transparência da janela flutuante (%)", "${100 - store.opacity} %") { transparencyDialog() }
+        p.category("Janela Pop-up")
+        val tr = p.valueRow("Transparência da janela flutuante (%)", "${100 - store.opacity}%") { transparencyDialog() }
         transparencyText = tr
         p.switchRow("Ocultar janela pop-up durante a reprodução", "Pressione a tecla de volume para parar a reprodução da macro.", store.hidePopup) { store.hidePopup = it; pushOptions() }
         // Exclusivos, como no base: ligar um desliga o outro.
@@ -61,7 +61,7 @@ class OptionsActivity : Activity() {
         p.valueRow("Taxa de bits de vídeo", "Defina a qualidade visual da gravação. (indisponível)", enabled = false)
         p.valueRow("Taxa de quadros de vídeo", "Defina os quadros por segundo (FPS). (indisponível)", enabled = false)
 
-        p.category("Macro17", Ic.GEAR)
+        p.category("Macro17")
         p.valueRow("Leitor de números", "Ensine os dígitos de um jogo ou contador para o passo “Ler número”.") { startActivity(Intent(this, ReaderActivity::class.java)) }
         p.valueRow("Monitor e logs", "Registro de eventos, relatório do sistema e exportação para quem corrige.") { startActivity(Intent(this, DiagActivity::class.java)) }
 
@@ -76,7 +76,7 @@ class OptionsActivity : Activity() {
 
     /** 0 a 50%, como no base: mais transparente que isso o painel some e não dá para tocar nele. */
     private fun transparencyDialog() {
-        val value = TextView(this).apply { text = "${100 - store.opacity} %"; textSize = 16f; gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(8)) }
+        val value = TextView(this).apply { text = "${100 - store.opacity}%"; textSize = 16f; gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(8)) }
         val bar = SeekBar(this).apply {
             max = 50; progress = 100 - store.opacity; contentDescription = "Transparência da janela flutuante"
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {

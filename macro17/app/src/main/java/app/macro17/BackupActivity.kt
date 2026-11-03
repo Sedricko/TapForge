@@ -24,11 +24,13 @@ class BackupActivity : Activity() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, 0)
             addView(card().apply {
-                gravity = Gravity.CENTER_HORIZONTAL
-                setPadding(dp(14), dp(14), dp(14), dp(14))
-                addView(glyph(Ic.BOX, 0xFFD81B60.toInt(), 30))
-                addView(label("Backup e Restauração", 15f, B.TEXT2, bold = true).apply { setPadding(0, dp(6), 0, dp(6)) })
-                addView(label("Os dados ficam no armazenamento interno do app. Se você desinstalar o Macro17, as macros também serão excluídas. Faça um backup dos seus dados agora.", 15f, B.TEXT).apply { gravity = Gravity.CENTER })
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                addView(LinearLayout(this@BackupActivity).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(glyph(Ic.ARCHIVE, 0xFFD81B60.toInt(), 25))
+                    addView(label("Backup e Restauração", 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(dp(8), 0, 0, 0) })
+                })
+                addView(label("O local de armazenamento de dados foi alterado. Se você excluir o aplicativo, os dados da macro também serão excluídos. Faça um backup dos seus dados agora.", 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(0, dp(8), 0, 0) })
             })
             addView(bigText("Backup de Dados") { chooseMacros() })
             addView(bigText("Restaurar Dados") {
@@ -84,10 +86,10 @@ class BackupActivity : Activity() {
 
     private fun bigText(text: String, click: () -> Unit) = label(text, 20f, B.BLUE, bold = true).apply {
         gravity = Gravity.CENTER
-        background = rounded(Color.WHITE, 4); elevation = dp(2).toFloat()
-        foreground = ripple(4, 0x1F00897B)
-        setPadding(dp(16), dp(20), dp(16), dp(20))
-        layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) }
+        background = rounded(Color.WHITE, 2); elevation = dp(2).toFloat()
+        foreground = ripple(2, 0x1F000000)
+        setPadding(dp(16), dp(12), dp(16), dp(12))
+        layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(5), dp(4), dp(5), dp(4)) }
         setOnClickListener { click() }
     }
 

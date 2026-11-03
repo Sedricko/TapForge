@@ -67,7 +67,7 @@ class MainActivity : Activity() {
         content.addView(card().apply {
             gravity = Gravity.CENTER
             orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setPadding(dp(12), dp(18), dp(12), dp(18))
             val ok = MacroService.instance != null
             addView(glyph(Ic.INFO, if (ok) 0xFF00574B.toInt() else B.RED, 24))
             addView(label(if (ok) "Permissão de Acessibilidade Concedida" else "A acessibilidade não está ativada.", 14f, if (ok) 0xFF00574B.toInt() else B.RED, bold = true).apply { setPadding(dp(8), 0, 0, 0) })

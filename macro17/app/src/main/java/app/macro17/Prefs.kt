@@ -23,8 +23,8 @@ class Prefs(private val a: Activity) {
     val column = LinearLayout(a).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE) }
     private var first = true
 
-    private val switchTrack = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0x8800897B.toInt(), 0xFFBDBDBD.toInt()))
-    private val switchThumb = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(B.ON, 0xFFECECEC.toInt()))
+    private val switchTrack = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0x80D81B60.toInt(), 0xFFBDBDBD.toInt()))
+    private val switchThumb = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFFD81B60.toInt(), 0xFFECECEC.toInt()))
 
     private fun divider() = View(a).apply { setBackgroundColor(0x1F000000); layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 1) }
 
@@ -39,14 +39,14 @@ class Prefs(private val a: Activity) {
                 layoutParams = LinearLayout.LayoutParams(a.dp(56), a.dp(28))
                 if (ic != null) addView(a.glyph(ic, B.TEXT2, 24), FrameLayout.LayoutParams(a.dp(24), a.dp(24), Gravity.CENTER_VERTICAL))
             })
-            addView(a.label(title, 15f, B.ON, bold = true))
+            addView(a.label(title, 14f, 0xFFD81B60.toInt(), bold = true)) // título na cor de destaque do base
         })
     }
 
     private fun texts(title: String, summary: String, enabled: Boolean) = LinearLayout(a).apply {
         orientation = LinearLayout.VERTICAL
         layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-        addView(a.label(title, 17f, B.TEXT))
+        addView(a.label(title, 16f, B.TEXT))
         if (summary.isNotEmpty()) addView(a.label(summary, 14f, B.TEXT2).apply { setPadding(0, a.dp(3), a.dp(8), 0) })
         alpha = if (enabled) 1f else 0.45f
     }

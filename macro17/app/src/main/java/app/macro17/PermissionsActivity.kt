@@ -51,10 +51,10 @@ class PermissionsActivity : Activity() {
         gravity = Gravity.CENTER_HORIZONTAL
         background = rounded(Color.WHITE, 2); elevation = dp(2).toFloat()
         foreground = ripple(4, 0x1F00897B)
-        setPadding(dp(16), dp(18), dp(16), dp(18))
+        setPadding(dp(16), dp(15), dp(16), dp(15))
         layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(5), dp(4), dp(5), dp(4)) }
-        addView(label(title, 15f, B.TEXT2, bold = true))
-        addView(label(body, 15f, B.TEXT).apply { gravity = Gravity.CENTER; setPadding(0, dp(10), 0, 0) })
+        addView(label(title, 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(0, 0, 0, dp(10)) })
+        addView(label(body, 14f, 0xFF212121.toInt()).apply { gravity = Gravity.CENTER; setPadding(0, dp(10), 0, 0) })
         setOnClickListener { click() }
     }
 
@@ -62,8 +62,8 @@ class PermissionsActivity : Activity() {
         content.removeAllViews()
         val granted = MacroService.instance != null
         content.addView(card().apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
+            setPadding(dp(12), dp(18), dp(12), dp(18))
             addView(glyph(Ic.INFO, B.RED, 24))
             addView(label("Por favor, selecione uma permissão.", 14f, B.RED, bold = true).apply { setPadding(dp(10), 0, 0, 0) })
         })
