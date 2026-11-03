@@ -42,6 +42,20 @@ class BackupZipTest {
         assertEquals("{}", File(dst, "glyphs.json").readText())
     }
 
+    @Test fun selectionKeepsOnlyChosenMacroAndItsImages() {
+        val src = dir()
+        val m1 = id(); val m2 = id(); val t1 = id(); val t2 = id(); val s = id()
+        File(src, "macros").mkdirs(); File(src, "templates").mkdirs(); File(src, "samples").mkdirs()
+        File(src, "macros/$m1.json").writeText("""{"im":"$t1"}""")
+        File(src, "macros/$m2.json").writeText("""{"im":"$t2"}""")
+        File(src, "templates/$t1.png").writeBytes(png); File(src, "templates/$t2.png").writeBytes(png)
+        File(src, "samples/$s.png").writeBytes(png)
+        val out = ByteArrayOutputStream()
+        assertEquals(2, BackupZip.write(out, src, setOf(m1), samples = false)) // macro 1 + a imagem dela
+        val withSamples = ByteArrayOutputStream()
+        assertEquals(3, BackupZip.write(withSamples, src, setOf(m1), samples = true))
+    }
+
     @Test fun zipSlipAndForeignNamesAreNeverWritten() {
         val dst = dir()
         val outside = File(dst.parentFile, "evil-${System.nanoTime()}.json")

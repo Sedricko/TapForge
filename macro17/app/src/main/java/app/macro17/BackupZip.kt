@@ -26,14 +26,24 @@ object BackupZip {
 
     class Result(val restored: Int, val skipped: List<String>)
 
-    /** Grava o ZIP com tudo o que há em [root]; devolve quantos arquivos entraram. */
-    fun write(out: OutputStream, root: File): Int {
+    /**
+     * Grava o ZIP com o que há em [root]; devolve quantos arquivos entraram. Com [only] (ids de macro), leva só essas macros
+     * e as imagens que elas citam; [samples] decide se as capturas de tela entram (podem ter dados pessoais).
+     */
+    fun write(out: OutputStream, root: File, only: Set<String>? = null, samples: Boolean = true): Int {
         var n = 0
+        val cited = only?.let { ids -> ids.joinToString(" ") { File(root, "macros/$it.json").takeIf { f -> f.isFile }?.readText().orEmpty() } }
         ZipOutputStream(out).use { z ->
             for (dir in listOf("macros", "templates", "samples")) {
                 File(root, dir).listFiles().orEmpty().sortedBy { it.name }.forEach { f ->
                     val name = "$dir/${f.name}"
-                    if (f.isFile && ALLOWED.matches(name)) { put(z, name, f); n++ }
+                    val keep = when {
+                        only == null -> dir != "samples" || samples
+                        dir == "macros" -> f.nameWithoutExtension in only
+                        dir == "templates" -> cited!!.contains(f.nameWithoutExtension)
+                        else -> samples
+                    }
+                    if (keep && f.isFile && ALLOWED.matches(name)) { put(z, name, f); n++ }
                 }
             }
             File(root, "glyphs.json").takeIf { it.isFile }?.let { put(z, "glyphs.json", it); n++ }

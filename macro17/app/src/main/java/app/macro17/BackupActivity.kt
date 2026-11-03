@@ -30,9 +30,7 @@ class BackupActivity : Activity() {
                 addView(label("Backup e Restauração", 15f, B.TEXT2, bold = true).apply { setPadding(0, dp(6), 0, dp(6)) })
                 addView(label("Os dados ficam no armazenamento interno do app. Se você desinstalar o Macro17, as macros também serão excluídas. Faça um backup dos seus dados agora.", 15f, B.TEXT).apply { gravity = Gravity.CENTER })
             })
-            addView(bigText("Backup de Dados") { startActivityForResult(
-                Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
-                    .putExtra(Intent.EXTRA_TITLE, "macro17-backup-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".zip"), SAVE) })
+            addView(bigText("Backup de Dados") { chooseMacros() })
             addView(bigText("Restaurar Dados") {
                 AlertDialog.Builder(this@BackupActivity).setTitle("Restaurar dados")
                     .setMessage("Macros e imagens do backup substituem as que têm o mesmo identificador. Arquivos inválidos são ignorados. Continuar?")
@@ -54,6 +52,36 @@ class BackupActivity : Activity() {
         })
     }
 
+    private var chosen: Set<String>? = null
+    private var withSamples = true
+
+    /** Seleção de macros (todas marcadas), como no base; depois pergunta pelas capturas de tela. */
+    private fun chooseMacros() {
+        val ms = Store(this).list()
+        if (ms.isEmpty()) return Toast.makeText(this, "Por favor, selecione um arquivo.", Toast.LENGTH_SHORT).show()
+        val on = BooleanArray(ms.size) { true }
+        val dlg = AlertDialog.Builder(this).setTitle("Backup de Dados")
+            .setMultiChoiceItems(ms.map { it.name }.toTypedArray(), on) { _, i, v -> on[i] = v }
+            .setPositiveButton("Backup", null).setNeutralButton("Selecionar/Desmarcar tudo", null).setNegativeButton("Cancelar", null).create()
+        dlg.show()
+        dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            val all = on.all { it }
+            for (i in on.indices) { on[i] = !all; dlg.listView.setItemChecked(i, !all) }
+        }
+        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            if (on.none { it }) return@setOnClickListener Toast.makeText(this, "Por favor, selecione um arquivo.", Toast.LENGTH_SHORT).show()
+            chosen = ms.filterIndexed { i, _ -> on[i] }.map { it.id }.toSet(); dlg.dismiss()
+            AlertDialog.Builder(this).setTitle("Backup da Captura de Tela")
+                .setMessage("Você quer incluir os dados da captura de tela no backup? As capturas de tela podem conter informações pessoais sensíveis.")
+                .setPositiveButton("Sim") { _, _ -> withSamples = true; pickTarget() }
+                .setNegativeButton("Não") { _, _ -> withSamples = false; pickTarget() }.show()
+        }
+    }
+
+    private fun pickTarget() = startActivityForResult(
+        Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
+            .putExtra(Intent.EXTRA_TITLE, "macro17-backup-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".zip"), SAVE)
+
     private fun bigText(text: String, click: () -> Unit) = label(text, 20f, B.BLUE, bold = true).apply {
         gravity = Gravity.CENTER
         background = rounded(Color.WHITE, 4); elevation = dp(2).toFloat()
@@ -71,7 +99,7 @@ class BackupActivity : Activity() {
         Thread({
             val msg = try {
                 if (req == SAVE) {
-                    val n = contentResolver.openOutputStream(uri, "wt")!!.use { BackupZip.write(it, filesDir) }
+                    val n = contentResolver.openOutputStream(uri, "wt")!!.use { BackupZip.write(it, filesDir, chosen, withSamples) }
                     Diag.d("backup", "gravou $n arquivos")
                     "Backup salvo ($n arquivos)"
                 } else {
