@@ -166,6 +166,9 @@ class Store(ctx: Context) {
         if (!tmp.renameTo(f)) throw IOException("não foi possível gravar a macro")
     }
 
+    /** Nome já usado por outra macro (o base não aceita dois arquivos com o mesmo nome). */
+    fun nameTaken(name: String, exceptId: String? = null) = list().any { it.id != exceptId && it.name.equals(name, ignoreCase = true) }
+
     fun delete(id: String) {
         file(id)?.delete()
         saveAlarms(alarms().filter { it.macroId != id })

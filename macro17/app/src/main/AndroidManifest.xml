@@ -37,6 +37,7 @@
         <activity android:name=".OptionsActivity" android:exported="false" />
         <activity android:name=".PermissionsActivity" android:exported="false" />
         <activity android:name=".BackupActivity" android:exported="false" />
+        <activity android:name=".FileManagerActivity" android:exported="false" />
         <activity android:name=".AboutActivity" android:exported="false" />
         <activity android:name=".AlarmListActivity" android:exported="false" />
         <activity android:name=".AlarmEditActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />

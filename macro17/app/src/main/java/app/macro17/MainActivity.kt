@@ -87,21 +87,24 @@ class MainActivity : Activity() {
             }
         })
 
-        content.addView(bigButton(Ic.EDIT, "Editor de macro") { edit(cur?.id ?: "new") })
-        content.addView(bigButton(Ic.FOLDER, "Arquivo") { fileDialog() })
+        content.addView(bigButton(Ic.EDIT, "Editor de macro") { if (cur == null) toast("Arquivo não existe.") else edit(cur.id) })
+        content.addView(bigButton(Ic.FOLDER, "Arquivo") { startActivity(Intent(this, FileManagerActivity::class.java)) })
         if (store.debugOverlay) content.addView(bigButton(Ic.INFO, "Arquivo de Depuração") { startActivity(Intent(this, DiagActivity::class.java)) })
         // Como no app base: INICIAR abre os controles flutuantes para montar (gravar) e rodar; não exige macro pronta.
         content.addView(bigButton(Ic.TAP, if (MacroService.instance?.panelOpen() == true) "Parar" else "Iniciar") { start() })
     }
 
-    /** Lista de macros (toque seleciona) + criar/importar. Substitui a grade: o base trabalha com uma macro atual. */
+    /** Cartão da macro: "Arquivos de Macro" só troca a macro atual (sem nenhuma, oferece criar). */
     private fun fileDialog() {
-        val acts = buildList<Pair<String, () -> Unit>> {
-            macros.forEach { m -> add((if (m.id == store.selected) "✓ " else "") + m.name to { store.selected = m.id; refresh() }) }
-            add("Nova macro" to { edit("new") })
-            add("Importar…" to { importFile() })
+        if (macros.isEmpty()) {
+            AlertDialog.Builder(this).setMessage("Nenhum arquivo de macro. Crie um novo.")
+                .setPositiveButton("Sim") { _, _ -> startActivity(Intent(this, FileManagerActivity::class.java)) }
+                .setNegativeButton("Não", null).show()
+            return
         }
-        AlertDialog.Builder(this).setTitle("Arquivo").setItems(acts.map { it.first }.toTypedArray()) { _, w -> acts[w].second() }.show()
+        AlertDialog.Builder(this).setTitle("Arquivos de Macro")
+            .setItems(macros.map { it.name }.toTypedArray()) { _, w -> store.selected = macros[w].id; refresh() }
+            .setNegativeButton("Cancelar", null).show()
     }
 
     private fun start() {
