@@ -270,7 +270,7 @@ class MacroService : AccessibilityService() {
 
     /** Atualiza o ▶/■ do painel; chamável de qualquer thread. */
     private var playing = false // estado mostrado no painel (engine.running ainda é true dentro do callback de fim)
-    private fun setPlayIcon(running: Boolean) = ui.post { playing = running; if (::row1.isInitialized && !recording) fillRow1() else playBtn?.setImageDrawable(Icon(if (running) Ic.STOP else Ic.PLAY, teal)) }
+    private fun setPlayIcon(running: Boolean) = ui.post { playing = running; if (running) { expanded = false; if (::row2.isInitialized) row2.visibility = View.GONE }; if (::row1.isInitialized && !recording) fillRow1() else playBtn?.setImageDrawable(Icon(if (running) Ic.STOP else Ic.PLAY, teal)) }
 
     private fun openPanel(open: Boolean) {
         if (!::panel.isInitialized) return

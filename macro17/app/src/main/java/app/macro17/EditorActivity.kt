@@ -266,10 +266,10 @@ class EditorActivity : Activity() {
                 when (pick) {
                     0 -> askNumber("Tempo de Atraso (ms)") { v -> applyBatch(idx) { it.copy(delay = v, rnd = 0, rndMin = 0) } }
                     1 -> askChoice("Pesquisa de imagem", arrayOf("Ligada", "Desligada")) { c -> applyBatch(idx, img { it.copy(useImg = c == 0 && it.img.isNotEmpty()) }) }
-                    2 -> askNumber("Taxa de correspondência (0 a 100)") { v -> applyBatch(idx, img { it.copy(thr = v) }) }
-                    3 -> askNumber("Velocidade de pesquisa (ms)") { v -> applyBatch(idx, img { it.copy(cycle = v) }) }
-                    4 -> askNumber("Duração da pesquisa (ms, 0 = infinito)") { v -> applyBatch(idx, img { it.copy(sms = v) }) }
-                    5 -> askNumber("Mover em caso de sucesso (passo, 0 = próximo)") { v -> applyBatch(idx, img { it.copy(goto = v) }) }
+                    2 -> askNumber("Taxa de correspondência (20 a 100)", 95) { v -> applyBatch(idx, img { it.copy(thr = v) }) }
+                    3 -> askNumber("Velocidade de pesquisa (ms)", 1000) { v -> applyBatch(idx, img { it.copy(cycle = v) }) }
+                    4 -> askNumber("Duração da pesquisa (ms, 0 = infinito)", 5000) { v -> applyBatch(idx, img { it.copy(sms = v) }) }
+                    5 -> askNumber("Mover em caso de sucesso (passo, 0 = próximo)", 0) { v -> applyBatch(idx, img { it.copy(goto = v) }) }
                     else -> askChoice("Ação", arrayOf("Pular a ação", "Executar a ação")) { c -> applyBatch(idx, img { it.copy(skip = c == 0) }) }
                 }
             }.setNegativeButton("Cancelar", null).show()
@@ -285,11 +285,13 @@ class EditorActivity : Activity() {
     private fun applyBatch(idx: List<Int>, f: (Step) -> Step) {
         val next = steps.mapIndexed { i, s -> if (i in idx) f(s) else s }
         next.forEachIndexed { i, s -> s.validate(next.size)?.let { return toast("Item ${i + 1}: $it") } }
-        steps = next; refresh(); toast("${idx.size} ${if (idx.size == 1) "item alterado" else "itens alterados"}.")
+        val changed = idx.count { next[it] != steps[it] }
+        steps = next; refresh()
+        toast(if (changed == 0) "Nenhum item se aplica a esta opção." else "$changed ${if (changed == 1) "item alterado" else "itens alterados"}.")
     }
 
-    private fun askNumber(title: String, then: (Int) -> Unit) {
-        val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER; setText("1000"); setPadding(dp(24), dp(16), dp(24), dp(8)) }
+    private fun askNumber(title: String, initial: Int = 1000, then: (Int) -> Unit) {
+        val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER; setText(initial.toString()); setPadding(dp(24), dp(16), dp(24), dp(8)) }
         AlertDialog.Builder(this).setTitle(title).setView(et)
             .setPositiveButton("Alterar tudo") { _, _ -> et.text.toString().toIntOrNull()?.let(then) ?: toast("Número inválido") }
             .setNegativeButton("Cancelar", null).show()

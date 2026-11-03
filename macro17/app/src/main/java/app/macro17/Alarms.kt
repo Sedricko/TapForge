@@ -19,8 +19,8 @@ class AlarmReceiver : BroadcastReceiver() {
         val id = i.getStringExtra("id") ?: return
         val stop = i.getBooleanExtra("stop", false)
         Diag.d("alarme", "disparou id=$id stop=$stop (serviço=${MacroService.instance != null})")
+        val a = Store(c).alarms().firstOrNull { it.id == id && it.enabled } ?: return // alarme apagado ou desligado: nada a iniciar nem a parar
         if (stop) { MacroService.instance?.stopMacro(); return }
-        val a = Store(c).alarms().firstOrNull { it.id == id && it.enabled } ?: return
         Alarms.rearm(c) // próxima ocorrência (amanhã)
         Alarms.arm(c, a.id, true, System.currentTimeMillis() + a.uptime * 60_000L)
         runCatching { c.startActivity(Intent(c, FullScreenActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } // acende a tela

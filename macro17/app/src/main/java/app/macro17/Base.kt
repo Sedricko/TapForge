@@ -34,12 +34,12 @@ fun Activity.appBar(title: String, nav: Ic, onNav: () -> Unit, vararg actions: V
         gravity = Gravity.CENTER_VERTICAL
         setBackgroundColor(B.PRIMARY)
         elevation = dp(4).toFloat()
-        addView(glyph(nav, Color.WHITE, 40).apply {
-            setPadding(dp(8), dp(8), dp(8), dp(8)); foreground = ripple(24, 0x33FFFFFF)
-            contentDescription = "Menu"; setOnClickListener { onNav() }
-            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).also { it.setMargins(dp(4), 0, dp(12), 0) }
+        addView(glyph(nav, Color.WHITE, 56).apply {
+            setPadding(dp(14), dp(14), dp(14), dp(14)); foreground = ripple(24, 0x33FFFFFF)
+            contentDescription = if (nav == Ic.BACK) "Voltar" else "Menu"; setOnClickListener { onNav() }
+            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
         })
-        addView(label(title, 20f, Color.WHITE, bold = true).apply { layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) })
+        addView(label(title, 20f, Color.WHITE, bold = true).apply { setPadding(dp(16), 0, 0, 0); layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) }) // título a 72dp
         actions.forEach { addView(it) }
     }, LinearLayout.LayoutParams(MATCH_PARENT, dp(56)))
 }
@@ -76,9 +76,9 @@ class Drawer(private val a: Activity, private val items: List<Triple<Ic, String,
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(0xFF4DB6AC.toInt(), 0xFF009688.toInt(), 0xFF00695C.toInt()))
             setPadding(a.dp(16), a.dp(16), a.dp(16), a.dp(16))
             setOnApplyWindowInsetsListener { v, i -> v.setPadding(a.dp(16), a.dp(16) + i.getInsets(WindowInsets.Type.statusBars()).top, a.dp(16), a.dp(16)); i }
-            addView(a.badge(Ic.TAP, 0xFF2196F3.toInt(), 64))
+            addView(android.widget.ImageView(a).apply { setImageDrawable(a.packageManager.getApplicationIcon(a.packageName)) }, LinearLayout.LayoutParams(a.dp(56), a.dp(56)))
             addView(a.label("Macro17", 16f, Color.WHITE).apply { setPadding(0, a.dp(12), 0, 0) })
-        }, LinearLayout.LayoutParams(MATCH_PARENT, a.dp(170)))
+        }, LinearLayout.LayoutParams(MATCH_PARENT, a.dp(176)))
         items.forEachIndexed { n, (ic, text, go) ->
             addView(LinearLayout(a).apply {
                 gravity = Gravity.CENTER_VERTICAL

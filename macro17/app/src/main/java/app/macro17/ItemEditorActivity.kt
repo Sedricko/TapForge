@@ -113,7 +113,7 @@ class ItemEditorActivity : Activity() {
         if (s.type != Type.WAIT) {
             p.category("Atraso", Ic.WAIT)
             val delayOn = s.delay > 0
-            p.switchRow("Atraso", "O item será processado após o tempo de atraso.", delayOn) { on -> s = s.copy(delay = if (on) 1000 else 0); render() }
+            p.switchRow("Atraso", "O item será processado após o tempo de atraso.", delayOn) { on -> s = s.copy(delay = if (on) 1000 else 0, rnd = 0, rndMin = 0); render() }
             p.valueRow("Tempo de Atraso", secs(s.delay), delayOn) { secDialog("Tempo de Atraso (segundos)", null, s.delay) { v -> s = s.copy(delay = v); render() } }
         }
     }

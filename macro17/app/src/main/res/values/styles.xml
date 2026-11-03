@@ -1,8 +1,8 @@
 <resources>
     <!-- Tema claro do app base: barra verde-azulada, fundo cinza claro. -->
     <style name="Theme.Macro17" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:colorAccent">#00897B</item>
-        <item name="android:colorPrimary">#00897B</item>
+        <item name="android:colorAccent">#D81B60</item>
+        <item name="android:colorPrimary">#008577</item>
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
