@@ -287,7 +287,11 @@ class EditorActivity : Activity() {
 
     // --- linha da lista ----------------------------------------------------------------------
 
-    private fun secs(ms: Int) = "%.1fs".format(ms / 1000.0)
+    /** Formato do base: "5.0s", "1m 5.0s" (ponto decimal em qualquer idioma). */
+    private fun secs(ms: Int): String {
+        val t = ms / 1000.0
+        return if (t >= 60) "%dm %.1fs".format(java.util.Locale.US, (t / 60).toInt(), t % 60) else "%.1fs".format(java.util.Locale.US, t)
+    }
 
     private fun chip(ic: Ic, text: String) = LinearLayout(this).apply {
         gravity = Gravity.CENTER_VERTICAL
@@ -299,10 +303,9 @@ class EditorActivity : Activity() {
         val vision = s.type == Type.IMAGE || s.type == Type.TEXT || s.type == Type.NODE || s.type == Type.NUMBER
         val thumbId = if (s.type == Type.IMAGE) s.text else s.img
         val thumb: View = (if (thumbId.isNotEmpty()) thumbs.getOrPut(thumbId) { store.templateThumb(thumbId, 120) } else null)?.let { bmp ->
-            ImageView(this).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER; layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)) }
+            ImageView(this).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER; layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)) }
         } ?: badge(icons.getValue(s.type), tones.getValue(s.type), 44).apply { layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) } }
-        val to = if (s.goto > 0) s.goto else i + 2
-        val arrow = if (vision) 0xFF2D2DDC.toInt() else 0xFFF44336.toInt()
+        val jumps = listOfNotNull(s.goto.takeIf { it > 0 }?.let { it to 0xFF2121FF.toInt() }, s.fail.takeIf { it > 0 }?.let { it to 0xFFF44336.toInt() })
         val delayText = if (s.rnd > 0) "${secs(s.rndMin)}–${secs(s.rnd)}" else secs(s.delay)
         return LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
@@ -317,19 +320,24 @@ class EditorActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(14), 0, dp(8), 0)
                 layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-                addView(label("${i + 1}. ${s.name.ifBlank { titles.getValue(s.type) }}" + if (s.skip) " (pular)" else "", 19f, 0xFF607D8B.toInt()))
+                addView(label("${i + 1}. ${s.name.ifBlank { titles.getValue(s.type) }}" + if (s.skip) " (pular)" else "", 18f, 0xFF607D8B.toInt()))
                 addView(LinearLayout(this@EditorActivity).apply {
                     setPadding(0, dp(4), 0, 0)
-                    addView(chip(if (vision || s.useImg) Ic.IMAGE_SEARCH else icons.getValue(s.type), secs(if (s.useImg) s.sms else s.ms)))
-                    addView(chip(Ic.WAIT, delayText))
+                    // Como no base: cada valor só aparece quando está ligado (busca de imagem; atraso > 0).
+                    if (vision || s.useImg) addView(chip(Ic.IMAGE_SEARCH, secs(if (s.useImg) s.sms else s.ms)))
+                    else addView(chip(icons.getValue(s.type), secs(s.ms)))
+                    if (s.delay > 0 || s.rnd > 0) addView(chip(Ic.WAIT, delayText))
                 })
                 addView(label(detail(s), 12f, B.TEXT2).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(2), 0, 0) })
             })
-            addView(LinearLayout(this@EditorActivity).apply {
-                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
-                addView(glyph(Ic.JUMP, arrow, 22))
-                addView(label(if (to > steps.size) "fim" else to.toString(), 17f, arrow, bold = true))
-            })
+            jumps.forEach { (to, color) ->
+                addView(LinearLayout(this@EditorActivity).apply {
+                    orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+                    setPadding(dp(4), 0, 0, 0)
+                    addView(glyph(Ic.JUMP, color, 22))
+                    addView(label(to.toString(), 17f, color, bold = true))
+                })
+            }
         }
     }
 
