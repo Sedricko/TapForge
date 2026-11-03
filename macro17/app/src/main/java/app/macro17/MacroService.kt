@@ -195,15 +195,15 @@ class MacroService : AccessibilityService() {
     private lateinit var row2: android.widget.LinearLayout
     private var playBtn: ImageView? = null
     private var expanded = false
-    private val teal = 0xFF00796B.toInt()
+    private val teal = 0xFF00574B.toInt() // cor dos ícones do painel do base
 
     private fun pbtn(ic: Ic, desc: String, click: () -> Unit) = ImageView(this).apply {
         setImageDrawable(Icon(ic, teal))
-        setPadding(dp(8), dp(8), dp(8), dp(8))
-        foreground = ripple(22, 0x2200796B)
+        setPadding(dp(5), dp(5), dp(5), dp(5))
         contentDescription = desc
-        layoutParams = android.widget.LinearLayout.LayoutParams(dp(46), dp(46))
+        layoutParams = android.widget.LinearLayout.LayoutParams(dp(42), dp(42)).also { it.setMargins(dp(1), dp(1), dp(1), dp(1)) }
         setOnClickListener { click() }
+        dragger(this) // como no base, qualquer botão arrasta o painel
     }
 
     /** "REC" em disco, como no base. */
@@ -217,7 +217,6 @@ class MacroService : AccessibilityService() {
 
     private fun fillRow1() {
         row1.removeAllViews()
-        row1.addView(pbtn(Ic.MOVE, "Mover o painel") {}.also { dragger(it) })
         if (recording) {
             row1.addView(pbtn(Ic.STOP, "Encerrar a gravação (segure para descartar)") { stopRecording(save = true) }.also {
                 it.setOnLongClickListener { stopRecording(save = false); toast("Gravação descartada"); true }
@@ -237,7 +236,7 @@ class MacroService : AccessibilityService() {
             playBtn = pb
             row1.addView(pb)
             // "Modo de Reprodução": só o ▶. "Visualização Simples": sem enquadrar e sem a segunda linha.
-            if (!store.playMode) row1.addView(recBadge { startRecording() })
+            if (!store.playMode) row1.addView(pbtn(Ic.REC, "Gravar") { startRecording() })
             if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.FRAME, "Capturar imagem para a macro") { captureImage() })
             if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.CHEVRON, if (expanded) "Recolher" else "Mais opções") { expanded = !expanded; row2.visibility = if (expanded) View.VISIBLE else View.GONE; fillRow1() }.also { it.rotation = if (expanded) -90f else 90f })
         }
@@ -260,13 +259,13 @@ class MacroService : AccessibilityService() {
 
     /** Arrasta a janela da bolha inteira por [v]; toque curto continua sendo clique. */
     private fun dragger(v: View) {
-        val slop = ViewConfiguration.get(this).scaledTouchSlop
+        val slop = dp(10) // limiar do base: 10dp por eixo
         var dx = 0f; var dy = 0f; var sx = 0; var sy = 0; var drag = false
         v.setOnTouchListener { view, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { dx = e.rawX; dy = e.rawY; sx = bubbleLp.x; sy = bubbleLp.y; drag = false; false }
                 MotionEvent.ACTION_MOVE -> {
-                    if (!drag && hypot(e.rawX - dx, e.rawY - dy) > slop) drag = true
+                    if (!drag && (kotlin.math.abs(e.rawX - dx) > slop || kotlin.math.abs(e.rawY - dy) > slop)) drag = true
                     if (drag) {
                         bubbleLp.x = sx + (e.rawX - dx).toInt(); bubbleLp.y = sy + (e.rawY - dy).toInt()
                         bubble?.let { wm.updateViewLayout(it, bubbleLp) }
@@ -285,13 +284,14 @@ class MacroService : AccessibilityService() {
             // TYPE_ACCESSIBILITY_OVERLAY dispensa a permissão "exibir sobre outros apps".
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT,
-        ).apply { gravity = Gravity.TOP or Gravity.START; x = 0; y = dp(4) } // canto superior esquerdo, como no base
+        ).apply { gravity = Gravity.TOP or Gravity.START; x = 0; y = 0 } // canto superior esquerdo, como no base
         recorder = Recorder(this, wm)
 
         row1 = android.widget.LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         row2 = android.widget.LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE
+            addView(pbtn(Ic.ALARM, "Agendamento") { startActivity(Intent(this@MacroService, AlarmListActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
             addView(pbtn(Ic.EDIT, "Abrir o editor da macro") {
                 startActivity(Intent(this@MacroService, EditorActivity::class.java).putExtra("id", store.selected ?: "new").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             })
@@ -301,9 +301,8 @@ class MacroService : AccessibilityService() {
         }
         panel = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            background = rounded(0xF2F5F5F5.toInt(), 14, 0x22000000)
-            elevation = dp(6).toFloat()
-            setPadding(dp(4), dp(4), dp(8), dp(4))
+            background = rounded(0xFFFFFFFF.toInt(), 8, 0xFFE0E0E0.toInt()) // fundo branco, raio 8dp, traço 1dp, sem sombra
+            setPadding(dp(2), dp(2), dp(2), dp(2))
             visibility = View.GONE
             addView(row1); addView(row2)
         }
