@@ -131,8 +131,6 @@ class MacroService : AccessibilityService() {
 
     fun toast(msg: String) { ui.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() } }
 
-    fun stopMacro() { engine.stop() }
-
     /** Alarme: para o que estiver rodando, espera 1 s e roda a macro agendada. Recusa se estiver gravando. */
     fun fireAlarm(id: String) {
         if (recording) return toast("Agendamento ignorado: gravação em andamento")
