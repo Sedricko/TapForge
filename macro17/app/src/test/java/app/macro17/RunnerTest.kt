@@ -99,6 +99,19 @@ class RunnerTest {
         assertNotNull(Step(Type.GESTURE, ms = 300, text = "10,20").validate(1))   // um ponto só não é gesto
     }
 
+    @Test fun groupRepeatsItsItemsThenContinues() {
+        val (o, f) = run(macro(Step(Type.GROUP, grp = 2, rep = 3), tap(1), tap(2), tap(3)))
+        assertTrue(o is Outcome.Done)
+        val xs = f.events.map { it.substringAfter("g:").substringBefore(",") }
+        assertEquals(listOf("1", "2", "1", "2", "1", "2", "3"), xs)
+    }
+
+    @Test fun jumpingOutOfAGroupAbandonsIt() {
+        val (_, f) = run(macro(Step(Type.GROUP, grp = 2, rep = 5), Step(Type.GOTO, goto = 5), tap(2), tap(3)))
+        val xs = f.events.map { it.substringAfter("g:").substringBefore(",") }
+        assertEquals(listOf("3"), xs) // sai direto do grupo para o passo 5 (tap 3); os 5 voltas não acontecem
+    }
+
     @Test fun stopItemEndsThePlaybackEvenWithLoopsLeft() {
         val (o, f) = run(macro(tap(1), Step(Type.STOP), tap(2), loops = 3))
         assertTrue(o is Outcome.Done)

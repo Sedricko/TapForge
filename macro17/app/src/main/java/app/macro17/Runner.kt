@@ -73,6 +73,8 @@ class Runner(private val p: Ports) {
         var lap = 0
         var resume = false // voltou de uma chamada: avançar antes de executar
         val counters = IntArray(MAX_COUNTERS + 1) // por executor, como no app de referência
+        class Grp(val start: Int, val end: Int, var left: Int) // left = voltas que faltam (0 = infinito)
+        val groups = ArrayList<Grp>()
         val baselines = HashMap<Int, Gray>() // Detecção de Mudança: imagem de referência de cada passo, capturada na primeira execução
     }
 
@@ -150,6 +152,7 @@ class Runner(private val p: Ports) {
                     }
                 }
                 Type.GESTURE -> if (!s.skip) p.path(gesturePoints(s.text), s.ms)
+                Type.GROUP -> if (s.grp > 0 && f.groups.none { it.start == f.pc }) f.groups.add(Frame.Grp(f.pc, minOf(f.pc + s.grp, f.macro.steps.size - 1), s.rep))
                 Type.STOP -> return Outcome.Done // "Parar Macro" do base: encerra a reprodução aqui
                 Type.RESET -> f.counters[s.counter] = 0
                 Type.COUNTER -> jump = counterJump(f, s)
@@ -203,7 +206,7 @@ class Runner(private val p: Ports) {
                 }
             }
             if (jump > 0) p.log("Passo ${f.pc + 1} → Passo $jump")
-            advance(stack, f, if (jump > 0) jump - 1 else f.pc + 1)
+            advance(stack, f, if (jump > 0) jump - 1 else f.pc + 1, natural = jump <= 0)
         }
         return Outcome.Done
     }
@@ -290,7 +293,19 @@ class Runner(private val p: Ports) {
     }
 
     /** Fim da lista conta uma volta; atingido o limite de repetições, a macro termina e o chamador (se houver) retoma. */
-    private fun advance(stack: ArrayList<Frame>, f: Frame, target: Int) {
+    private fun advance(stack: ArrayList<Frame>, f: Frame, target: Int, natural: Boolean = true) {
+        var t = target
+        // Grupos: ao passar do último item, repete (voltas restantes) ou sai; um salto para fora do grupo o abandona.
+        while (f.groups.isNotEmpty()) {
+            val g = f.groups.last()
+            if (t in g.start + 1..g.end) break
+            if (natural && t == g.end + 1 && (g.left == 0 || g.left > 1)) { if (g.left > 1) g.left--; t = g.start + 1; break }
+            f.groups.removeAt(f.groups.lastIndex)
+        }
+        advanceTo(stack, f, t)
+    }
+
+    private fun advanceTo(stack: ArrayList<Frame>, f: Frame, target: Int) {
         if (target < f.macro.steps.size) { f.pc = target; return }
         f.lap++
         if (f.macro.loops == 0 || f.lap < f.macro.loops) f.pc = 0 else stack.removeAt(stack.lastIndex)

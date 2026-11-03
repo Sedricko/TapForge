@@ -75,21 +75,22 @@ class EditorActivity : Activity() {
         Type.STOP to common,
         Type.CHANGE to common,
         Type.GESTURE to common,
+        Type.GROUP to common,
     )
     private val optional = setOf(DELAY, RND, JIT, RMIN, GOTO, FAIL, CMP, LO, HI, OX, OY, MINC) + (CASE0 until CASE0 + MAX_CASES * 2) // em branco vale 0
 
     private val titles = mapOf(
         Type.TAP to "Toque", Type.SWIPE to "Deslizar", Type.PINCH_IN to "Pinça para dentro", Type.PINCH_OUT to "Pinça para fora",
         Type.WAIT to "Esperar", Type.KEY to "Tecla", Type.STATUS to "Alerta de status", Type.GOTO to "Ir para o passo",
-        Type.COUNTER to "Contador de execução", Type.RESET to "Zerar contador", Type.CALL to "Chamar macro", Type.IMAGE to "Buscar imagem", Type.NODE to "Achar por texto", Type.TEXT to "Ler texto da tela (OCR)", Type.NUMBER to "Ler número", Type.STOP to "Parar Macro", Type.CHANGE to "Detecção de Mudança de Imagem", Type.GESTURE to "Gesto",
+        Type.COUNTER to "Contador de execução", Type.RESET to "Zerar contador", Type.CALL to "Chamar macro", Type.IMAGE to "Buscar imagem", Type.NODE to "Achar por texto", Type.TEXT to "Ler texto da tela (OCR)", Type.NUMBER to "Ler número", Type.STOP to "Parar Macro", Type.CHANGE to "Detecção de Mudança de Imagem", Type.GESTURE to "Gesto", Type.GROUP to "Grupo",
     )
     private val icons = mapOf(
         Type.TAP to Ic.TAP, Type.SWIPE to Ic.SWIPE, Type.PINCH_IN to Ic.SWIPE, Type.PINCH_OUT to Ic.SWIPE, Type.WAIT to Ic.WAIT,
-        Type.KEY to Ic.KEY, Type.STATUS to Ic.WARN, Type.GOTO to Ic.CHEVRON, Type.COUNTER to Ic.ADD, Type.RESET to Ic.BACK, Type.CALL to Ic.PLAY, Type.IMAGE to Ic.SEARCH, Type.NODE to Ic.SEARCH, Type.TEXT to Ic.SEARCH, Type.NUMBER to Ic.NUM, Type.STOP to Ic.STOP, Type.CHANGE to Ic.IMAGE_SEARCH, Type.GESTURE to Ic.GESTURE,
+        Type.KEY to Ic.KEY, Type.STATUS to Ic.WARN, Type.GOTO to Ic.CHEVRON, Type.COUNTER to Ic.ADD, Type.RESET to Ic.BACK, Type.CALL to Ic.PLAY, Type.IMAGE to Ic.SEARCH, Type.NODE to Ic.SEARCH, Type.TEXT to Ic.SEARCH, Type.NUMBER to Ic.NUM, Type.STOP to Ic.STOP, Type.CHANGE to Ic.IMAGE_SEARCH, Type.GESTURE to Ic.GESTURE, Type.GROUP to Ic.REPEAT,
     )
     private val tones = mapOf(
         Type.TAP to C.BLUE, Type.SWIPE to C.PURPLE, Type.PINCH_IN to C.PURPLE, Type.PINCH_OUT to C.PURPLE, Type.WAIT to C.ORANGE,
-        Type.KEY to C.TEAL, Type.STATUS to C.TEAL, Type.GOTO to C.ORANGE, Type.COUNTER to C.BLUE, Type.RESET to C.RED, Type.CALL to C.PURPLE, Type.IMAGE to C.ORANGE, Type.NODE to C.TEAL, Type.TEXT to C.TEAL, Type.NUMBER to C.PURPLE, Type.STOP to C.RED, Type.CHANGE to C.ORANGE, Type.GESTURE to C.PURPLE,
+        Type.KEY to C.TEAL, Type.STATUS to C.TEAL, Type.GOTO to C.ORANGE, Type.COUNTER to C.BLUE, Type.RESET to C.RED, Type.CALL to C.PURPLE, Type.IMAGE to C.ORANGE, Type.NODE to C.TEAL, Type.TEXT to C.TEAL, Type.NUMBER to C.PURPLE, Type.STOP to C.RED, Type.CHANGE to C.ORANGE, Type.GESTURE to C.PURPLE, Type.GROUP to C.TEAL,
     )
 
     private val REQ_ITEM = 21
@@ -186,7 +187,7 @@ class EditorActivity : Activity() {
 
     /** Toque e deslizar têm a tela própria no formato do base; os demais tipos seguem no diálogo até migrarem. */
     private fun openItem(type: Type, step: Step, index: Int) {
-        if (type == Type.TAP || type == Type.SWIPE || type in setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE, Type.IMAGE, Type.NUMBER, Type.CHANGE, Type.GESTURE)) {
+        if (type == Type.TAP || type == Type.SWIPE || type in setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE, Type.IMAGE, Type.NUMBER, Type.CHANGE, Type.GESTURE, Type.GROUP)) {
             startActivityForResult(
                 android.content.Intent(this, ItemEditorActivity::class.java)
                     .putExtra("step", step.toJson().toString()).putExtra("total", if (index >= 0) steps.size else steps.size + 1).putExtra("index", index).putExtra("self", id), REQ_ITEM,
@@ -245,11 +246,34 @@ class EditorActivity : Activity() {
     private fun overflow() {
         val acts = listOf<Pair<String, () -> Unit>>(
             "Alternar Pular" to { toggleSkip() },
+            "Grupo de Macro" to { groupSelected() },
+            "Desagrupar" to { ungroupSelected() },
             "Editar Itens Selecionados" to { batchEdit() },
             "Recarregar" to { reload() },
         )
         AlertDialog.Builder(this).setItems(acts.map { it.first }.toTypedArray()) { _, w -> acts[w].second() }.show()
     }
+
+    /** Agrupa os itens marcados (têm de ser seguidos e sem outro grupo): entra um cabeçalho de grupo antes do primeiro. */
+    private fun groupSelected() {
+        val idx = needSelection()?.sorted() ?: return
+        if (idx.last() - idx.first() + 1 != idx.size) return toast("Marque itens seguidos para agrupar.")
+        if (idx.any { steps[it].type == Type.GROUP }) return toast("Um grupo não pode conter outro grupo.")
+        if (steps.indices.any { k -> steps[k].type == Type.GROUP && idx.any { it > k && it <= k + steps[k].grp } }) return toast("Estes itens já estão em um grupo.")
+        steps = steps.afterInsert(idx.first(), Step(Type.GROUP, grp = idx.size, name = "Grupo"))
+        selected.clear(); refresh()
+    }
+
+    /** Desfaz o grupo marcado: some o cabeçalho e os itens continuam na lista. */
+    private fun ungroupSelected() {
+        val idx = needSelection() ?: return
+        val heads = idx.filter { steps[it].type == Type.GROUP }.sortedDescending()
+        if (heads.isEmpty()) return toast("Marque o cabeçalho de um grupo.")
+        for (h in heads) steps = steps.afterDelete(h)
+        selected.clear(); refresh()
+    }
+
+    private fun inGroup(i: Int) = steps.indices.any { k -> k < i && steps[k].type == Type.GROUP && i <= k + steps[k].grp }
 
     private fun toggleSkip() {
         val idx = needSelection() ?: return
@@ -334,7 +358,7 @@ class EditorActivity : Activity() {
         val delayText = if (s.rnd > 0) "${secs(s.rndMin)}–${secs(s.rnd)}" else secs(s.delay)
         return LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6), dp(2), dp(12), dp(2))
+            setPadding(dp(6) + if (inGroup(i)) dp(24) else 0, dp(2), dp(12), dp(2))
             alpha = if (s.off) 0.4f else if (s.skip) 0.7f else 1f
             addView(CheckBox(this@EditorActivity).apply {
                 isChecked = i in selected; buttonTintList = ColorStateList.valueOf(B.TEXT2)
@@ -390,6 +414,7 @@ class EditorActivity : Activity() {
             Type.IMAGE -> "≥ ${s.thr}%" + (if (s.method == 1) " pixels" else "") + (if (s.mono) " cinza" else "") + (if (s.confirm > 1) " ×${s.confirm}" else "") + (if (s.scales) " (escalas)" else "") + " · até ${s.ms} ms · " + (if (s.x2 > s.x1) "área (${s.x1}, ${s.y1})–(${s.x2}, ${s.y2}) · " else "tela toda · ") +
                 "achou → " + (if (s.goto == 0) "seguir" else s.goto) + " · não → " + (if (s.fail == 0) "seguir" else s.fail) + if (s.tap) " · toca" else ""
             Type.STOP -> "encerra a reprodução"
+            Type.GROUP -> "${s.grp} itens · " + (if (s.rep == 0) "infinito" else "${s.rep} vezes")
             Type.GESTURE -> "${gesturePoints(s.text).size} pontos · ${s.ms} ms"
             Type.CHANGE -> (if (s.x2 > s.x1) "área (${s.x1}, ${s.y1})–(${s.x2}, ${s.y2})" else "tela toda") + " · muda abaixo de ${s.thr}% · até ${s.ms} ms"
             Type.CALL -> (store.get(s.text)?.name ?: "macro removida") + if (s.ret) " · volta ao terminar" else " · substitui esta"
@@ -430,6 +455,7 @@ class EditorActivity : Activity() {
                 Type.NUMBER -> Step(type, 100, 100, 400, 180, ms = 3000, cycle = 300)
                 Type.STOP -> Step(type)
                 Type.CHANGE -> Step(type, ms = 5000, cycle = 500, thr = 95)
+                Type.GROUP -> Step(type)
                 Type.GESTURE -> Step(type, ms = 500, text = "300,900;700,900")
             }
             openItem(type, base, -1)

@@ -245,4 +245,13 @@ class ModelTest {
         assertNotNull(on.copy(sms = 0, fail = 2).validate(2))                    // sem limite não tem "se não achar"
         assertNull(on.copy(sms = 0).validate(2))
     }
+
+    @Test fun groupLengthFollowsInsertAndDelete() {
+        val g = Step(Type.GROUP, grp = 2)
+        val base = listOf(g, Step(Type.WAIT, ms = 1), Step(Type.WAIT, ms = 1), Step(Type.WAIT, ms = 1))
+        assertEquals(3, base.afterInsert(2, Step(Type.WAIT, ms = 1))[0].grp)   // dentro do grupo: cresce
+        assertEquals(2, base.afterInsert(3, Step(Type.WAIT, ms = 1))[0].grp)   // logo depois do último item: fora
+        assertEquals(1, base.afterDelete(1)[0].grp)                            // apagar um filho: encolhe
+        assertEquals(2, base.afterDelete(3)[0].grp)                            // apagar item de fora: igual
+    }
 }

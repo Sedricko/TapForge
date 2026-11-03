@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Ordem importa: o editor usa o índice do enum no menu de tipos. */
-enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER, TEXT, STOP, CHANGE, GESTURE }
+enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER, TEXT, STOP, CHANGE, GESTURE, GROUP }
 
 const val MAX_STEPS = 5000
 
@@ -71,6 +71,8 @@ data class Step(
     val sms: Int = 5000,
     val ax1: Int = 0, val ay1: Int = 0, val ax2: Int = 0, val ay2: Int = 0,
     val name: String = "", // nome do item (campo "Nome" do base); vazio = usa o nome do tipo
+    val grp: Int = 0, // GROUP: quantos passos SEGUINTES pertencem ao grupo
+    val rep: Int = 1, // GROUP: repetições do grupo (0 = infinito)
     val off: Boolean = false, // item desabilitado ("Alternar Pular" do base): o executor passa direto, sem atraso nem ação
 ) {
     /** [size] é o total de passos da macro, para validar os alvos de salto. */
@@ -103,6 +105,7 @@ data class Step(
         type == Type.CHANGE && (thr !in 1..100 || cycle !in 50..MAX_MS || (ms != 0 && ms < 100) || !(listOf(x1, y1, x2, y2).all { it == 0 } || (x2 > x1 && y2 > y1))) -> "mudança: sensibilidade 1 a 100%, intervalo 50 ms a $MAX_MS, tempo 0 ou ≥ 100 ms e área válida"
         type == Type.CHANGE && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
         type == Type.GESTURE && (gesturePoints(text).size !in 2..400 || ms !in 1..MAX_MS || gesturePoints(text).any { it.first !in 0..MAX_COORD || it.second !in 0..MAX_COORD }) -> "gesto: 2 a 400 pontos dentro da tela e duração de 1 ms a ${MAX_MS / 1000} s"
+        type == Type.GROUP && (grp !in 0..size || rep !in 0..MAX_LOOPS) -> "grupo: itens e repetições fora dos limites"
         type == Type.CALL && text.length > 64 -> "id de macro inválido" // vazio é permitido (o base cria "Arquivo de macro" sem arquivo); o executor ignora
         type == Type.IMAGE && text.isBlank() -> "passo sem imagem: capture pelo orbe"
         type == Type.IMAGE && thr !in 20..100 -> "semelhança deve ser de 20 a 100%"
@@ -133,7 +136,7 @@ data class Step(
         .put("g", goto).put("c", counter).put("tx", text).put("rt", ret)
         .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact).put("sl", scales).put("cm", cmp).put("lo", lo).put("hi", hi).put("mt", method).put("mo", mono).put("cf", confirm)
         .put("db", dbl).put("ox", ox).put("oy", oy).put("vb", vib).put("sn", snd).put("mc", minConf).put("im", img)
-        .put("ui", useImg).put("sm", sms).put("a1", ax1).put("b1", ay1).put("a2", ax2).put("b2", ay2).put("nm", name).put("of", off)
+        .put("ui", useImg).put("sm", sms).put("a1", ax1).put("b1", ay1).put("a2", ax2).put("b2", ay2).put("nm", name).put("of", off).put("gp", grp).put("rp", rep)
         .put("cs", JSONArray().also { a -> cases.forEach { a.put(JSONObject().put("n", it.n).put("to", it.to)) } })
 
     companion object {
@@ -151,7 +154,7 @@ data class Step(
                 o.optString("tx"), o.optBoolean("rt", true),
                 o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"), o.optInt("cm"), o.optInt("lo"), o.optInt("hi"), o.optInt("mt"), o.optBoolean("mo"), o.optInt("cf", 1),
                 o.optBoolean("db"), o.optInt("ox"), o.optInt("oy"), o.optBoolean("vb"), o.optBoolean("sn"), o.optInt("mc"), o.optString("im"),
-                o.optBoolean("ui"), o.optInt("sm", 5000), o.optInt("a1"), o.optInt("b1"), o.optInt("a2"), o.optInt("b2"), o.optString("nm"), o.optBoolean("of"),
+                o.optBoolean("ui"), o.optInt("sm", 5000), o.optInt("a1"), o.optInt("b1"), o.optInt("a2"), o.optInt("b2"), o.optString("nm"), o.optInt("gp"), o.optInt("rp", 1), o.optBoolean("of"),
             )
         }
     }
@@ -186,7 +189,9 @@ private fun Step.mapTargets(f: (Int) -> Int) = copy(goto = f(goto), fail = f(fai
 /** Remove o passo [i] (0-based). Saltos para ele viram "seguir"; os seguintes descem um número. */
 fun List<Step>.afterDelete(i: Int): List<Step> {
     val gone = i + 1
-    return filterIndexed { k, _ -> k != i }.map { s -> s.mapTargets { t -> if (t == gone) 0 else if (t > gone) t - 1 else t } }
+    // Grupo que continha o passo removido encolhe um item.
+    val shrunk = mapIndexed { k, x -> if (x.type == Type.GROUP && i > k && i <= k + x.grp) x.copy(grp = x.grp - 1) else x }
+    return shrunk.filterIndexed { k, _ -> k != i }.map { s -> s.mapTargets { t -> if (t == gone) 0 else if (t > gone) t - 1 else t } }
 }
 
 /** Troca os passos [i] e [j] (0-based); os saltos continuam apontando para o mesmo passo. */
@@ -205,7 +210,9 @@ fun List<Step>.afterSwap(i: Int, j: Int): List<Step> {
 fun List<Step>.afterInsert(at: Int, s: Step): List<Step> {
     val pos = at + 1
     val shift = { t: Int -> if (t >= pos) t + 1 else t }
-    return map { x -> x.mapTargets(shift) }.toMutableList().also { it.add(at, s) }
+    // Grupo que contém a posição de inserção cresce um item.
+    val grown = mapIndexed { k, x -> if (x.type == Type.GROUP && at > k && at <= k + x.grp) x.copy(grp = x.grp + 1) else x }
+    return grown.map { x -> x.mapTargets(shift) }.toMutableList().also { it.add(at, s) }
 }
 
 /** Cópia de um passo para ser inserida em [at] (0-based): seus alvos acompanham a renumeração das demais. */
