@@ -18,14 +18,16 @@ class TmcImportTest {
     }
 
     @Test fun tapSwipeAndJumpsAreConverted() {
-        val tap = row(0 to "Tap", 1 to "100", 2 to "200", 3 to "1.5", 7 to "0", 10 to "5", 11 to "1", 24 to "7", 18 to (0x10000000 or 8).toString())
+        val tap = row(0 to "Tap", 1 to "100", 2 to "200", 3 to "1.5", 7 to "0", 10 to "5", 11 to "1", 24 to "7")
+        val go = row(0 to "Ir", 7 to "10", 11 to "1", 24 to "9", 18 to (0x10000000 or 8).toString())
         val swipe = row(0 to "Swipe", 1 to "10", 2 to "20", 8 to "30", 9 to "40", 7 to "1", 10 to "1000", 11 to "1", 24 to "8")
-        val r = TmcImport.parse(file(tap, swipe), "Minha", "id1", emptyMap(), emptyMap())
+        val r = TmcImport.parse(file(tap, go, swipe), "Minha", "id1", emptyMap(), emptyMap())
         assertEquals(3, r.macro.loops)
-        assertEquals(2, r.macro.steps.size)
+        assertEquals(3, r.macro.steps.size)
         val a = r.macro.steps[0]
-        assertEquals(Type.TAP, a.type); assertEquals(100, a.x1); assertEquals(1500, a.delay); assertEquals(2, a.goto) // ID 8 = passo 2
-        assertEquals(Type.SWIPE, r.macro.steps[1].type); assertEquals(40, r.macro.steps[1].y2)
+        assertEquals(Type.TAP, a.type); assertEquals(100, a.x1); assertEquals(1500, a.delay)
+        assertEquals(Type.GOTO, r.macro.steps[1].type); assertEquals(3, r.macro.steps[1].goto) // ID 8 = o 3º passo (o deslizar)
+        assertEquals(Type.SWIPE, r.macro.steps[2].type); assertEquals(40, r.macro.steps[2].y2)
         assertTrue(r.macro.validate() == null)
     }
 
