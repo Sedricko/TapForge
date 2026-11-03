@@ -107,9 +107,9 @@ class RunnerTest {
     }
 
     @Test fun jumpingOutOfAGroupAbandonsIt() {
-        val (_, f) = run(macro(Step(Type.GROUP, grp = 2, rep = 5), Step(Type.GOTO, goto = 5), tap(2), tap(3)))
+        val (_, f) = run(macro(Step(Type.GROUP, grp = 2, rep = 5), Step(Type.GOTO, goto = 4), tap(2), tap(3)))
         val xs = f.events.filter { it.startsWith("g:") }.map { it.substringAfter("g:").substringBefore(",") }
-        assertEquals(listOf("3"), xs) // sai direto do grupo para o passo 5 (tap 3); os 5 voltas não acontecem
+        assertEquals(listOf("3"), xs) // sai direto do grupo para o passo 4 (tap 3); os 5 voltas não acontecem
     }
 
     @Test fun stopItemEndsThePlaybackEvenWithLoopsLeft() {
