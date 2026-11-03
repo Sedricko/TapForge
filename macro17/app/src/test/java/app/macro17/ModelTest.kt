@@ -163,7 +163,7 @@ class ModelTest {
         t, 11, 22, 33, 44, ms = 555, delay = 3, rnd = 400, rndMin = 100, jitter = 7, skip = true, goto = 2, counter = 4,
         cases = listOf(Case(2, 1), Case(5, 2)), text = "texto ç ã", ret = false, thr = 77, cycle = 321, fail = 1, tap = false,
         exact = true, scales = true, cmp = 3, lo = 10, hi = 20, method = 1, mono = true, confirm = 3,
-        dbl = true, ox = 12, oy = -34, vib = true, snd = true, minConf = 65,
+        dbl = true, ox = 12, oy = -34, vib = true, snd = true, minConf = 65, img = "abc",
     )
 
     @Test fun everyTypeSurvivesAJsonRoundTrip() {

@@ -19,7 +19,7 @@ import android.widget.ImageView
  */
 class Recorder(private val ctx: Context, private val wm: WindowManager) {
     enum class Mode(val label: String, val ic: Ic) {
-        TAP("Tocar", Ic.TAP), SWIPE("Deslizar", Ic.SWIPE), IMAGE("Imagem", Ic.IMAGE);
+        TAP("Tocar", Ic.TAP), PRESS("Pressionar", Ic.TAP), SWIPE("Deslizar", Ic.SWIPE), IMAGE("Imagem", Ic.IMAGE);
         fun next() = values()[(ordinal + 1) % values().size]
     }
 
@@ -94,7 +94,7 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
         mode = m
         val cx = screen.width() / 2; val cy = screen.height() / 2
         when (m) {
-            Mode.TAP -> p1 = marker(Ic.TARGET, cx, cy) {}
+            Mode.TAP, Mode.PRESS -> p1 = marker(Ic.TARGET, cx, cy) {}
             Mode.SWIPE -> {
                 val line = LineView().also { add(it, params(-1, -1, false)) }
                 p1 = marker(Ic.TARGET, cx, cy - ctx.dp(110)) { line.invalidate() }
@@ -144,10 +144,14 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
         val (x1, y1) = center(a)
         return when (mode) {
             Mode.TAP -> Step(Type.TAP, x1, y1, ms = 50, delay = delay)
-            Mode.SWIPE -> p2?.let { val (x2, y2) = center(it); Step(Type.SWIPE, x1, y1, x2, y2, ms = 400, delay = delay) }
+            Mode.PRESS -> Step(Type.TAP, x1, y1, ms = 1000, delay = delay)    // pressionar = toque longo, 1 s como no base
+            Mode.SWIPE -> p2?.let { val (x2, y2) = center(it); Step(Type.SWIPE, x1, y1, x2, y2, ms = 1000, delay = delay) }
             Mode.IMAGE -> null
         }
     }
+
+    /** Centro do marcador principal, em pixels da tela. */
+    fun point(): Pair<Int, Int>? = p1?.let { center(it) }
 
     /** Área da caixa em pixels da tela (modo Imagem). */
     fun region(): Rect? = box?.let { Rect(it.lp.x, it.lp.y, it.lp.x + it.lp.width, it.lp.y + it.lp.height) }

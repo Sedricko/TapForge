@@ -58,6 +58,7 @@ data class Step(
     val ox: Int = 0, val oy: Int = 0,
     val vib: Boolean = false, val snd: Boolean = false,
     val minConf: Int = 0,
+    val img: String = "",   // id do recorte de 80 px ao redor do ponto gravado: só a miniatura na lista, como no base
 ) {
     /** [size] é o total de passos da macro, para validar os alvos de salto. */
     fun validate(size: Int): String? = when {
@@ -108,7 +109,7 @@ data class Step(
         .put("ms", ms).put("d", delay).put("r", rnd).put("rm", rndMin).put("j", jitter).put("sk", skip)
         .put("g", goto).put("c", counter).put("tx", text).put("rt", ret)
         .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact).put("sl", scales).put("cm", cmp).put("lo", lo).put("hi", hi).put("mt", method).put("mo", mono).put("cf", confirm)
-        .put("db", dbl).put("ox", ox).put("oy", oy).put("vb", vib).put("sn", snd).put("mc", minConf)
+        .put("db", dbl).put("ox", ox).put("oy", oy).put("vb", vib).put("sn", snd).put("mc", minConf).put("im", img)
         .put("cs", JSONArray().also { a -> cases.forEach { a.put(JSONObject().put("n", it.n).put("to", it.to)) } })
 
     companion object {
@@ -125,7 +126,7 @@ data class Step(
                 List(minOf(cs?.length() ?: 0, MAX_CASES)) { Case(cs!!.getJSONObject(it).optInt("n"), cs.getJSONObject(it).optInt("to")) },
                 o.optString("tx"), o.optBoolean("rt", true),
                 o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"), o.optInt("cm"), o.optInt("lo"), o.optInt("hi"), o.optInt("mt"), o.optBoolean("mo"), o.optInt("cf", 1),
-                o.optBoolean("db"), o.optInt("ox"), o.optInt("oy"), o.optBoolean("vb"), o.optBoolean("sn"), o.optInt("mc"),
+                o.optBoolean("db"), o.optInt("ox"), o.optInt("oy"), o.optBoolean("vb"), o.optBoolean("sn"), o.optInt("mc"), o.optString("im"),
             )
         }
     }

@@ -276,7 +276,8 @@ class EditorActivity : Activity() {
 
     private fun stepRow(i: Int, s: Step): View {
         val vision = s.type == Type.IMAGE || s.type == Type.TEXT || s.type == Type.NODE || s.type == Type.NUMBER
-        val thumb: View = (if (s.type == Type.IMAGE) thumbs.getOrPut(s.text) { store.templateThumb(s.text, 120) } else null)?.let { bmp ->
+        val thumbId = if (s.type == Type.IMAGE) s.text else s.img
+        val thumb: View = (if (thumbId.isNotEmpty()) thumbs.getOrPut(thumbId) { store.templateThumb(thumbId, 120) } else null)?.let { bmp ->
             ImageView(this).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER; layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)) }
         } ?: badge(icons.getValue(s.type), tones.getValue(s.type), 44).apply { layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) } }
         val to = if (s.goto > 0) s.goto else i + 2

@@ -5,6 +5,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.accessibilityservice.GestureDescription
+import android.graphics.Path
+import android.os.SystemClock
 import android.graphics.Bitmap
 import android.graphics.drawable.GradientDrawable
 import android.graphics.Color
@@ -33,8 +36,8 @@ import java.util.Locale
 import java.util.UUID
 import kotlin.math.hypot
 
-// Atraso padrão antes de cada item gravado por marcadores (ajustável no editor).
-private const val DEFAULT_DELAY = 1000
+// Lado do recorte de miniatura ao redor do ponto gravado (opção "tamanho da imagem a salvar" do base, padrão 80 px).
+private const val THUMB_PX = 80
 
 class MacroService : AccessibilityService() {
     companion object {
@@ -404,68 +407,120 @@ class MacroService : AccessibilityService() {
         toast("Arraste sobre a área e escolha: Imagem, Número ou Amostra")
     }
 
-    // --- gravação por marcadores ---------------------------------------------------------
+    // --- gravação por marcadores, como no base ----------------------------------------------
+    // "+": esconde os marcadores, espera 500 ms, tira um quadro, guarda 80 px ao redor do ponto (miniatura), grava o item
+    // com o atraso medido desde o "+" anterior e EXECUTA a ação no ponto, para o app avançar enquanto se grava.
+
+    private var recBase: Macro? = null   // macro atual: a gravação anexa ao fim dela (sem macro, cria uma)
+    private var recBaseCount = 0
+    private var recLast = 0L
+    private var adding = false
 
     private fun startRecording() {
         Diag.d("gravação", "início (marcadores)")
         if (engine.running) return toast("Pare a macro antes de gravar")
         if (recording) return
-        rec.clear()
+        val base = store.selected?.let { store.get(it) }
+        recBase = base; recBaseCount = base?.steps?.size ?: 0
+        rec.clear(); base?.let { rec.addAll(it.steps) }
+        recLast = SystemClock.elapsedRealtime()
         recording = true
         recorder.show(Recorder.Mode.TAP)
         expanded = false; row2.visibility = View.GONE
         fillRow1()
-        toast("Gravando: arraste o marcador e toque em + para adicionar. Toque no tipo para trocar.")
+        toast(if (base != null) "Gravando em “${base.name}”: os itens entram no fim. Arraste o marcador e toque em +." else "Gravando: arraste o marcador e toque em +. Toque no tipo para trocar.")
     }
 
-    /** Acrescenta o item na posição atual dos marcadores. Atraso padrão de 1 s antes de cada item (ajustável no editor). */
+    /** Atraso medido, como no base: tempo desde o último "+" menos a duração do item, em passos de 0,1 s. */
+    private fun measuredDelay(pressedAt: Long, dur: Int): Int =
+        ((((pressedAt - recLast - dur).coerceAtLeast(0) + 50) / 100) * 100).toInt().coerceAtMost(MAX_MS)
+
     private fun addItem() {
-        if (!recording) return
+        if (!recording || adding) return
         if (rec.size >= MAX_STEPS) return toast("Limite de $MAX_STEPS passos")
-        if (recorder.mode == Recorder.Mode.IMAGE) return addImage()
-        val st = recorder.step(DEFAULT_DELAY) ?: return toast("Marcadores indisponíveis")
-        rec += st
-        Diag.d("gravação", "item ${rec.size}: ${st.type} ${st.x1},${st.y1}" + (if (st.type == Type.SWIPE) ">${st.x2},${st.y2}" else ""))
-        toast("Item ${rec.size} adicionado: ${recorder.mode.label}")
-    }
-
-    /** Modo Imagem: esconde painel e marcadores, tira o quadro e guarda o recorte da caixa como modelo. */
-    private fun addImage() {
-        val r = recorder.region() ?: return toast("Marque a área da imagem")
-        recorder.setVisible(false); bubble?.visibility = View.INVISIBLE
+        if (recorder.mode == Recorder.Mode.IMAGE && recorder.region() == null) return toast("Marque a área da imagem")
+        val pressedAt = SystemClock.elapsedRealtime()
+        adding = true
+        recorder.setVisible(false) // os marcadores não podem aparecer no recorte
         ui.postDelayed({
             takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
                 override fun onSuccess(res: AccessibilityService.ScreenshotResult) {
                     val hb = res.hardwareBuffer
                     val bmp = try { Bitmap.wrapHardwareBuffer(hb, res.colorSpace)?.copy(Bitmap.Config.ARGB_8888, false) } finally { hb.close() }
-                    recorder.setVisible(true); bubble?.visibility = View.VISIBLE
-                    if (bmp == null) return shotFailed("Captura falhou")
-                    try {
-                        val x = r.left.coerceIn(0, bmp.width - 1); val y = r.top.coerceIn(0, bmp.height - 1)
-                        val w = r.width().coerceAtMost(bmp.width - x); val h = r.height().coerceAtMost(bmp.height - y)
-                        if (w < RegionPicker.MIN || h < RegionPicker.MIN) return toast("Área pequena demais (mínimo ${RegionPicker.MIN} px)")
+                    commitItem(pressedAt, bmp)
+                }
+                override fun onFailure(code: Int) { Diag.e("gravação", "captura recusada (código $code): o item entra sem miniatura"); commitItem(pressedAt, null) }
+            })
+        }, 500)
+    }
+
+    /** Recorte quadrado de [side] px centrado em ([cx],[cy]); null se não couber no quadro (como no base). */
+    private fun cropAround(bmp: Bitmap, cx: Int, cy: Int, side: Int): Bitmap? {
+        val x = cx - side / 2; val y = cy - side / 2
+        return if (x < 0 || y < 0 || x + side > bmp.width || y + side > bmp.height) null else Bitmap.createBitmap(bmp, x, y, side, side)
+    }
+
+    private fun commitItem(pressedAt: Long, bmp: Bitmap?) {
+        var restoreAfter = 0L
+        try {
+            val mode = recorder.mode
+            var st: Step? = null
+            if (mode == Recorder.Mode.IMAGE) {
+                val r = recorder.region()
+                if (bmp == null) toast("Sem captura: o item de imagem não foi gravado")
+                else if (r != null) {
+                    val x = r.left.coerceIn(0, bmp.width - 1); val y = r.top.coerceIn(0, bmp.height - 1)
+                    val w = r.width().coerceAtMost(bmp.width - x); val h = r.height().coerceAtMost(bmp.height - y)
+                    if (w < RegionPicker.MIN || h < RegionPicker.MIN) toast("Área pequena demais (mínimo ${RegionPicker.MIN} px)")
+                    else {
                         val tid = store.newTemplateId()
                         store.saveTemplate(tid, Bitmap.createBitmap(bmp, x, y, w, h))
-                        rec += Step(Type.IMAGE, ms = 5000, text = tid, thr = 95, delay = DEFAULT_DELAY)
-                        Diag.d("gravação", "item ${rec.size}: IMAGE área $x,$y ${w}x$h modelo $tid")
-                        toast("Item ${rec.size} adicionado: Imagem")
-                    } catch (e: Exception) { Diag.e("gravação", "falha ao guardar a imagem", e); toast("Falha: ${e.message}") }
-                    finally { bmp.recycle() }
+                        // Como no base: só busca a imagem, sem tocar (tap = false), com busca de 5 s.
+                        st = Step(Type.IMAGE, ms = 5000, text = tid, thr = 95, tap = false, delay = measuredDelay(pressedAt, 5))
+                    }
                 }
-                override fun onFailure(code: Int) { recorder.setVisible(true); shotFailed("Captura recusada (código $code)") }
-            })
-        }, 150) // um quadro para os marcadores sumirem antes da captura
+            } else {
+                val base = recorder.step(0)
+                if (base != null) {
+                    var thumb = ""
+                    recorder.point()?.let { (px, py) ->
+                        bmp?.let { b -> cropAround(b, px, py, THUMB_PX)?.let { c -> thumb = store.newTemplateId(); store.saveTemplate(thumb, c); c.recycle() } }
+                    }
+                    st = base.copy(delay = measuredDelay(pressedAt, base.ms), img = thumb)
+                    perform(st) // a ação roda no ponto; os marcadores voltam depois da duração
+                    restoreAfter = st.ms + 100L
+                }
+            }
+            if (st != null) {
+                rec += st; recLast = pressedAt
+                Diag.d("gravação", "item ${rec.size}: ${st.type} ${st.x1},${st.y1}" + (if (st.type == Type.SWIPE) ">${st.x2},${st.y2}" else "") + " ms=${st.ms} atraso=${st.delay}ms" + (if (st.img.isNotEmpty()) " miniatura" else ""))
+                toast("Item ${rec.size - recBaseCount} adicionado: ${recorder.mode.label}")
+            }
+        } catch (e: Exception) { Diag.e("gravação", "falha ao gravar o item", e); toast("Falha: ${e.message}") }
+        finally {
+            bmp?.recycle()
+            ui.postDelayed({ recorder.setVisible(true); adding = false }, restoreAfter)
+        }
+    }
+
+    /** Executa o item gravado agora, no ponto, para o app de baixo reagir enquanto se grava. */
+    private fun perform(st: Step) {
+        val path = Path().apply { moveTo(st.x1.toFloat(), st.y1.toFloat()); if (st.type == Type.SWIPE) lineTo(st.x2.toFloat(), st.y2.toFloat()) }
+        val g = GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, st.ms.toLong().coerceAtLeast(1))).build()
+        if (!dispatchGesture(g, null, null)) Diag.e("gravação", "gesto executado na gravação foi recusado")
     }
 
     private fun stopRecording(save: Boolean) {
-        Diag.d("gravação", "fim (salvar=$save, itens=${rec.size})")
+        Diag.d("gravação", "fim (salvar=$save, itens=${rec.size - recBaseCount})")
         if (!recording) return
-        recording = false
+        recording = false; adding = false
         runCatching { recorder.hide() }
         if (::panel.isInitialized) fillRow1()
         if (!save) return
-        if (rec.isEmpty()) return toast("Nada gravado")
-        val m = Macro(UUID.randomUUID().toString(), "Gravação " + SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault()).format(Date()), 1, rec.toList())
+        if (rec.size == recBaseCount) return toast("Nada gravado")
+        val base = recBase
+        val m = base?.copy(steps = rec.toList())
+            ?: Macro(UUID.randomUUID().toString(), "Gravação " + SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault()).format(Date()), 1, rec.toList())
         val err = m.validate()
         if (err != null) return toast("Gravação inválida: $err")
         runCatching { store.save(m) }
