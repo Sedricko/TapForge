@@ -43,6 +43,12 @@ interface Ports {
 
     /** Rastro de cada passo e resultado (diagnóstico). Padrão: nada. */
     fun trace(line: String) {}
+
+    /** Avisa o painel do passo atual: volta, total de voltas (0 = infinito), passo, total de passos e nome do item. Padrão: nada. */
+    fun progress(lap: Int, loops: Int, step: Int, total: Int, name: String) {}
+
+    /** Anterior (-1) / Próximo (+1) pedidos pelo painel enquanto pausado; lê e zera. Padrão: nada. */
+    fun takeJump(): Int = 0
 }
 
 sealed class Outcome {
@@ -82,7 +88,10 @@ class Runner(private val p: Ports) {
             if (Thread.interrupted()) throw InterruptedException()
             val f = stack[stack.lastIndex]
             if (f.resume) { f.resume = false; advance(stack, f, f.pc + 1); continue }
+            val dj = p.takeJump()
+            if (dj != 0) f.pc = (f.pc + dj).coerceIn(0, f.macro.steps.size - 1)
             val s = f.macro.steps[f.pc]
+            p.progress(f.lap + 1, f.macro.loops, f.pc + 1, f.macro.steps.size, s.name)
             if (s.off) { advance(stack, f, f.pc + 1); continue }
             val wait = delayOf(s) // uma vez só: delayOf sorteia quando o atraso é aleatório, e o rastro tem de mostrar o valor usado
             p.trace("passo ${f.pc + 1}/${f.macro.steps.size} ${s.type}" + (if (s.skip) " (pular)" else "") + " atraso=${wait}ms")

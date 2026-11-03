@@ -20,6 +20,10 @@ private class Fake(
 ) : Ports {
     val traces = ArrayList<String>()
     override fun trace(line: String) { traces += line }
+    val jumpsToGive = ArrayDeque<Int>()
+    val progressSeen = ArrayList<String>()
+    override fun takeJump(): Int = jumpsToGive.removeFirstOrNull() ?: 0
+    override fun progress(lap: Int, loops: Int, step: Int, total: Int, name: String) { progressSeen += "$lap/$loops $step/$total" }
     val texts = ArrayDeque<Pair<Int, Int>?>()      // resultados de findText em ordem; esgotada = nada achado
     val textQueries = ArrayList<String>()
     val textConfs = ArrayList<Int>()
@@ -66,6 +70,14 @@ class RunnerTest {
         val (o, f) = run(macro(tap(1), tap(2), loops = 2))
         assertTrue(o is Outcome.Done)
         assertEquals(listOf("g:1,100>1,100@10", "g:2,100>2,100@10", "g:1,100>1,100@10", "g:2,100>2,100@10"), f.events)
+    }
+
+    @Test fun previousAndNextMoveThePointerAndProgressIsReported() {
+        val f = Fake(); f.jumpsToGive.addAll(listOf(0, 1)) // 1º passo normal; antes do 2º, "Próximo" pula para o 3º
+        val (o, _) = run(macro(tap(1), tap(2), tap(3), tap(4)), f)
+        assertTrue(o is Outcome.Done)
+        assertEquals(listOf("g:1,100>1,100@10", "g:3,100>3,100@10", "g:4,100>4,100@10"), f.events)
+        assertEquals("1/1 1/4", f.progressSeen.first())
     }
 
     @Test fun stopItemEndsThePlaybackEvenWithLoopsLeft() {

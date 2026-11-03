@@ -34,6 +34,10 @@ class Engine(
     val running get() = thread?.isAlive == true
     /** Pausa entre os passos (o Runner dorme ao menos 1 ms por passo); parar a macro também solta a pausa. */
     @Volatile var paused = false
+    /** Anterior/Próximo pedidos pelo painel; o Runner lê no próximo passo. */
+    @Volatile var jump = 0
+    /** Progresso para o painel (volta, voltas, passo, total, nome); chamado na thread da macro. */
+    @Volatile var onProgress: ((Int, Int, Int, Int, String) -> Unit)? = null
 
     @Synchronized fun start(m: Macro): Boolean {
         if (running) return false
@@ -121,6 +125,8 @@ class Engine(
             return r
         }
         override fun now() = SystemClock.elapsedRealtime()
+        override fun progress(lap: Int, loops: Int, step: Int, total: Int, name: String) { onProgress?.invoke(lap, loops, step, total, name) }
+        override fun takeJump(): Int { val j = jump; jump = 0; return j }
 
         // Cache: o PNG não precisa ser decodificado a cada tentativa. Ids são únicos por captura, então nunca fica velho.
         private val templates = HashMap<String, Gray?>()

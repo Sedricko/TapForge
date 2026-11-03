@@ -63,6 +63,10 @@ class MacroService : AccessibilityService() {
             toast(msg); ui.post { awake(false); bubble?.visibility = View.VISIBLE }; logPanel.setThrough(false); setPlayIcon(false)
             if (msg == "Macro concluída" && store.endAlarm) playEndAlarm() // só no fim natural, não em parada manual nem em erro
         }, ::toast, logPanel::captureHide)
+        engine.onProgress = { lap, loops, step, total, name ->
+            lastInfo = (if (loops == 1) "" else "$lap${if (loops > 0) "/$loops" else ""} · ") + "$step/$total" + (if (name.isNotBlank()) " $name" else "")
+            ui.post { tvInfo?.text = lastInfo }
+        }
         instance = this
         Alarms.rearm(this)
         Diag.d("serviço", "acessibilidade conectada (gestos/captura/janelas conforme accessibility_config)")
@@ -258,10 +262,15 @@ class MacroService : AccessibilityService() {
             val pb = pbtn(if (playing) Ic.STOP else Ic.PLAY, "Executar ou parar a macro") { togglePlay() }
             playBtn = pb
             row1.addView(pb)
-            if (playing) { // reproduzindo, como no base: só Parar e Pausar/Retomar
-                row1.addView(pbtn(if (engine.paused) Ic.PLAY else Ic.PAUSE, if (engine.paused) "Retomar" else "Pausar") {
-                    if (engine.paused) ui.postDelayed({ engine.paused = false; fillRow1() }, 500) else { engine.paused = true; fillRow1() }
-                })
+            if (playing) { // reproduzindo: Parar + Pausar; pausado: Retomar + Anterior + Próximo (como no base), mais o feedback do passo
+                if (engine.paused) {
+                    row1.addView(pbtn(Ic.PLAY, "Retomar") { ui.postDelayed({ engine.paused = false; fillRow1() }, 500) })
+                    row1.addView(pbtn(Ic.UP, "Anterior") { engine.jump = -1 }.also { it.rotation = -90f })
+                    row1.addView(pbtn(Ic.UP, "Próximo") { engine.jump = 1 }.also { it.rotation = 90f })
+                } else row1.addView(pbtn(Ic.PAUSE, "Pausar") { engine.paused = true; fillRow1() })
+                row1.addView(android.view.View(this).apply { setBackgroundColor(0xFFE0E0E0.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(1), dp(30)).also { it.setMargins(dp(4), 0, dp(4), 0) })
+                tvInfo = label(lastInfo, 13f, teal).apply { maxLines = 1; maxWidth = dp(110); ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, 0, dp(6), 0) }
+                row1.addView(tvInfo)
                 return
             }
             // "Modo de Reprodução": só o ▶. "Visualização Simples": sem enquadrar e sem a segunda linha.
@@ -277,6 +286,8 @@ class MacroService : AccessibilityService() {
     }
 
     /** Atualiza o ▶/■ do painel; chamável de qualquer thread. */
+    private var tvInfo: android.widget.TextView? = null
+    private var lastInfo = ""
     private var playing = false // estado mostrado no painel (engine.running ainda é true dentro do callback de fim)
     private fun setPlayIcon(running: Boolean) = ui.post { playing = running; if (running) { expanded = false; if (::row2.isInitialized) row2.visibility = View.GONE }; if (::row1.isInitialized && !recording) fillRow1() else playBtn?.setImageResource(if (running) R.drawable.ic_stop else R.drawable.bp_play_arrow) }
 
