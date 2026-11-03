@@ -81,7 +81,11 @@ class Engine(
             while (paused) Thread.sleep(50)
         }
 
+        // Modos ADB e root: toques, teclas e captura saem pelo shell (cada comando relê o modo, que pode mudar entre execuções).
+        private fun sh(): Shell? = if (store.controlMode == MODE_ACCESS) null else store.shell()
+
         override fun gesture(strokes: List<Stroke>, ms: Int) {
+            sh()?.let { s -> (svc as? MacroService)?.showTouches(strokes.map { it.x1 to it.y1 }, ms); Diag.d("gesto", "shell ${strokes.size} dedo(s) @${ms}ms"); ShellInput.gesture(s, strokes, ms); return }
             val b = GestureDescription.Builder()
             for (s in strokes) {
                 val path = Path().apply {
@@ -94,6 +98,7 @@ class Engine(
         }
 
         override fun path(points: List<Pair<Int, Int>>, ms: Int) {
+            sh()?.let { s -> ShellInput.path(s, points, ms); return }
             val path = Path().apply { moveTo(points[0].first.toFloat(), points[0].second.toFloat()); for (k in 1 until points.size) lineTo(points[k].first.toFloat(), points[k].second.toFloat()) }
             dispatch(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, ms.toLong())).build(), listOf(points[0]), ms, "gesto livre ${points.size} pontos")
         }
@@ -114,7 +119,9 @@ class Engine(
             else if (!ok) Diag.e("gesto", "gesto cancelado pelo sistema")
         }
 
-        override fun key(code: Int) { if (!svc.performGlobalAction(code)) Diag.e("tecla", "ação global $code recusada pelo sistema") }
+        override fun key(code: Int) {
+            sh()?.let { s -> runCatching { s.run(ShellInput.key(code)) }.onFailure { Diag.e("tecla", "shell recusou", it) }; return }
+            if (!svc.performGlobalAction(code)) Diag.e("tecla", "ação global $code recusada pelo sistema") }
 
         override fun alert(vib: Boolean, snd: Boolean) {
             runCatching {
@@ -175,6 +182,7 @@ class Engine(
         }
 
         private fun captureRaw(): Bitmap? {
+            sh()?.let { s -> return runCatching { ShellInput.screenshot(s) }.onFailure { Diag.e("captura", "shell recusou", it) }.getOrNull() }
             val t0 = SystemClock.elapsedRealtime()
             val latch = CountDownLatch(1)
             var shot: AccessibilityService.ScreenshotResult? = null

@@ -69,18 +69,49 @@ class PermissionsActivity : Activity() {
         })
         content.addView(option("Acessibilidade", if (granted) "A permissão de acessibilidade está concedida." else "A permissão de acessibilidade deve ser concedida.") {
             // Como no base: escolhe o modo de controle (só existe o de acessibilidade) e volta à Home; sem a permissão, abre o Acordo.
+            Store(this).controlMode = MODE_ACCESS
             if (granted) finish() else startActivity(Intent(this, AccessibilityAgreementActivity::class.java))
         })
         val overlay = android.provider.Settings.canDrawOverlays(this)
         content.addView(option("Sobreposição", if (overlay) "Exibir sobre outros apps: permitido." else "Permita “Exibir sobre outros apps” para o painel flutuante.") {
             if (!overlay) startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")))
         })
-        content.addView(option("Android Debug Bridge (ADB)", "Precisa ser configurado usando um computador.") {
-            info("ADB", "O modo ADB injeta toques com privilégio de shell. O Macro17 não o usa: os gestos saem pelo serviço de acessibilidade.")
-        })
-        content.addView(option("Root", "Disponível em smartphones com root.") {
-            info("Root", "O modo root não é usado para os toques. Com root, a tela Monitor e logs pode juntar o log completo do sistema no relatório (Opções do monitor).")
-        })
+        val mode = Store(this).controlMode
+        content.addView(option("Android Debug Bridge (ADB)" + if (mode == MODE_ADB) "  ✓" else "", "Precisa ser configurado usando um computador.") { adbDialog() })
+        content.addView(option("Root" + if (mode == MODE_ROOT) "  ✓" else "", "Disponível em smartphones com root.") { rootDialog() })
+    }
+
+    private fun adbDialog() {
+        val st = Store(this)
+        val port = android.widget.EditText(this).apply { inputType = android.text.InputType.TYPE_CLASS_NUMBER; setText(st.adbPort.toString()); hint = "Porta" }
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(8), dp(24), 0)
+            addView(label("1. Ative as opções do desenvolvedor e a Depuração USB.\n2. Conecte o aparelho ao computador e rode:\n    adb tcpip 5555\n3. Toque em Conectar e permita a depuração neste aparelho.\n\nOs toques e a captura passam a sair pelo ADB; o painel continua usando a acessibilidade.", 14f, android.graphics.Color.BLACK))
+            addView(port)
+        }
+        AlertDialog.Builder(this).setTitle("Android Debug Bridge (ADB)").setView(col)
+            .setPositiveButton("Conectar") { _, _ ->
+                st.adbPort = port.text.toString().toIntOrNull() ?: 5555
+                testShell(MODE_ADB, "ADB")
+            }.setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun rootDialog() = AlertDialog.Builder(this).setTitle("Root")
+        .setMessage("Os toques e a captura passam a sair por `su`. O aparelho precisa de root; o gerenciador de root vai pedir permissão ao testar.")
+        .setPositiveButton("Testar e usar") { _, _ -> testShell(MODE_ROOT, "Root") }.setNegativeButton("Cancelar", null).show()
+
+    /** Escolhe o modo e testa o shell fora da thread principal; se falhar, volta para a acessibilidade. */
+    private fun testShell(mode: Int, name: String) {
+        val st = Store(this); val before = st.controlMode; st.controlMode = mode
+        android.widget.Toast.makeText(this, "Testando $name…", android.widget.Toast.LENGTH_SHORT).show()
+        Thread({
+            val msg = try {
+                val out = String(st.shell()!!.run(if (mode == MODE_ADB) "echo macro17" else "id")).trim()
+                Diag.d("controle", "$name ok: ${out.take(60)}")
+                "$name pronto."
+            } catch (e: Exception) { st.controlMode = if (before == mode) MODE_ACCESS else before; Diag.e("controle", "$name falhou", e); "$name indisponível: ${e.message ?: e.javaClass.simpleName}" }
+            runOnUiThread { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show(); refresh() }
+        }, "macro17-shell-test").start()
     }
 
     private fun info(title: String, text: String) { AlertDialog.Builder(this).setTitle(title).setMessage(text).setPositiveButton("OK", null).show() }

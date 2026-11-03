@@ -38,6 +38,16 @@ class Store(ctx: Context) {
     var recBitrate: Int get() = prefs.getInt("recBitrate", 5_000_000); set(v) = prefs.edit().putInt("recBitrate", v).apply()
     var recFps: Int get() = prefs.getInt("recFps", 24); set(v) = prefs.edit().putInt("recFps", v).apply()
     var askedNotif: Boolean get() = prefs.getBoolean("askedNotif", false); set(v) = prefs.edit().putBoolean("askedNotif", v).apply()
+    /** Modo de controle escolhido em Permissões (1 acessibilidade, 2 ADB, 3 root) e porta do adbd local. */
+    var controlMode: Int get() = prefs.getInt("controlMode", 1); set(v) = prefs.edit().putInt("controlMode", v).apply()
+    var adbPort: Int get() = prefs.getInt("adbPort", 5555); set(v) = prefs.edit().putInt("adbPort", v).apply()
+    var adbKey: String? get() = prefs.getString("adbKey", null); set(v) = prefs.edit().putString("adbKey", v).apply()
+    /** Shell do modo escolhido; null no modo acessibilidade. */
+    fun shell(): Shell? = when (controlMode) {
+        MODE_ROOT -> RootShell()
+        MODE_ADB -> AdbShell(AdbClient(adbKey?.let { AdbProtocol.decodeKey(it) } ?: AdbProtocol.newKey().also { adbKey = AdbProtocol.encodeKey(it) }, adbPort))
+        else -> null
+    }
     var keepOn: Boolean
         get() = prefs.getBoolean("keepOn", false)
         set(v) = prefs.edit().putBoolean("keepOn", v).apply()
