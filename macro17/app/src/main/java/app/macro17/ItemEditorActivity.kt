@@ -67,12 +67,12 @@ class ItemEditorActivity : Activity() {
 
     // --- tela --------------------------------------------------------------------------------
 
-    private val simple = setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE)
+    private val simple = setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE, Type.IMAGE, Type.NUMBER)
     private val keyNames = mapOf(1 to "Voltar", 2 to "Início", 3 to "Recentes", 4 to "Notificações", KEY_SCREENSHOT to "Captura de tela")
     private val titleOf = mapOf(
         Type.WAIT to "Esperar", Type.KEY to "Evento de Teclado", Type.STATUS to "Alertas de status", Type.GOTO to "Ir Para",
         Type.RESET to "Reiniciar Contador de Execuções", Type.CALL to "Arquivo de Macro", Type.STOP to "Parar Macro",
-        Type.COUNTER to "Contador de Execuções", Type.TEXT to "Reconhecimento de Texto", Type.NODE to "Achar por texto",
+        Type.COUNTER to "Contador de Execuções", Type.TEXT to "Reconhecimento de Texto", Type.NODE to "Achar por texto", Type.IMAGE to "Pesquisa de Imagem", Type.NUMBER to "Ler número",
     )
 
     /** Itens que não são toque: mesma estrutura (nome, categoria do tipo, valores, atraso), só com as linhas de cada tipo. */
@@ -153,6 +153,58 @@ class ItemEditorActivity : Activity() {
                 p.switchRow("Tocar ao achar", "Toca no centro do que foi encontrado.", s.tap) { v -> s = s.copy(tap = v); render() }
                 p.valueRow("Desvio de Coordenadas", "X${"%+d".format(s.ox)}, Y${"%+d".format(s.oy)} px", s.tap) {
                     fieldsDialog("Desvio de Coordenadas (px)", null, listOf("X (negativo = esquerda)", "Y (negativo = acima)"), listOf(s.ox, s.oy), signed = true) { v -> s = s.copy(ox = v[0], oy = v[1]); render() }
+                }
+                val jumps = s.ms > 0
+                p.valueRow("Mover em Caso de Falha", gotoLabel(s.fail), jumps) { gotoDialog("Mover em Caso de Falha", s.fail) { v -> s = s.copy(fail = v); render() } }
+                p.valueRow("Mover em Caso de Sucesso", gotoLabel(s.goto), jumps) { gotoDialog("Mover em Caso de Sucesso", s.goto) { v -> s = s.copy(goto = v); render() } }
+            }
+            Type.IMAGE -> {
+                p.valueRow("Imagem", if (s.text.isBlank()) "Sem imagem: capture pelo painel." else "Imagem capturada (não editável aqui).")
+                val whole = listOf(s.x1, s.y1, s.x2, s.y2).all { it == 0 }
+                p.valueRow("Área de Pesquisa", if (whole) "Procura imagens em toda a tela." else "Procura imagens na área ${s.x1},${s.y1},${s.x2},${s.y2}.") {
+                    AlertDialog.Builder(this).setTitle("Área de Pesquisa").setSingleChoiceItems(arrayOf("Tela inteira", "Área personalizada"), if (whole) 0 else 1) { d, w ->
+                        s = if (w == 0) s.copy(x1 = 0, y1 = 0, x2 = 0, y2 = 0) else if (whole) s.copy(x1 = 0, y1 = 0, x2 = 500, y2 = 500) else s
+                        d.dismiss(); render()
+                    }.setNegativeButton("Cancelar", null).show()
+                }
+                p.valueRow("Área Personalizada", "${s.x1},${s.y1},${s.x2},${s.y2}", !whole) {
+                    fieldsDialog("Área Personalizada", null, listOf("X inicial", "Y inicial", "X final", "Y final"), listOf(s.x1, s.y1, s.x2, s.y2), signed = false) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]); render() }
+                }
+                p.valueRow("Taxa de correspondência de imagem (%)", "${s.thr}%") { numDialog("Taxa de correspondência de imagem (%)", "De 20 a 100.", s.thr) { v -> s = s.copy(thr = v); render() } }
+                p.switchRow("Comparar em cinza", "Ignora a cor e compara só a luminosidade.", s.mono) { v -> s = s.copy(mono = v); render() }
+                p.switchRow("Várias escalas", "Procura também a imagem maior ou menor.", s.scales) { v -> s = s.copy(scales = v); render() }
+                p.valueRow("Confirmações seguidas", "${s.confirm}") { numDialog("Confirmações seguidas", "De 1 a 5 quadros seguidos com a imagem.", s.confirm) { v -> s = s.copy(confirm = v); render() } }
+                p.valueRow("Velocidade de Pesquisa de Imagem", speeds.firstOrNull { it.second == s.cycle }?.first ?: "${s.cycle} ms") {
+                    AlertDialog.Builder(this).setTitle("Velocidade de Pesquisa de Imagem").setSingleChoiceItems(speeds.map { it.first }.toTypedArray(), speeds.indexOfFirst { it.second == s.cycle }) { d, w -> s = s.copy(cycle = speeds[w].second); d.dismiss(); render() }
+                        .setNegativeButton("Cancelar", null).show()
+                }
+                p.valueRow("Tempo de Pesquisa", if (s.ms == 0) "Infinito" else secs(s.ms)) {
+                    secDialog("Tempo de Pesquisa (segundos)", "0 = pesquisa infinita (sem 'se achar / se não achar').", s.ms) { v -> s = if (v == 0) s.copy(ms = 0, goto = 0, fail = 0) else s.copy(ms = v); render() }
+                }
+                p.switchRow("Tocar ao achar", "Toca no centro da imagem encontrada.", s.tap) { v -> s = s.copy(tap = v); render() }
+                p.valueRow("Desvio de Coordenadas", "X${"%+d".format(s.ox)}, Y${"%+d".format(s.oy)} px", s.tap) {
+                    fieldsDialog("Desvio de Coordenadas (px)", null, listOf("X (negativo = esquerda)", "Y (negativo = acima)"), listOf(s.ox, s.oy), signed = true) { v -> s = s.copy(ox = v[0], oy = v[1]); render() }
+                }
+                val jumps = s.ms > 0
+                p.valueRow("Mover em Caso de Falha", gotoLabel(s.fail), jumps) { gotoDialog("Mover em Caso de Falha", s.fail) { v -> s = s.copy(fail = v); render() } }
+                p.valueRow("Mover em Caso de Sucesso", gotoLabel(s.goto), jumps) { gotoDialog("Mover em Caso de Sucesso", s.goto) { v -> s = s.copy(goto = v); render() } }
+            }
+            Type.NUMBER -> {
+                p.valueRow("Área do número", "${s.x1},${s.y1},${s.x2},${s.y2}") {
+                    fieldsDialog("Área do número", null, listOf("X inicial", "Y inicial", "X final", "Y final"), listOf(s.x1, s.y1, s.x2, s.y2), signed = false) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]); render() }
+                }
+                val ops = arrayOf("Maior ou igual (≥)", "Menor ou igual (≤)", "Igual (=)", "Entre")
+                p.valueRow("Condição", ops[s.cmp.coerceIn(0, 3)]) {
+                    AlertDialog.Builder(this).setTitle("Condição").setSingleChoiceItems(ops, s.cmp.coerceIn(0, 3)) { d, w -> s = s.copy(cmp = w); d.dismiss(); render() }.setNegativeButton("Cancelar", null).show()
+                }
+                p.valueRow(if (s.cmp == 3) "Valor mínimo" else "Valor", "${s.lo}") { numDialog("Valor", null, s.lo) { v -> s = s.copy(lo = v); render() } }
+                p.valueRow("Valor máximo", "${s.hi}", s.cmp == 3) { numDialog("Valor máximo", null, s.hi) { v -> s = s.copy(hi = v); render() } }
+                p.valueRow("Tempo de Pesquisa", if (s.ms == 0) "Infinito" else secs(s.ms)) {
+                    secDialog("Tempo de Pesquisa (segundos)", "0 = pesquisa infinita.", s.ms) { v -> s = if (v == 0) s.copy(ms = 0, goto = 0, fail = 0) else s.copy(ms = v); render() }
+                }
+                p.valueRow("Velocidade de Pesquisa", speeds.firstOrNull { it.second == s.cycle }?.first ?: "${s.cycle} ms") {
+                    AlertDialog.Builder(this).setTitle("Velocidade de Pesquisa").setSingleChoiceItems(speeds.map { it.first }.toTypedArray(), speeds.indexOfFirst { it.second == s.cycle }) { d, w -> s = s.copy(cycle = speeds[w].second); d.dismiss(); render() }
+                        .setNegativeButton("Cancelar", null).show()
                 }
                 val jumps = s.ms > 0
                 p.valueRow("Mover em Caso de Falha", gotoLabel(s.fail), jumps) { gotoDialog("Mover em Caso de Falha", s.fail) { v -> s = s.copy(fail = v); render() } }

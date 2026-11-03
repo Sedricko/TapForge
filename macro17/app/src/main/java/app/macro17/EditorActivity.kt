@@ -184,7 +184,7 @@ class EditorActivity : Activity() {
 
     /** Toque e deslizar têm a tela própria no formato do base; os demais tipos seguem no diálogo até migrarem. */
     private fun openItem(type: Type, step: Step, index: Int) {
-        if (type == Type.TAP || type == Type.SWIPE || type in setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE)) {
+        if (type == Type.TAP || type == Type.SWIPE || type in setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE, Type.IMAGE, Type.NUMBER)) {
             startActivityForResult(
                 android.content.Intent(this, ItemEditorActivity::class.java)
                     .putExtra("step", step.toJson().toString()).putExtra("total", if (index >= 0) steps.size else steps.size + 1).putExtra("index", index).putExtra("self", id), REQ_ITEM,
