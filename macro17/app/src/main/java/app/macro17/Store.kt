@@ -33,6 +33,10 @@ class Store(ctx: Context) {
     var recGuide: Boolean
         get() = prefs.getBoolean("recGuide", true)
         set(v) = prefs.edit().putBoolean("recGuide", v).apply()
+    /** Gravação de tela: 0 sem áudio, 1 microfone; bitrate em bps; quadros por segundo. */
+    var recAudio: Int get() = prefs.getInt("recAudio", 0); set(v) = prefs.edit().putInt("recAudio", v).apply()
+    var recBitrate: Int get() = prefs.getInt("recBitrate", 5_000_000); set(v) = prefs.edit().putInt("recBitrate", v).apply()
+    var recFps: Int get() = prefs.getInt("recFps", 24); set(v) = prefs.edit().putInt("recFps", v).apply()
     var keepOn: Boolean
         get() = prefs.getBoolean("keepOn", false)
         set(v) = prefs.edit().putBoolean("keepOn", v).apply()

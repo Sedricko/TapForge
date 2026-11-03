@@ -58,9 +58,19 @@ class OptionsActivity : Activity() {
         playSw = p.switchRow("Modo de Reprodução", "Apenas o botão de reprodução é exibido.", store.playMode) { store.playMode = it; if (it) simpleSw.isChecked = false; pushOptions() }
 
         p.category("Gravação de tela", Ic.REC)
-        p.valueRow("Configurações de gravação de áudio", "Sem áudio (indisponível)", enabled = false)
-        p.valueRow("Taxa de bits de vídeo", "Defina a qualidade visual da gravação. (indisponível)", enabled = false)
-        p.valueRow("Taxa de quadros de vídeo", "Defina os quadros por segundo (FPS). (indisponível)", enabled = false)
+        var audioTxt: TextView? = null; var bitTxt: TextView? = null; var fpsTxt: TextView? = null
+        val audioNames = arrayOf("Sem áudio", "Microfone")
+        audioTxt = p.valueRow("Configurações de gravação de áudio", audioNames[store.recAudio.coerceIn(0, 1)]) {
+            AlertDialog.Builder(this).setTitle("Configurações de gravação de áudio").setSingleChoiceItems(audioNames, store.recAudio.coerceIn(0, 1)) { d, w -> store.recAudio = w; audioTxt?.text = audioNames[w]; d.dismiss() }.setNegativeButton("Cancelar", null).show()
+        }
+        val bits = intArrayOf(2_000_000, 5_000_000, 10_000_000); val bitNames = arrayOf("Baixa 2 Mbps", "Média 5 Mbps", "Alta 10 Mbps")
+        bitTxt = p.valueRow("Taxa de bits de vídeo", bitNames[bits.indexOf(store.recBitrate).coerceAtLeast(1)]) {
+            AlertDialog.Builder(this).setTitle("Taxa de bits de vídeo").setSingleChoiceItems(bitNames, bits.indexOf(store.recBitrate).coerceAtLeast(1)) { d, w -> store.recBitrate = bits[w]; bitTxt?.text = bitNames[w]; d.dismiss() }.setNegativeButton("Cancelar", null).show()
+        }
+        val fpsList = intArrayOf(15, 24, 30, 60)
+        fpsTxt = p.valueRow("Taxa de quadros de vídeo", "${store.recFps} FPS") {
+            AlertDialog.Builder(this).setTitle("Taxa de quadros de vídeo").setSingleChoiceItems(fpsList.map { "$it FPS" }.toTypedArray(), fpsList.indexOf(store.recFps).coerceAtLeast(1)) { d, w -> store.recFps = fpsList[w]; fpsTxt?.text = "${fpsList[w]} FPS"; d.dismiss() }.setNegativeButton("Cancelar", null).show()
+        }
 
         p.category("Macro17")
         p.valueRow("Leitor de números", "Ensine os dígitos de um jogo ou contador para o passo “Ler número”.") { startActivity(Intent(this, ReaderActivity::class.java)) }

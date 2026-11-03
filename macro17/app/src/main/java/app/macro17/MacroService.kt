@@ -285,9 +285,14 @@ class MacroService : AccessibilityService() {
             // "Modo de Reprodução": só o ▶. "Visualização Simples": sem enquadrar e sem a segunda linha.
             if (!store.playMode) row1.addView(pbtn(Ic.REC, "Gravar") { startRecording() })
             if (!store.playMode && !store.simpleView) row1.addView(pbtn(if (listWin != null) Ic.EYE_OFF else Ic.EYE, "Lista da macro") { toggleList() })
-            if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.FRAME, "Capturar imagem para a macro") { captureImage() })
+            if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.FRAME, if (ScreenRecordService.running) "Parar a gravação de tela" else "Gravar a tela") { toggleVideo() })
             if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.CHEVRON, if (expanded) "Recolher" else "Mais opções") { expanded = !expanded; row2.visibility = if (expanded) View.VISIBLE else View.GONE; fillRow1() }.also { it.rotation = if (expanded) -90f else 90f })
         }
+    }
+
+    private fun toggleVideo() {
+        if (ScreenRecordService.running) { ScreenRecordService.stop(this); ui.postDelayed({ fillRow1() }, 600); return }
+        startActivity(Intent(this, ScreenRecordPermissionActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private fun togglePlay() {
@@ -369,6 +374,7 @@ class MacroService : AccessibilityService() {
         row2 = android.widget.LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE
+            addView(pbtn(Ic.IMAGE, "Capturar imagem para a macro") { captureImage() })
             addView(pbtn(Ic.ALARM, "Agendamento") { startActivity(Intent(this@MacroService, AlarmListActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
             addView(pbtn(Ic.EDIT, "Abrir o editor da macro") {
                 startActivity(Intent(this@MacroService, EditorActivity::class.java).putExtra("id", store.selected ?: "new").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
