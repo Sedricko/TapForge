@@ -366,7 +366,7 @@ class MacroService : AccessibilityService() {
             addView(pbtn(Ic.EDIT, "Abrir o editor da macro") {
                 startActivity(Intent(this@MacroService, EditorActivity::class.java).putExtra("id", store.selected ?: "new").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             })
-            addView(pbtn(Ic.GEAR, "Configurações") { startActivity(Intent(this@MacroService, OptionsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
+            addView(pbtn(Ic.GEAR, "Configurações") { startActivity(Intent(this@MacroService, PanelSettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
             addView(pbtn(Ic.INFO, "Registro ao vivo") { toggleLog() })
             addView(pbtn(Ic.CANCEL, "Fechar o painel") { hideControls() })
         }
