@@ -112,6 +112,18 @@ class RunnerTest {
         assertEquals(listOf("3"), xs) // sai direto do grupo para o passo 4 (tap 3); os 5 voltas não acontecem
     }
 
+    @Test fun imageGroupSharesFramesWhileItIsActive() {
+        val f = Fake(); val log = ArrayList<Boolean>()
+        val shared = object : Ports by f { override fun shareFrames(on: Boolean) { log += on } }
+        Runner(shared).run(macro(Step(Type.GROUP, grp = 1, rep = 2, mono = true), tap(1)))
+        assertEquals(listOf(true, false), log)           // liga ao entrar no grupo e desliga ao sair
+    }
+
+    @Test fun fixedPositionLimitsTheSearchToTheRecordedSpot() {
+        val s = Step(Type.TAP, 500, 600, ms = 10, img = "t", useImg = true, fx = true)
+        assertTrue(Step.fromJson(s.toJson()).fx)
+    }
+
     @Test fun stopItemEndsThePlaybackEvenWithLoopsLeft() {
         val (o, f) = run(macro(tap(1), Step(Type.STOP), tap(2), loops = 3))
         assertTrue(o is Outcome.Done)

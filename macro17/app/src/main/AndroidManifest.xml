@@ -58,6 +58,7 @@
         <activity android:name=".AddItemsActivity" android:exported="false" />
         <activity android:name=".AccessibilityAgreementActivity" android:theme="@android:style/Theme.DeviceDefault.Light.Dialog" android:exported="false" />
         <activity android:name=".PanelSettingsActivity" android:theme="@android:style/Theme.DeviceDefault.Light.Dialog" android:launchMode="singleTask" android:taskAffinity="" android:excludeFromRecents="true" android:exported="false" />
+        <activity android:name=".DebugFileManagerActivity" android:exported="false" />
         <activity android:name=".AboutActivity" android:exported="false" />
         <activity android:name=".AlarmListActivity" android:exported="false" />
         <activity android:name=".AlarmEditActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />

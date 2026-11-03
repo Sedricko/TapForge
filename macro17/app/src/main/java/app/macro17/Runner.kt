@@ -53,6 +53,9 @@ interface Ports {
     /** Avisa o painel do passo atual: volta, total de voltas (0 = infinito), passo, total de passos e nome do item. Padrão: nada. */
     fun progress(lap: Int, loops: Int, step: Int, total: Int, name: String) {}
 
+    /** Grupo de pesquisa de imagem: enquanto ligado, as buscas dos filhos reaproveitam o mesmo quadro por 200 ms (um screenshot só). Padrão: nada. */
+    fun shareFrames(on: Boolean) {}
+
     /** Anterior (-1) / Próximo (+1) pedidos pelo painel enquanto pausado; lê e zera. Padrão: nada. */
     fun takeJump(): Int = 0
 }
@@ -73,7 +76,7 @@ class Runner(private val p: Ports) {
         var lap = 0
         var resume = false // voltou de uma chamada: avançar antes de executar
         val counters = IntArray(MAX_COUNTERS + 1) // por executor, como no app de referência
-        class Grp(val start: Int, val end: Int, var left: Int) // left = voltas que faltam (0 = infinito)
+        class Grp(val start: Int, val end: Int, var left: Int, val shared: Boolean = false) // left = voltas que faltam (0 = infinito)
         val groups = ArrayList<Grp>()
         val baselines = HashMap<Int, Gray>() // Detecção de Mudança: imagem de referência de cada passo, capturada na primeira execução
     }
@@ -152,7 +155,7 @@ class Runner(private val p: Ports) {
                     }
                 }
                 Type.GESTURE -> if (!s.skip) p.path(gesturePoints(s.text), s.ms)
-                Type.GROUP -> if (s.grp > 0 && f.groups.none { it.start == f.pc }) f.groups.add(Frame.Grp(f.pc, minOf(f.pc + s.grp, f.macro.steps.size - 1), s.rep))
+                Type.GROUP -> if (s.grp > 0 && f.groups.none { it.start == f.pc }) { f.groups.add(Frame.Grp(f.pc, minOf(f.pc + s.grp, f.macro.steps.size - 1), s.rep, s.mono)); if (s.mono) p.shareFrames(true) }
                 Type.STOP -> return Outcome.Done // "Parar Macro" do base: encerra a reprodução aqui
                 Type.RESET -> f.counters[s.counter] = 0
                 Type.COUNTER -> jump = counterJump(f, s)
@@ -220,6 +223,7 @@ class Runner(private val p: Ports) {
 
     private fun specOf(s: Step) =
         if (s.type == Type.IMAGE) Spec(s.x1, s.y1, s.x2, s.y2, s.ms, s.cycle, s.thr, s.method, s.mono, s.confirm, s.scales)
+        else if (s.fx) { val pad = 160; Spec((s.x1 - pad).coerceAtLeast(0), (s.y1 - pad).coerceAtLeast(0), s.x1 + pad, s.y1 + pad, s.sms, s.cycle, s.thr, s.method, s.mono, s.confirm, s.scales) } // posição fixa: só em volta do ponto gravado
         else Spec(s.ax1, s.ay1, s.ax2, s.ay2, s.sms, s.cycle, s.thr, s.method, s.mono, s.confirm, s.scales)
 
     /**
@@ -300,6 +304,7 @@ class Runner(private val p: Ports) {
             val g = f.groups.last()
             if (t in g.start + 1..g.end) break
             if (natural && t == g.end + 1 && (g.left == 0 || g.left > 1)) { if (g.left > 1) g.left--; t = g.start + 1; break }
+            if (f.groups.last().shared) p.shareFrames(false)
             f.groups.removeAt(f.groups.lastIndex)
         }
         advanceTo(stack, f, t)

@@ -94,7 +94,7 @@ class MainActivity : Activity() {
 
         content.addView(bigButton(Ic.EDIT, "Editor de macro") { if (cur == null) toast("Arquivo não existe.") else edit(cur.id) })
         content.addView(bigButton(Ic.FOLDER, "Arquivo") { startActivity(Intent(this, FileManagerActivity::class.java)) })
-        if (store.debugOverlay) content.addView(bigButton(Ic.INFO, "Arquivo de Depuração") { startActivity(Intent(this, DiagActivity::class.java)) })
+        if (store.debugOverlay) content.addView(bigButton(Ic.INFO, "Arquivo de Depuração") { startActivity(Intent(this, DebugFileManagerActivity::class.java)) })
         // Como no app base: INICIAR abre os controles flutuantes para montar (gravar) e rodar; não exige macro pronta.
         content.addView(bigButton(Ic.TAP, if (MacroService.instance?.panelOpen() == true) "Parar" else "Iniciar") { start() })
     }

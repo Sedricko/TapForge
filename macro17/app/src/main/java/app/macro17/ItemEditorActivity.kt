@@ -191,6 +191,7 @@ class ItemEditorActivity : Activity() {
             }
             Type.GROUP -> {
                 p.valueRow("Repetições do grupo", if (s.rep == 0) "Infinito" else "${s.rep}") { numDialog("Repetições do grupo", "0 = infinito.", s.rep) { v -> s = s.copy(rep = v); render() } }
+                p.switchRow("Grupo de Pesquisa de Imagem", "Procura várias imagens ou textos no mesmo quadro capturado (um screenshot por 200 ms).", s.mono) { v -> s = s.copy(mono = v); render() }
                 p.valueRow("Itens no grupo", "${s.grp}") { numDialog("Itens no grupo", "Quantos itens depois deste fazem parte do grupo.", s.grp) { v -> s = s.copy(grp = v); render() } }
             }
             Type.GESTURE -> {
@@ -290,14 +291,21 @@ class ItemEditorActivity : Activity() {
             else { s = s.copy(useImg = v); render() }
         }
         val whole = listOf(s.ax1, s.ay1, s.ax2, s.ay2).all { it == 0 }
-        p.valueRow("Área de Pesquisa", if (whole) "Procura imagens em toda a tela." else "Procura imagens na área personalizada.", on) {
+        val areaNames = arrayOf("Posição fixa", "Tela inteira", "Tela inteira (cinza)", "Área personalizada", "Área personalizada (cinza)")
+        val areaIdx = if (s.fx) 0 else if (whole) (if (s.mono) 2 else 1) else (if (s.mono) 4 else 3)
+        p.valueRow("Área de Pesquisa", areaNames[areaIdx], on) {
             AlertDialog.Builder(this).setTitle("Área de Pesquisa")
-                .setSingleChoiceItems(arrayOf("Tela inteira", "Área personalizada"), if (whole) 0 else 1) { d, w ->
-                    s = if (w == 0) s.copy(ax1 = 0, ay1 = 0, ax2 = 0, ay2 = 0) else if (whole) s.copy(ax1 = 0, ay1 = 0, ax2 = 500, ay2 = 500) else s
+                .setMessage("Posição fixa procura só em volta do ponto gravado. Em cinza, a cor é ignorada (a correlação já compara em cinza).")
+                .setSingleChoiceItems(areaNames, areaIdx) { d, w ->
+                    s = when (w) {
+                        0 -> s.copy(fx = true, ax1 = 0, ay1 = 0, ax2 = 0, ay2 = 0)
+                        1, 2 -> s.copy(fx = false, ax1 = 0, ay1 = 0, ax2 = 0, ay2 = 0, mono = w == 2)
+                        else -> s.copy(fx = false, mono = w == 4, ax1 = if (whole) 0 else s.ax1, ay1 = if (whole) 0 else s.ay1, ax2 = if (whole) 500 else s.ax2, ay2 = if (whole) 500 else s.ay2)
+                    }
                     d.dismiss(); render()
                 }.setNegativeButton("Cancelar", null).show()
         }
-        p.valueRow("Área Personalizada", "${s.ax1},${s.ay1},${s.ax2},${s.ay2}", on && !whole) {
+        p.valueRow("Área Personalizada", "${s.ax1},${s.ay1},${s.ax2},${s.ay2}", on && !whole && !s.fx) {
             fieldsDialog("Área Personalizada", null, listOf("X inicial", "Y inicial", "X final", "Y final"), listOf(s.ax1, s.ay1, s.ax2, s.ay2), signed = false) { v ->
                 s = s.copy(ax1 = v[0], ay1 = v[1], ax2 = v[2], ay2 = v[3]); render()
             }

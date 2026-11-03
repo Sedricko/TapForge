@@ -209,7 +209,19 @@ class Engine(
             } finally { hb.close() }
         }
 
+        @Volatile private var sharing = false
+        private var cached: Gray? = null
+        private var cachedAt = 0L
+        override fun shareFrames(on: Boolean) { sharing = on; if (!on) cached = null }
+
         override fun screen(): Gray? {
+            if (sharing) { val c = cached; if (c != null && SystemClock.elapsedRealtime() - cachedAt < 200) return c }
+            val g = screenNow()
+            if (sharing && g != null) { cached = g; cachedAt = SystemClock.elapsedRealtime() }
+            return g
+        }
+
+        private fun screenNow(): Gray? {
             val bmp = capture() ?: return null
             val px = IntArray(bmp.width * bmp.height).also { bmp.getPixels(it, 0, bmp.width, 0, 0, bmp.width, bmp.height) }
             return Gray.fromArgb(px, bmp.width, bmp.height).also { bmp.recycle() }
