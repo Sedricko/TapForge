@@ -2,6 +2,7 @@ package app.macro17
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -88,6 +89,14 @@ class RunnerTest {
         assertEquals(2, fk.events.size)                                   // 1ª volta: guarda a referência; 2ª: espera a mudança e toca
         assertTrue(fk.traces.any { it.contains("referência capturada") })
         assertTrue(fk.traces.any { it.contains("mudou") })
+    }
+
+    @Test fun freeGestureGoesThroughThePathOnce() {
+        val (o, f) = run(macro(Step(Type.GESTURE, ms = 300, text = "10,20;50,60;90,100")))
+        assertTrue(o is Outcome.Done)
+        assertEquals(listOf("g:10,20>90,100@300"), f.events) // a Fake só liga o primeiro ao último ponto (o Engine percorre todos)
+        assertEquals(listOf(10 to 20, 50 to 60, 90 to 100), gesturePoints("10,20;50,60;90,100"))
+        assertNotNull(Step(Type.GESTURE, ms = 300, text = "10,20").validate(1))   // um ponto só não é gesto
     }
 
     @Test fun stopItemEndsThePlaybackEvenWithLoopsLeft() {

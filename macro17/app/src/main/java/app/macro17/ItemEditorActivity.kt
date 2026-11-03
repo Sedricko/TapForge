@@ -67,12 +67,12 @@ class ItemEditorActivity : Activity() {
 
     // --- tela --------------------------------------------------------------------------------
 
-    private val simple = setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE, Type.IMAGE, Type.NUMBER, Type.CHANGE)
+    private val simple = setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE, Type.IMAGE, Type.NUMBER, Type.CHANGE, Type.GESTURE)
     private val keyNames = mapOf(1 to "Voltar", 2 to "Início", 3 to "Recentes", 4 to "Notificações", KEY_SCREENSHOT to "Captura de tela")
     private val titleOf = mapOf(
         Type.WAIT to "Esperar", Type.KEY to "Evento de Teclado", Type.STATUS to "Alertas de status", Type.GOTO to "Ir Para",
         Type.RESET to "Reiniciar Contador de Execuções", Type.CALL to "Arquivo de Macro", Type.STOP to "Parar Macro",
-        Type.COUNTER to "Contador de Execuções", Type.TEXT to "Reconhecimento de Texto", Type.NODE to "Achar por texto", Type.IMAGE to "Pesquisa de Imagem", Type.CHANGE to "Detecção de Mudança de Imagem", Type.NUMBER to "Ler número",
+        Type.COUNTER to "Contador de Execuções", Type.TEXT to "Reconhecimento de Texto", Type.NODE to "Achar por texto", Type.IMAGE to "Pesquisa de Imagem", Type.CHANGE to "Detecção de Mudança de Imagem", Type.GESTURE to "Gesto", Type.NUMBER to "Ler número",
     )
 
     /** Itens que não são toque: mesma estrutura (nome, categoria do tipo, valores, atraso), só com as linhas de cada tipo. */
@@ -188,6 +188,11 @@ class ItemEditorActivity : Activity() {
                 val jumps = s.ms > 0
                 p.valueRow("Mover em Caso de Falha", gotoLabel(s.fail), jumps) { gotoDialog("Mover em Caso de Falha", s.fail) { v -> s = s.copy(fail = v); render() } }
                 p.valueRow("Mover em Caso de Sucesso", gotoLabel(s.goto), jumps) { gotoDialog("Mover em Caso de Sucesso", s.goto) { v -> s = s.copy(goto = v); render() } }
+            }
+            Type.GESTURE -> {
+                p.valueRow("Duração do Gesto", secs(s.ms)) { secDialog("Duração do Gesto (segundos)", "De 0,001 a 60 s.", s.ms) { v -> s = s.copy(ms = v); render() } }
+                p.valueRow("Traço", "${gesturePoints(s.text).size} pontos") {}
+                p.note("O traço é desenhado com o dedo na gravação (tipo Gesto no painel).")
             }
             Type.CHANGE -> {
                 p.note("Captura uma imagem na primeira execução e verifica continuamente se ela mudou da imagem capturada antes.")

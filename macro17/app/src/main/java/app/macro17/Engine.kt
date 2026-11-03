@@ -90,11 +90,20 @@ class Engine(
                 }
                 b.addStroke(GestureDescription.StrokeDescription(path, 0, ms.toLong()))
             }
-            (svc as? MacroService)?.showTouches(strokes.map { it.x1 to it.y1 }, ms)
+            dispatch(b.build(), strokes.map { it.x1 to it.y1 }, ms, strokes.joinToString(" | ") { "${it.x1},${it.y1}>${it.x2},${it.y2}" })
+        }
+
+        override fun path(points: List<Pair<Int, Int>>, ms: Int) {
+            val path = Path().apply { moveTo(points[0].first.toFloat(), points[0].second.toFloat()); for (k in 1 until points.size) lineTo(points[k].first.toFloat(), points[k].second.toFloat()) }
+            dispatch(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, ms.toLong())).build(), listOf(points[0]), ms, "gesto livre ${points.size} pontos")
+        }
+
+        private fun dispatch(g: GestureDescription, starts: List<Pair<Int, Int>>, ms: Int, label: String) {
+            (svc as? MacroService)?.showTouches(starts, ms)
             val done = CountDownLatch(1)
             var ok = false // escrito na thread principal antes do countDown; lido depois do await
-            Diag.d("gesto", strokes.joinToString(" | ") { "${it.x1},${it.y1}>${it.x2},${it.y2}" } + " @${ms}ms")
-            val accepted = svc.dispatchGesture(b.build(), object : AccessibilityService.GestureResultCallback() {
+            Diag.d("gesto", "$label @${ms}ms")
+            val accepted = svc.dispatchGesture(g, object : AccessibilityService.GestureResultCallback() {
                 override fun onCompleted(d: GestureDescription) { ok = true; done.countDown() }
                 override fun onCancelled(d: GestureDescription) { done.countDown() }
             }, null)

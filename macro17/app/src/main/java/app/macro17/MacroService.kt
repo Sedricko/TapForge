@@ -593,7 +593,10 @@ class MacroService : AccessibilityService() {
 
     /** Executa o item gravado agora, no ponto, para o app de baixo reagir enquanto se grava. */
     private fun perform(st: Step) {
-        val path = Path().apply { moveTo(st.x1.toFloat(), st.y1.toFloat()); if (st.type == Type.SWIPE) lineTo(st.x2.toFloat(), st.y2.toFloat()) }
+        val path = Path().apply {
+            if (st.type == Type.GESTURE) { val g = gesturePoints(st.text); moveTo(g[0].first.toFloat(), g[0].second.toFloat()); for (k in 1 until g.size) lineTo(g[k].first.toFloat(), g[k].second.toFloat()) }
+            else { moveTo(st.x1.toFloat(), st.y1.toFloat()); if (st.type == Type.SWIPE) lineTo(st.x2.toFloat(), st.y2.toFloat()) }
+        }
         val g = GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, st.ms.toLong().coerceAtLeast(1))).build()
         if (!dispatchGesture(g, null, null)) Diag.e("gravação", "gesto executado na gravação foi recusado")
     }

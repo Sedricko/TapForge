@@ -15,6 +15,12 @@ interface Ports {
     /** Bloqueia até o gesto terminar; lança IllegalStateException com o motivo se o sistema recusar. */
     @Throws(InterruptedException::class) fun gesture(strokes: List<Stroke>, ms: Int)
     fun key(code: Int)
+
+    /** Gesto livre: um único dedo passando pelos pontos em [ms]. Padrão: só liga o primeiro ao último ponto. */
+    @Throws(InterruptedException::class) fun path(points: List<Pair<Int, Int>>, ms: Int) {
+        val a = points.first(); val b = points.last()
+        gesture(listOf(Stroke(a.first, a.second, b.first, b.second)), ms)
+    }
     @Throws(InterruptedException::class) fun status(text: String, ms: Int)
 
     /** Vibração e/ou som de notificação do alerta de status. Padrão: nada. */
@@ -143,6 +149,7 @@ class Runner(private val p: Ports) {
                         jump = if (hit != null) s.goto else s.fail
                     }
                 }
+                Type.GESTURE -> if (!s.skip) p.path(gesturePoints(s.text), s.ms)
                 Type.STOP -> return Outcome.Done // "Parar Macro" do base: encerra a reprodução aqui
                 Type.RESET -> f.counters[s.counter] = 0
                 Type.COUNTER -> jump = counterJump(f, s)

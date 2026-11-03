@@ -4,9 +4,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Ordem importa: o editor usa o índice do enum no menu de tipos. */
-enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER, TEXT, STOP, CHANGE }
+enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER, TEXT, STOP, CHANGE, GESTURE }
 
 const val MAX_STEPS = 5000
+
+/** Pontos do gesto livre, guardados em Step.text como "x,y;x,y;...". */
+fun gesturePoints(text: String): List<Pair<Int, Int>> = text.split(';').mapNotNull { p ->
+    val q = p.split(','); val x = q.getOrNull(0)?.toIntOrNull(); val y = q.getOrNull(1)?.toIntOrNull()
+    if (x != null && y != null) x to y else null
+}
 const val KEY_SCREENSHOT = 9   // GLOBAL_ACTION_TAKE_SCREENSHOT
 const val MAX_MS = 60_000      // getMaxGestureDuration() do sistema é 60 s
 const val MAX_COORD = 20_000
@@ -96,6 +102,7 @@ data class Step(
             "casos: até $MAX_CASES, com limiar de 1 a $MAX_LOOPS e destino de 0 a $size"
         type == Type.CHANGE && (thr !in 1..100 || cycle !in 50..MAX_MS || (ms != 0 && ms < 100) || !(listOf(x1, y1, x2, y2).all { it == 0 } || (x2 > x1 && y2 > y1))) -> "mudança: sensibilidade 1 a 100%, intervalo 50 ms a $MAX_MS, tempo 0 ou ≥ 100 ms e área válida"
         type == Type.CHANGE && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
+        type == Type.GESTURE && (gesturePoints(text).size !in 2..400 || ms !in 1..MAX_MS || gesturePoints(text).any { it.first !in 0..MAX_COORD || it.second !in 0..MAX_COORD }) -> "gesto: 2 a 400 pontos dentro da tela e duração de 1 ms a ${MAX_MS / 1000} s"
         type == Type.CALL && text.length > 64 -> "id de macro inválido" // vazio é permitido (o base cria "Arquivo de macro" sem arquivo); o executor ignora
         type == Type.IMAGE && text.isBlank() -> "passo sem imagem: capture pelo orbe"
         type == Type.IMAGE && thr !in 20..100 -> "semelhança deve ser de 20 a 100%"

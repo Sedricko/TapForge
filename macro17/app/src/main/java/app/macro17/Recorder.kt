@@ -19,7 +19,7 @@ import android.widget.ImageView
  */
 class Recorder(private val ctx: Context, private val wm: WindowManager) {
     enum class Mode(val label: String, val ic: Ic) {
-        TAP("Tocar", Ic.TAP), PRESS("Pressionar", Ic.TAP), SWIPE("Deslizar", Ic.SWIPE), IMAGE("Imagem", Ic.IMAGE);
+        TAP("Tocar", Ic.TAP), PRESS("Pressionar", Ic.TAP), SWIPE("Deslizar", Ic.SWIPE), GESTURE("Gesto", Ic.GESTURE), IMAGE("Imagem", Ic.IMAGE);
         fun next() = values()[(ordinal + 1) % values().size]
     }
 
@@ -28,6 +28,7 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
     private val wins = ArrayList<Win>()
     private val dot = ctx.dp(40) // marcador de 40dp, como no base
     private val screen = wm.maximumWindowMetrics.bounds
+    private val pts = ArrayList<Pair<Int, Int>>(); private var drawStart = 0L; private var drawEnd = 0L
     private var p1: Win? = null; private var p2: Win? = null; private var box: Win? = null; private var handle: Win? = null
 
     private fun params(w: Int, h: Int, touchable: Boolean) = WindowManager.LayoutParams(
@@ -102,6 +103,28 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
                 p2 = marker(Ic.ARROW, cx + ctx.dp(40), cy) { line.invalidate() } // o fim nasce 40dp à direita do início
                 line.invalidate()
             }
+            Mode.GESTURE -> {
+                // Camada de desenho: o dedo traça o gesto (fundo escuro leve, traço cinza); o + do painel grava o traço.
+                pts.clear(); drawStart = 0L
+                val v = object : View(ctx) {
+                    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF7F7F7F.toInt(); strokeWidth = 30f; style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+                    override fun onDraw(c: Canvas) {
+                        c.drawColor(0x4F0F0F0F)
+                        if (pts.size > 1) c.drawPath(android.graphics.Path().apply { moveTo(pts[0].first.toFloat(), pts[0].second.toFloat()); for (k in 1 until pts.size) lineTo(pts[k].first.toFloat(), pts[k].second.toFloat()) }, paint)
+                    }
+                    override fun onTouchEvent(e: MotionEvent): Boolean {
+                        when (e.actionMasked) {
+                            MotionEvent.ACTION_DOWN -> { pts.clear(); drawStart = e.eventTime }
+                            MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> {}
+                            else -> return true
+                        }
+                        pts.add(e.rawX.toInt() to e.rawY.toInt()); drawEnd = e.eventTime
+                        if (pts.size > 400) pts.removeAt(1)
+                        invalidate(); return true
+                    }
+                }
+                add(v, params(-1, -1, true))
+            }
             Mode.IMAGE -> {
                 val side = ctx.dp(140)
                 val b = add(BoxView(), params(side, side, true).apply { x = cx - side / 2; y = cy - side / 2 })
@@ -141,12 +164,14 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
 
     /** Item de toque ou deslize na posição atual dos marcadores; null no modo Imagem (ver [region]). */
     fun step(delay: Int): Step? {
+        if (mode == Mode.GESTURE) return if (pts.size >= 2) Step(Type.GESTURE, ms = (drawEnd - drawStart).toInt().coerceIn(100, 30_000), text = pts.joinToString(";") { "${it.first.coerceIn(0, MAX_COORD)},${it.second.coerceIn(0, MAX_COORD)}" }, delay = delay) else null
         val a = p1 ?: return null
         val (x1, y1) = center(a)
         return when (mode) {
             Mode.TAP -> Step(Type.TAP, x1, y1, ms = 5, delay = delay)
             Mode.PRESS -> Step(Type.TAP, x1, y1, ms = 1000, delay = delay)    // pressionar = toque longo, 1 s como no base
             Mode.SWIPE -> p2?.let { val (x2, y2) = center(it); Step(Type.SWIPE, x1, y1, x2, y2, ms = 1000, delay = delay) }
+            Mode.GESTURE -> null
             Mode.IMAGE -> null
         }
     }
