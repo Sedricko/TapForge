@@ -71,6 +71,10 @@ class PermissionsActivity : Activity() {
             // Como no base: escolhe o modo de controle (só existe o de acessibilidade) e volta à Home; sem a permissão, abre o Acordo.
             if (granted) finish() else startActivity(Intent(this, AccessibilityAgreementActivity::class.java))
         })
+        val overlay = android.provider.Settings.canDrawOverlays(this)
+        content.addView(option("Sobreposição", if (overlay) "Exibir sobre outros apps: permitido." else "Permita “Exibir sobre outros apps” para o painel flutuante.") {
+            if (!overlay) startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")))
+        })
         content.addView(option("Android Debug Bridge (ADB)", "Precisa ser configurado usando um computador.") {
             info("ADB", "O modo ADB injeta toques com privilégio de shell. O Macro17 não o usa: os gestos saem pelo serviço de acessibilidade.")
         })
