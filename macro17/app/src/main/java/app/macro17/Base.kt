@@ -39,7 +39,7 @@ fun Activity.appBar(title: String, nav: Ic, onNav: () -> Unit, vararg actions: V
             contentDescription = if (nav == Ic.BACK) "Voltar" else "Menu"; setOnClickListener { onNav() }
             layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
         })
-        addView(label(title, 20f, Color.WHITE, bold = true).apply { setPadding(dp(16), 0, 0, 0); layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) }) // título a 72dp
+        addView(label(title, 20f, Color.WHITE, medium = true).apply { setPadding(dp(16), 0, 0, 0); layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f) }) // título a 72dp
         actions.forEach { addView(it) }
     }, LinearLayout.LayoutParams(MATCH_PARENT, dp(56)))
 }
@@ -73,7 +73,7 @@ class Drawer(private val a: Activity, private val items: List<Triple<Ic, String,
         addView(LinearLayout(a).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.BOTTOM
-            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(0xFF4DB6AC.toInt(), 0xFF009688.toInt(), 0xFF00695C.toInt()))
+            background = GradientDrawable(GradientDrawable.Orientation.BR_TL, intArrayOf(0xFF4DB6AC.toInt(), 0xFF009688.toInt(), 0xFF00695C.toInt()))
             setPadding(a.dp(16), a.dp(16), a.dp(16), a.dp(16))
             setOnApplyWindowInsetsListener { v, i -> v.setPadding(a.dp(16), a.dp(16) + i.getInsets(WindowInsets.Type.statusBars()).top, a.dp(16), a.dp(16)); i }
             addView(android.widget.ImageView(a).apply { setImageDrawable(a.packageManager.getApplicationIcon(a.packageName)) }, LinearLayout.LayoutParams(a.dp(56), a.dp(56)))
@@ -86,7 +86,7 @@ class Drawer(private val a: Activity, private val items: List<Triple<Ic, String,
                 if (n == selected) background = a.rounded(0x1F00897B, 4)
                 foreground = a.ripple(4, 0x1F00897B)
                 addView(a.glyph(ic, B.TEXT2, 24))
-                addView(a.label(text, 15f, 0xFF616161.toInt(), bold = true).apply { setPadding(a.dp(24), 0, 0, 0) })
+                addView(a.label(text, 15f, 0xFF616161.toInt(), medium = true).apply { setPadding(a.dp(24), 0, 0, 0) })
                 setOnClickListener { close(); go() }
                 layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, a.dp(48)).also { it.setMargins(a.dp(8), if (n == 0) a.dp(8) else a.dp(4), a.dp(8), 0) }
             })

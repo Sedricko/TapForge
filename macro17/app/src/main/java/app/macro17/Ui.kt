@@ -61,10 +61,10 @@ fun Context.ripple(radiusDp: Int, tint: Int = 0x26FFFFFF) =
 fun Context.glass(radiusDp: Int = 24) = rounded(C.PANEL, radiusDp, C.EDGE)
 fun Context.tileBg() = rounded(C.TILE, 16, C.EDGE)
 
-// "bold" usa o peso medium: mais refinado que o negrito cheio em texto pequeno.
-fun Context.label(s: String, sp: Float = 14f, color: Int = C.TEXT, bold: Boolean = false) = TextView(this).apply {
+// "bold" é negrito de verdade, como no base; "medium" (barra, menu lateral, título de categoria) usa o peso médio do Material.
+fun Context.label(s: String, sp: Float = 14f, color: Int = C.TEXT, bold: Boolean = false, medium: Boolean = false) = TextView(this).apply {
     text = s; textSize = sp; setTextColor(color)
-    if (bold) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    if (medium) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL) else if (bold) typeface = Typeface.DEFAULT_BOLD
 }
 
 // --- ícones desenhados em Canvas: sem drawables, sem glifos Unicode (que viram emoji em alguns aparelhos) ---
@@ -137,7 +137,7 @@ class Icon(private val ic: Ic, color: Int = Color.WHITE) : Drawable() {
     override fun draw(c: Canvas) {
         vd?.let { d ->
             // O vetor já traz margem própria; a folga extra mantém o peso visual dos botões antigos.
-            val k = (minOf(bounds.width(), bounds.height()) * 0.12f).toInt()
+            val k = 0 // sem encolher: o vetor já traz a margem própria, como no base
             d.setBounds(bounds.left + k, bounds.top + k, bounds.right - k, bounds.bottom - k); d.draw(c); return
         }
         val cx = bounds.exactCenterX()
