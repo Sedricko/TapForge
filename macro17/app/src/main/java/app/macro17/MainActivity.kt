@@ -36,6 +36,11 @@ class MainActivity : Activity() {
             setOnApplyWindowInsetsListener { v, i -> v.setPadding(0, 0, 0, i.getInsets(WindowInsets.Type.navigationBars()).bottom); i }
         }
         drawer = mainDrawer(0)
+        // Como o app base: pede a permissão de notificações na primeira abertura (serviço de gravação de tela e avisos); o microfone só ao ligar o áudio.
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED && !store.askedNotif) {
+            store.askedNotif = true
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 5)
+        }
         val root = FrameLayout(this).apply {
             setBackgroundColor(B.BG)
             addView(LinearLayout(this@MainActivity).apply {

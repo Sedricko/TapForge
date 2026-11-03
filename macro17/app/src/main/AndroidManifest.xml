@@ -12,6 +12,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Mesmas permissões de rede do app base (acesso à rede, estado da rede e dispositivos da rede local). O Macro17 não envia nada sozinho. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- Não é concedida a apps comuns; declarada só para que `adb shell pm grant app.macro17 android.permission.READ_LOGS`
          libere o logcat do sistema inteiro no relatório de diagnóstico. -->
     <uses-permission android:name="android.permission.READ_LOGS" tools:ignore="ProtectedPermissions" />

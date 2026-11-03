@@ -34,7 +34,7 @@ class AboutActivity : Activity() {
                 setOnClickListener { AlertDialog.Builder(this@AboutActivity).setTitle(text).setMessage(body).setPositiveButton("OK", null).show() }
             }, LinearLayout.LayoutParams(MATCH_PARENT, dp(60)))
         }
-        row("O que é", "Automação de toques por acessibilidade: gravar, editar e repetir macros, com busca por imagem, texto e número na tela.\n\nSem internet: o app não tem a permissão INTERNET. Nada sai do aparelho a menos que você compartilhe um relatório.")
+        row("O que é", "Automação de toques por acessibilidade: gravar, editar e repetir macros, com busca por imagem, texto e número na tela.\n\nPrivacidade: o app declara as permissões de rede do app base, mas não as usa para enviar nada. Macros, imagens e registros ficam no aparelho a menos que você compartilhe um relatório.")
         row("Licenças de terceiros", "OpenCV 4.9.0 (Apache-2.0): casamento de imagem.\nML Kit Text Recognition 16.0.1 (termos do Google ML Kit): reconhecimento de texto no aparelho.\nKotlin stdlib 2.1.0 (Apache-2.0).\norg.json (JSON License).\nÍcones Material (Apache-2.0).")
         col.addView(View(this).apply { setBackgroundColor(0x1E000000) }, LinearLayout.LayoutParams(MATCH_PARENT, 1))
         setContentView(LinearLayout(this).apply {

@@ -37,6 +37,7 @@ class Store(ctx: Context) {
     var recAudio: Int get() = prefs.getInt("recAudio", 0); set(v) = prefs.edit().putInt("recAudio", v).apply()
     var recBitrate: Int get() = prefs.getInt("recBitrate", 5_000_000); set(v) = prefs.edit().putInt("recBitrate", v).apply()
     var recFps: Int get() = prefs.getInt("recFps", 24); set(v) = prefs.edit().putInt("recFps", v).apply()
+    var askedNotif: Boolean get() = prefs.getBoolean("askedNotif", false); set(v) = prefs.edit().putBoolean("askedNotif", v).apply()
     var keepOn: Boolean
         get() = prefs.getBoolean("keepOn", false)
         set(v) = prefs.edit().putBoolean("keepOn", v).apply()
