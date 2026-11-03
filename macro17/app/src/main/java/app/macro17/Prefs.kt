@@ -54,7 +54,7 @@ class Prefs(private val a: Activity) {
     private fun row(enabled: Boolean = true, click: (() -> Unit)? = null) = LinearLayout(a).apply {
         gravity = Gravity.CENTER_VERTICAL
         setPadding(a.dp(72), a.dp(16), a.dp(20), a.dp(16))
-        if (enabled && click != null) { foreground = a.ripple(0, 0x1F00897B); setOnClickListener { click() } }
+        if (enabled && click != null) { foreground = a.ripple(0, 0x1F00897B); setOnClickListener { Diag.d("config", "linha: ${(getChildAt(0) as? android.view.ViewGroup)?.getChildAt(0).let { (it as? android.widget.TextView)?.text }}"); click() } }
         column.addView(this, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
     }
 
@@ -63,7 +63,7 @@ class Prefs(private val a: Activity) {
         val sw = Switch(a).apply {
             isChecked = checked; this.isEnabled = enabled; contentDescription = title
             thumbTintList = switchThumb; trackTintList = switchTrack
-            setOnCheckedChangeListener { _, on -> onChange(on) }
+            setOnCheckedChangeListener { _, on -> Diag.d("config", "$title = $on"); onChange(on) }
         }
         val r = row(enabled) { sw.toggle() }
         r.addView(texts(title, summary, enabled)); r.addView(sw)

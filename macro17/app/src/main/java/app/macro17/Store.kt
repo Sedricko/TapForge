@@ -169,6 +169,7 @@ class Store(ctx: Context) {
     fun save(m: Macro) {
         m.validate()?.let { throw IllegalArgumentException(it) }
         val f = file(m.id) ?: throw IllegalArgumentException("id inválido")
+        Diag.d("dados", "macro salva: “${m.name}” (${m.steps.size} passos, repetições ${m.loops})")
         val tmp = File(dir, "${m.id}.tmp")
         tmp.writeText(m.toJson().toString())
         if (!tmp.renameTo(f)) throw IOException("não foi possível gravar a macro")
@@ -178,6 +179,7 @@ class Store(ctx: Context) {
     fun nameTaken(name: String, exceptId: String? = null) = list().any { it.id != exceptId && it.name.equals(name, ignoreCase = true) }
 
     fun delete(id: String) {
+        Diag.d("dados", "macro excluída id=$id")
         file(id)?.delete()
         saveAlarms(alarms().filter { it.macroId != id })
         if (selected == id) selected = null

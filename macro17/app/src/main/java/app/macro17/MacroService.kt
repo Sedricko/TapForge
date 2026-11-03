@@ -96,7 +96,14 @@ class MacroService : AccessibilityService() {
         return false
     }
 
-    override fun onAccessibilityEvent(e: AccessibilityEvent?) = Unit
+    private var lastWindow = ""
+    override fun onAccessibilityEvent(e: AccessibilityEvent?) {
+        // Janela em primeiro plano mudou (qual app/tela está embaixo da macro); só pacote e classe, nunca o conteúdo.
+        if (e?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val w = "${e.packageName}/${e.className}"
+            if (w != lastWindow) { lastWindow = w; Diag.d("janela", w) }
+        }
+    }
     override fun onInterrupt() { Diag.d("serviço", "onInterrupt (sistema interrompeu o feedback de acessibilidade)"); engine.stop() }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -230,7 +237,7 @@ class MacroService : AccessibilityService() {
         else { setImageDrawable(Icon(ic, teal)); setPadding(dp(5), dp(5), dp(5), dp(5)) }
         contentDescription = desc
         layoutParams = android.widget.LinearLayout.LayoutParams(dp(42), dp(42)).also { it.setMargins(dp(1), dp(1), dp(1), dp(1)) }
-        setOnClickListener { click() }
+        setOnClickListener { Diag.d("painel", "botão: $desc"); click() }
         dragger(this) // como no base, qualquer botão arrasta o painel
     }
 
