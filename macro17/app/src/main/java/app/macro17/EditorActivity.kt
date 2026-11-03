@@ -105,12 +105,15 @@ class EditorActivity : Activity() {
 
         // Como no editor do app base: barra verde, barra de ícones, nome com repetições, lista com seleção e botão + flutuante.
         name = EditText(this).apply {
-            background = null; setTextColor(B.TEXT); setHintTextColor(B.TEXT2); textSize = 22f; hint = "Nome"; setSingleLine()
-            setText(existing?.name ?: "Nova macro"); setPadding(dp(16), dp(8), dp(16), 0)
+            background = null; setTextColor(0xDE000000.toInt()); textSize = 20f; setSingleLine()
+            isFocusable = false; isCursorVisible = false; keyListener = null // o nome muda na tela Arquivo (Renomear), como no base
+            setText(existing?.name ?: "Nova macro"); setPadding(dp(16), dp(6), dp(16), dp(6))
         }
         loops = EditText(this).apply {
             background = null; setTextColor(B.TEXT); textSize = 16f; inputType = InputType.TYPE_CLASS_NUMBER; setSingleLine()
             setText((existing?.loops ?: 1).toString()); setPadding(dp(4), 0, dp(4), dp(8)); minWidth = dp(48); contentDescription = "Repetições (0 = infinito)"
+            isFocusable = false; isCursorVisible = false; keyListener = null
+            setOnClickListener { loopsDialog() }
         }
         emptyHint = label("Sem itens. Toque em + ou grave pelo painel.", 14f, B.TEXT2).apply { setPadding(dp(16), dp(16), dp(16), 0) }
         list = ListView(this).apply {
@@ -168,6 +171,7 @@ class EditorActivity : Activity() {
             }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
             addView(fab)
         })
+        saved = snapshot()
         refresh()
     }
 
@@ -250,24 +254,38 @@ class EditorActivity : Activity() {
         refresh()
     }
 
+    /** "Editar Itens Selecionados" do base: escolha do que editar (rádio) e o valor, aplicado só aos itens a que se aplica. */
     private fun batchEdit() {
         val idx = needSelection() ?: return
-        val opts = arrayOf("Tempo de atraso (ms)", "Duração (ms)", "Pular: ligar", "Pular: desligar")
-        AlertDialog.Builder(this).setTitle("Selecione o que editar.").setItems(opts) { _, w ->
-            when (w) {
-                0 -> askNumber("Tempo de atraso (ms)") { v -> applyBatch(idx) { it.copy(delay = v, rnd = 0, rndMin = 0) } }
-                1 -> askNumber("Duração (ms)") { v -> applyBatch(idx) { it.copy(ms = v) } }
-                2 -> applyBatch(idx) { it.copy(skip = true) }
-                else -> applyBatch(idx) { it.copy(skip = false) }
-            }
-        }.setNegativeButton("Cancelar", null).show()
+        val opts = arrayOf("Tempo de atraso", "Pesquisa de imagem", "Pesquisa de imagem/Taxa de correspondência", "Pesquisa de imagem/Velocidade de pesquisa",
+            "Pesquisa de imagem/Duração da pesquisa", "Pesquisa de imagem/Mover", "Ação")
+        var pick = 0
+        AlertDialog.Builder(this).setTitle("Selecione o que editar.").setSingleChoiceItems(opts, 0) { _, w -> pick = w }
+            .setPositiveButton("Alterar tudo") { _, _ ->
+                fun img(f: (Step) -> Step): (Step) -> Step = { if (it.type in Step.GESTURES) f(it) else it }
+                when (pick) {
+                    0 -> askNumber("Tempo de Atraso (ms)") { v -> applyBatch(idx) { it.copy(delay = v, rnd = 0, rndMin = 0) } }
+                    1 -> askChoice("Pesquisa de imagem", arrayOf("Ligada", "Desligada")) { c -> applyBatch(idx, img { it.copy(useImg = c == 0 && it.img.isNotEmpty()) }) }
+                    2 -> askNumber("Taxa de correspondência (0 a 100)") { v -> applyBatch(idx, img { it.copy(thr = v) }) }
+                    3 -> askNumber("Velocidade de pesquisa (ms)") { v -> applyBatch(idx, img { it.copy(cycle = v) }) }
+                    4 -> askNumber("Duração da pesquisa (ms, 0 = infinito)") { v -> applyBatch(idx, img { it.copy(sms = v) }) }
+                    5 -> askNumber("Mover em caso de sucesso (passo, 0 = próximo)") { v -> applyBatch(idx, img { it.copy(goto = v) }) }
+                    else -> askChoice("Ação", arrayOf("Pular a ação", "Executar a ação")) { c -> applyBatch(idx, img { it.copy(skip = c == 0) }) }
+                }
+            }.setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun askChoice(title: String, items: Array<String>, then: (Int) -> Unit) {
+        var pick = 0
+        AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(items, 0) { _, w -> pick = w }
+            .setPositiveButton("Alterar tudo") { _, _ -> then(pick) }.setNegativeButton("Cancelar", null).show()
     }
 
     /** Aplica [f] aos marcados; se algum ficar inválido, nada muda e o motivo aparece. */
     private fun applyBatch(idx: List<Int>, f: (Step) -> Step) {
         val next = steps.mapIndexed { i, s -> if (i in idx) f(s) else s }
         next.forEachIndexed { i, s -> s.validate(next.size)?.let { return toast("Item ${i + 1}: $it") } }
-        steps = next; refresh()
+        steps = next; refresh(); toast("${idx.size} ${if (idx.size == 1) "item alterado" else "itens alterados"}.")
     }
 
     private fun askNumber(title: String, then: (Int) -> Unit) {
@@ -498,11 +516,28 @@ class EditorActivity : Activity() {
         AlertDialog.Builder(this).setItems(others.map { it.name }.toTypedArray()) { _, w -> chosen(others[w]) }.show()
     }
 
+    /** Estado salvo por último, para o Voltar saber se há mudanças. */
+    private var saved: String = ""
+    private fun snapshot() = Macro(id, name.text.toString().trim(), loops.text.toString().toIntOrNull() ?: 1, steps).toJson().toString()
+
+    override fun onBackPressed() {
+        if (saved.isEmpty() || snapshot() == saved) return super.onBackPressed()
+        AlertDialog.Builder(this).setMessage("Deseja sair da edição?")
+            .setPositiveButton("OK") { _, _ -> finish() }.setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun loopsDialog() {
+        val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER; setText(loops.text); setPadding(dp(24), dp(16), dp(24), dp(8)) }
+        AlertDialog.Builder(this).setTitle("Repetir reprodução").setMessage("0 = infinito").setView(et)
+            .setPositiveButton("OK") { _, _ -> et.text.toString().toIntOrNull()?.takeIf { it in 0..MAX_LOOPS }?.let { loops.setText(it.toString()) } ?: toast("Número inválido") }
+            .setNegativeButton("Cancelar", null).show()
+    }
+
     private fun save() {
         val n = loops.text.toString().toIntOrNull() ?: return toast("Repetições deve ser um número inteiro")
         val m = Macro(id, name.text.toString().trim(), n, steps)
         m.validate()?.let { return toast(it) }
-        try { store.save(m); finish() } catch (e: Exception) { toast("Falha ao salvar: ${e.message}") }
+        try { store.save(m); saved = snapshot(); toast("Salvo.") } catch (e: Exception) { toast("Falha ao salvar: ${e.message}") }
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
