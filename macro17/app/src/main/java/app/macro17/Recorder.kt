@@ -26,7 +26,7 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
     var mode = Mode.TAP; private set
     private class Win(val view: View, val lp: WindowManager.LayoutParams)
     private val wins = ArrayList<Win>()
-    private val dot = ctx.dp(56)
+    private val dot = ctx.dp(40) // marcador de 40dp, como no base
     private val screen = wm.maximumWindowMetrics.bounds
     private var p1: Win? = null; private var p2: Win? = null; private var box: Win? = null; private var handle: Win? = null
 
@@ -42,8 +42,9 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
     private fun marker(ic: Ic, x: Int, y: Int, onMove: () -> Unit): Win {
         val v = ImageView(ctx).apply {
             setImageDrawable(Icon(ic, 0xFFF5F5F5.toInt()))
-            setPadding(ctx.dp(10), ctx.dp(10), ctx.dp(10), ctx.dp(10))
-            background = ctx.rounded(0xCCAD1457.toInt(), 28)
+            setPadding(ctx.dp(6), ctx.dp(6), ctx.dp(6), ctx.dp(6))
+            background = ctx.rounded(0xFFD81B60.toInt(), 20, Color.WHITE)
+            alpha = 0.7f
         }
         val lp = params(dot, dot, true).apply { this.x = x - dot / 2; this.y = y - dot / 2 }
         val w = add(v, lp)
@@ -72,7 +73,7 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
 
     /** Linha entre o ponto inicial e a seta final; janela sem toque, só desenha. */
     private inner class LineView : View(ctx) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x99AD1457.toInt(); strokeWidth = ctx.dp(6).toFloat(); strokeCap = Paint.Cap.ROUND }
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x1E000000; strokeWidth = 40f; strokeCap = Paint.Cap.ROUND }
         override fun onDraw(c: Canvas) {
             val a = p1 ?: return; val b = p2 ?: return
             val (x1, y1) = center(a); val (x2, y2) = center(b)
@@ -81,8 +82,8 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
     }
 
     private inner class BoxView : View(ctx) {
-        private val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFAD1457.toInt(); style = Paint.Style.STROKE; strokeWidth = ctx.dp(3).toFloat() }
-        private val fill = Paint().apply { color = 0x33000000 }
+        private val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFD81B60.toInt(); style = Paint.Style.STROKE; strokeWidth = 8f }
+        private val fill = Paint().apply { color = 0x7F7F7F7F }
         override fun onDraw(c: Canvas) {
             c.drawRect(0f, 0f, width.toFloat(), height.toFloat(), fill)
             c.drawRect(edge.strokeWidth / 2, edge.strokeWidth / 2, width - edge.strokeWidth / 2, height - edge.strokeWidth / 2, edge)
@@ -97,12 +98,12 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
             Mode.TAP, Mode.PRESS -> p1 = marker(Ic.TARGET, cx, cy) {}
             Mode.SWIPE -> {
                 val line = LineView().also { add(it, params(-1, -1, false)) }
-                p1 = marker(Ic.TARGET, cx, cy - ctx.dp(110)) { line.invalidate() }
-                p2 = marker(Ic.ARROW, cx, cy + ctx.dp(110)) { line.invalidate() }
+                p1 = marker(Ic.TARGET, cx, cy) { line.invalidate() }
+                p2 = marker(Ic.ARROW, cx + ctx.dp(40), cy) { line.invalidate() } // o fim nasce 40dp à direita do início
                 line.invalidate()
             }
             Mode.IMAGE -> {
-                val side = ctx.dp(150)
+                val side = ctx.dp(140)
                 val b = add(BoxView(), params(side, side, true).apply { x = cx - side / 2; y = cy - side / 2 })
                 box = b
                 val h = marker(Ic.MOVE, 0, 0) {}
