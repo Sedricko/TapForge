@@ -30,6 +30,7 @@ import android.widget.TextView
 import android.widget.Toast
 import java.util.UUID
 
+@Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
 class EditorActivity : Activity() {
     private lateinit var store: Store
     private lateinit var id: String
@@ -88,6 +89,7 @@ class EditorActivity : Activity() {
         Type.KEY to C.TEAL, Type.STATUS to C.TEAL, Type.GOTO to C.ORANGE, Type.COUNTER to C.BLUE, Type.RESET to C.RED, Type.CALL to C.PURPLE, Type.IMAGE to C.ORANGE, Type.NODE to C.TEAL, Type.TEXT to C.TEAL, Type.NUMBER to C.PURPLE,
     )
 
+    private val REQ_ITEM = 21
     private val selected = HashSet<Int>()
     private val thumbs = HashMap<String, Bitmap?>()
     private lateinit var existingId: String
@@ -112,7 +114,7 @@ class EditorActivity : Activity() {
         emptyHint = label("Sem itens. Toque em + ou grave pelo painel.", 14f, B.TEXT2).apply { setPadding(dp(16), dp(16), dp(16), 0) }
         list = ListView(this).apply {
             divider = ColorDrawable(0x1F000000); dividerHeight = 1
-            setOnItemClickListener { _, _, i, _ -> editStep(steps[i].type, steps[i], steps.size) { replace(i, it) } }
+            setOnItemClickListener { _, _, i, _ -> openItem(steps[i].type, steps[i], i) }
             setOnItemLongClickListener { _, _, i, _ -> rowMenu(i); true }
             clipToPadding = false; setPadding(0, 0, 0, dp(96))
             adapter = object : BaseAdapter() {
@@ -172,6 +174,25 @@ class EditorActivity : Activity() {
         selected.retainAll(steps.indices.toSet())
         emptyHint.visibility = if (steps.isEmpty()) View.VISIBLE else View.GONE
         (list.adapter as BaseAdapter).notifyDataSetChanged()
+    }
+
+    /** Toque e deslizar têm a tela própria no formato do base; os demais tipos seguem no diálogo até migrarem. */
+    private fun openItem(type: Type, step: Step, index: Int) {
+        if (type == Type.TAP || type == Type.SWIPE) {
+            startActivityForResult(
+                android.content.Intent(this, ItemEditorActivity::class.java)
+                    .putExtra("step", step.toJson().toString()).putExtra("total", if (index >= 0) steps.size else steps.size + 1).putExtra("index", index), REQ_ITEM,
+            )
+        } else if (index >= 0) editStep(type, step, steps.size) { replace(index, it) }
+        else editStep(type, step, steps.size + 1) { steps = steps.afterInsert(steps.size, it); refresh() }
+    }
+
+    override fun onActivityResult(req: Int, res: Int, data: android.content.Intent?) {
+        super.onActivityResult(req, res, data)
+        if (req != REQ_ITEM || res != RESULT_OK || data == null) return
+        val st = runCatching { Step.fromJson(org.json.JSONObject(data.getStringExtra("step") ?: return)) }.getOrNull() ?: return
+        val i = data.getIntExtra("index", -1)
+        if (i in steps.indices) replace(i, st) else { steps = steps.afterInsert(steps.size, st); refresh() }
     }
 
     private fun replace(i: Int, s: Step) { steps = steps.toMutableList().also { it[i] = s }; refresh() }
@@ -296,7 +317,7 @@ class EditorActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(14), 0, dp(8), 0)
                 layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-                addView(label("${i + 1}. ${titles.getValue(s.type)}" + if (s.skip) " (pular)" else "", 19f, 0xFF607D8B.toInt()))
+                addView(label("${i + 1}. ${s.name.ifBlank { titles.getValue(s.type) }}" + if (s.skip) " (pular)" else "", 19f, 0xFF607D8B.toInt()))
                 addView(LinearLayout(this@EditorActivity).apply {
                     setPadding(0, dp(4), 0, 0)
                     addView(chip(if (vision || s.useImg) Ic.IMAGE_SEARCH else icons.getValue(s.type), secs(if (s.useImg) s.sms else s.ms)))
@@ -359,7 +380,7 @@ class EditorActivity : Activity() {
                 Type.TEXT -> Step(type, ms = 5000, cycle = 500)
                 Type.NUMBER -> Step(type, 100, 100, 400, 180, ms = 3000, cycle = 300)
             }
-            editStep(type, base, steps.size + 1) { steps = steps.afterInsert(steps.size, it); refresh() }
+            openItem(type, base, -1)
         }.show()
     }
 

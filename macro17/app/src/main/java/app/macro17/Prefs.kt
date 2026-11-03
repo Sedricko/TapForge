@@ -83,8 +83,11 @@ class Prefs(private val a: Activity) {
     }
 
     /** Página completa: barra verde + rolagem. [onNav] atende a seta ou o hambúrguer. */
+    lateinit var scrollView: ScrollView
+
     fun page(title: String, nav: Ic, onNav: () -> Unit, drawer: Drawer? = null): View {
         val scroll = ScrollView(a).apply {
+            scrollView = this
             addView(column)
             setOnApplyWindowInsetsListener { v, i -> v.setPadding(0, 0, 0, i.getInsets(WindowInsets.Type.navigationBars()).bottom); i }
         }

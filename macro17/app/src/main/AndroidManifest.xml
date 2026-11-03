@@ -36,6 +36,7 @@
         <activity android:name=".PermissionsActivity" android:exported="false" />
         <activity android:name=".BackupActivity" android:exported="false" />
         <activity android:name=".AboutActivity" android:exported="false" />
+        <activity android:name=".ItemEditorActivity" android:exported="false" />
         <activity android:name=".DiagActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
         <activity android:name=".ReaderActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
 

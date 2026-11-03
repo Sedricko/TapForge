@@ -1,0 +1,204 @@
+package app.macro17
+
+import android.app.Activity
+import android.app.AlertDialog
+import android.content.Intent
+import android.os.Bundle
+import android.text.InputType
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import org.json.JSONObject
+
+/**
+ * Tela de edição de um item de toque/deslizar no formato do app base (res/xml/pref_touch_pos_config.xml): nome, posição,
+ * duração, atraso, correspondência de imagem (área, taxa, velocidade, tempo, mover se falhar/achar), ação de toque
+ * (pular, clique duplo, desvio) e variação aleatória. Cada mudança refaz a tela, para as linhas dependentes mudarem de estado.
+ * Entrada: extras "step" (JSON), "total" (passos depois da edição) e "index" (-1 = item novo). Saída: "step" e "index".
+ */
+@Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+class ItemEditorActivity : Activity() {
+    private lateinit var s: Step
+    private var total = 1
+    private var index = -1
+    private var scrollY = 0
+    private var scroller: android.widget.ScrollView? = null
+
+    override fun onCreate(b: Bundle?) {
+        super.onCreate(b)
+        s = Step.fromJson(JSONObject(intent.getStringExtra("step") ?: "{}"))
+        total = intent.getIntExtra("total", 1); index = intent.getIntExtra("index", -1)
+        render()
+    }
+
+    override fun onBackPressed() = leave()
+
+    private fun render() {
+        scroller?.let { scrollY = it.scrollY }
+        val p = Prefs(this)
+        build(p)
+        setContentView(p.page("Editar item", Ic.BACK, { leave() }))
+        scroller = p.scrollView
+        p.scrollView.post { p.scrollView.scrollTo(0, scrollY) }
+    }
+
+    /** Volta salvando se o item é válido; senão mostra o motivo e deixa corrigir ou descartar. */
+    private fun leave() {
+        val err = s.validate(total)
+        if (err == null) {
+            setResult(RESULT_OK, Intent().putExtra("step", s.toJson().toString()).putExtra("index", index))
+            finish()
+        } else AlertDialog.Builder(this).setTitle("Item inválido").setMessage(err)
+            .setPositiveButton("Corrigir", null).setNegativeButton("Descartar") { _, _ -> finish() }.show()
+    }
+
+    // --- formatação --------------------------------------------------------------------------
+
+    private fun secs(ms: Int) = "%.1f s".format(ms / 1000.0)
+    private fun gotoLabel(n: Int) = if (n == 0) "Seguir para o próximo" else "Passo $n"
+    private val speeds = listOf("Muito rápido" to 50, "Rápido" to 200, "1 Seg" to 1000, "2 Seg" to 2000, "3 Seg" to 3000)
+
+    private fun kind() = when { s.type == Type.SWIPE -> "Deslizar"; s.ms >= 500 -> "Pressionar"; else -> "Tocar" }
+
+    // --- tela --------------------------------------------------------------------------------
+
+    private fun build(p: Prefs) {
+        val swipe = s.type == Type.SWIPE
+        p.valueRow("Nome", s.name.ifBlank { kind() }) { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
+
+        p.category(kind(), if (swipe) Ic.SWIPE else Ic.TAP)
+        p.valueRow("Posição do Toque", if (swipe) "${s.x1},${s.y1}  →  ${s.x2},${s.y2}" else "${s.x1},${s.y1}") { positionDialog() }
+        p.valueRow("Duração do Gesto", "${s.ms}ms") {
+            numDialog("Duração do Gesto (ms)", null, s.ms) { v -> s = s.copy(ms = v); render() }
+        }
+
+        p.category("Atraso", Ic.WAIT)
+        val delayOn = s.delay > 0 || s.rnd > 0
+        p.switchRow("Atraso", "Tocar/Deslizar será processado após o tempo de atraso.", delayOn) { on ->
+            s = if (on) s.copy(delay = if (s.delay > 0) s.delay else 1000) else s.copy(delay = 0, rnd = 0, rndMin = 0); render()
+        }
+        p.valueRow("Tempo de Atraso", secs(s.delay), delayOn) {
+            secDialog("Tempo de Atraso (segundos)", null, s.delay) { v -> s = s.copy(delay = v); render() }
+        }
+
+        p.category("Correspondência de Imagem", Ic.IMAGE_SEARCH)
+        val on = s.useImg
+        p.switchRow("Correspondência de Imagem", "Tocar/Deslizar será processado se a imagem corresponder.", on) { v ->
+            if (v && s.img.isEmpty()) { toast("Este item não tem imagem: grave-o pelo painel (REC)."); render() }
+            else { s = s.copy(useImg = v); render() }
+        }
+        val whole = listOf(s.ax1, s.ay1, s.ax2, s.ay2).all { it == 0 }
+        p.valueRow("Área de Pesquisa", if (whole) "Procura imagens em toda a tela." else "Procura imagens na área personalizada.", on) {
+            AlertDialog.Builder(this).setTitle("Área de Pesquisa")
+                .setSingleChoiceItems(arrayOf("Tela inteira", "Área personalizada"), if (whole) 0 else 1) { d, w ->
+                    s = if (w == 0) s.copy(ax1 = 0, ay1 = 0, ax2 = 0, ay2 = 0) else if (whole) s.copy(ax1 = 0, ay1 = 0, ax2 = 500, ay2 = 500) else s
+                    d.dismiss(); render()
+                }.setNegativeButton("Cancelar", null).show()
+        }
+        p.valueRow("Área Personalizada", "${s.ax1},${s.ay1},${s.ax2},${s.ay2}", on && !whole) {
+            fieldsDialog("Área Personalizada", null, listOf("X inicial", "Y inicial", "X final", "Y final"), listOf(s.ax1, s.ay1, s.ax2, s.ay2), signed = false) { v ->
+                s = s.copy(ax1 = v[0], ay1 = v[1], ax2 = v[2], ay2 = v[3]); render()
+            }
+        }
+        p.valueRow("Taxa de correspondência de imagem (%)", "${s.thr}%", on) {
+            numDialog("Taxa de correspondência de imagem (%)", "De 20 a 100. Quanto maior, mais parecida com a gravada a imagem precisa ser.", s.thr) { v -> s = s.copy(thr = v); render() }
+        }
+        p.valueRow("Velocidade de Pesquisa de Imagem", speeds.firstOrNull { it.second == s.cycle }?.first ?: "${s.cycle} ms", on) {
+            AlertDialog.Builder(this).setTitle("Velocidade de Pesquisa de Imagem")
+                .setMessage("Defina uma velocidade mais rápida para detectar imagens em mudança rápida.")
+                .setSingleChoiceItems(speeds.map { it.first }.toTypedArray(), speeds.indexOfFirst { it.second == s.cycle }) { d, w -> s = s.copy(cycle = speeds[w].second); d.dismiss(); render() }
+                .setNegativeButton("Cancelar", null).show()
+        }
+        p.valueRow("Tempo de Pesquisa", if (s.sms == 0) "Infinito" else secs(s.sms), on) {
+            secDialog(
+                "Tempo de Pesquisa (segundos)",
+                "Definir o tempo de pesquisa como 0 significa pesquisa infinita. Maior que 0, permite configurar para onde ir conforme o resultado da pesquisa. " +
+                    "Um tempo entre 0 e 1 segundo compara as imagens instantaneamente, usando quadros capturados anteriormente.",
+                s.sms,
+            ) { v -> s = if (v == 0) s.copy(sms = 0, goto = 0, fail = 0) else s.copy(sms = v); render() }
+        }
+        val jumps = on && s.sms > 0
+        p.valueRow("Mover em Caso de Falha", gotoLabel(s.fail), jumps) { gotoDialog("Mover em Caso de Falha", s.fail) { v -> s = s.copy(fail = v); render() } }
+        p.valueRow("Mover em Caso de Sucesso", gotoLabel(s.goto), jumps) { gotoDialog("Mover em Caso de Sucesso", s.goto) { v -> s = s.copy(goto = v); render() } }
+
+        p.category("Ação de Toque", Ic.TAP)
+        p.switchRow("Pular", "Tocar/Deslizar/Pressionar não funcionará. Usado para fins de atraso e comparação de imagens.", s.skip) { v -> s = s.copy(skip = v); render() }
+        p.switchRow("Clique Duplo", "Clica duas vezes no mesmo local.", s.dbl, enabled = !s.skip && s.type == Type.TAP) { v -> s = s.copy(dbl = v); render() }
+        p.valueRow("Desvio de Coordenadas", "X${"%+d".format(s.ox)}, Y${"%+d".format(s.oy)} px", on && !s.skip) {
+            fieldsDialog(
+                "Desvio de Coordenadas (px)",
+                "Esta função permite tocar num local diferente da posição da imagem. Defina o desvio de coordenadas para onde tocar a partir da posição da imagem encontrada pela pesquisa.",
+                listOf("X (negativo = esquerda)", "Y (negativo = acima)"), listOf(s.ox, s.oy), signed = true,
+            ) { v -> s = s.copy(ox = v[0], oy = v[1]); render() }
+        }
+
+        p.category("Variação aleatória", Ic.EYE_OFF)
+        p.valueRow("Coordenadas Aleatórias (Coordenadas ± Valor de Pixel Aleatório)", "${s.jitter} pixels") {
+            numDialog("Coordenadas Aleatórias (pixels)", "De 0 a 500. Cada gesto é deslocado por um valor sorteado dentro dessa margem.", s.jitter) { v -> s = s.copy(jitter = v); render() }
+        }
+        p.valueRow("Atraso Aleatório", if (s.rnd > 0) "${secs(s.rndMin)} a ${secs(s.rnd)}" else "Desligado", delayOn) {
+            fieldsDialog(
+                "Atraso Aleatório (segundos)",
+                "A ação será executada após o atraso aleatório especificado. O atraso acima será ignorado. Máximo 0 desliga.",
+                listOf("Mínimo (s)", "Máximo (s)"), listOf(s.rndMin, s.rnd), signed = false, decimal = true,
+            ) { v -> s = if (v[1] == 0) s.copy(rnd = 0, rndMin = 0) else s.copy(rndMin = v[0], rnd = v[1]); render() }
+        }
+    }
+
+    // --- diálogos ----------------------------------------------------------------------------
+
+    private fun box(hint: String, init: String, type: Int) = EditText(this).apply { this.hint = hint; inputType = type; setText(init); setSelectAllOnFocus(true); setSingleLine() }
+
+    private fun column(msg: String?, vararg views: android.view.View) = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(12), dp(24), dp(4))
+        msg?.let { addView(TextView(this@ItemEditorActivity).apply { text = it; textSize = 14f; setPadding(0, 0, 0, dp(8)) }) }
+        views.forEach { addView(it, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)) }
+    }
+
+    private fun textDialog(title: String, init: String, ok: (String) -> Unit) {
+        val et = box(title, init, InputType.TYPE_CLASS_TEXT)
+        AlertDialog.Builder(this).setTitle(title).setView(column(null, et)).setPositiveButton("OK") { _, _ -> ok(et.text.toString()) }.setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun numDialog(title: String, msg: String?, init: Int, ok: (Int) -> Unit) {
+        val et = box(title, init.toString(), InputType.TYPE_CLASS_NUMBER)
+        AlertDialog.Builder(this).setTitle(title).setView(column(msg, et))
+            .setPositiveButton("OK") { _, _ -> et.text.toString().toIntOrNull()?.let(ok) ?: toast("Número inválido") }.setNegativeButton("Cancelar", null).show()
+    }
+
+    /** Segundos com casas decimais na tela, milissegundos no modelo. */
+    private fun secDialog(title: String, msg: String?, initMs: Int, ok: (Int) -> Unit) {
+        val et = box(title, (initMs / 1000.0).toString(), InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
+        AlertDialog.Builder(this).setTitle(title).setView(column(msg, et))
+            .setPositiveButton("OK") { _, _ -> et.text.toString().replace(',', '.').toDoubleOrNull()?.let { ok(Math.round(it * 1000).toInt()) } ?: toast("Número inválido") }
+            .setNegativeButton("Cancelar", null).show()
+    }
+
+    /** Vários números de uma vez. Com [decimal], os valores aparecem em segundos e voltam em milissegundos. */
+    private fun fieldsDialog(title: String, msg: String?, labels: List<String>, init: List<Int>, signed: Boolean, decimal: Boolean = false, ok: (List<Int>) -> Unit) {
+        val kind = InputType.TYPE_CLASS_NUMBER or (if (signed) InputType.TYPE_NUMBER_FLAG_SIGNED else 0) or (if (decimal) InputType.TYPE_NUMBER_FLAG_DECIMAL else 0)
+        val ets = labels.mapIndexed { i, l -> box(l, if (decimal) (init[i] / 1000.0).toString() else init[i].toString(), kind) }
+        AlertDialog.Builder(this).setTitle(title).setView(column(msg, *ets.toTypedArray()))
+            .setPositiveButton("OK") { _, _ ->
+                val v = ets.map { e -> e.text.toString().replace(',', '.').toDoubleOrNull()?.let { if (decimal) Math.round(it * 1000).toInt() else it.toInt() } }
+                if (v.any { it == null }) toast("Número inválido") else ok(v.map { it!! })
+            }.setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun positionDialog() {
+        if (s.type == Type.SWIPE) fieldsDialog("Posição do Toque", null, listOf("X inicial", "Y inicial", "X final", "Y final"), listOf(s.x1, s.y1, s.x2, s.y2), signed = false) { v ->
+            s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]); render()
+        } else fieldsDialog("Posição do Toque", null, listOf("X", "Y"), listOf(s.x1, s.y1), signed = false) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[0], y2 = v[1]); render() }
+    }
+
+    /** 0 = seguir para o próximo; 1..total = ir para esse passo. */
+    private fun gotoDialog(title: String, current: Int, ok: (Int) -> Unit) {
+        val items = Array(total + 1) { if (it == 0) "Seguir para o próximo" else "Passo $it" }
+        AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(items, current.coerceIn(0, total)) { d, w -> ok(w); d.dismiss() }.setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()
+}
