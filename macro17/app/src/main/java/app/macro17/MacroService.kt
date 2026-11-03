@@ -115,7 +115,7 @@ class MacroService : AccessibilityService() {
         ui.post { bubble?.visibility = View.VISIBLE; openPanel(true) }
     }
 
-    /** PARAR da Home: fecha o painel (sobra só o orbe). */
+    /** PARAR da Home ou Fechar: fecha o painel e some com a janela. */
     fun hideControls() {
         Diag.d("serviço", "painel fechado pela Home")
         ui.post { stopRecording(save = false); openPanel(false) }
@@ -275,7 +275,7 @@ class MacroService : AccessibilityService() {
     private fun openPanel(open: Boolean) {
         if (!::panel.isInitialized) return
         panel.visibility = if (open) View.VISIBLE else View.GONE
-        orbBtn.visibility = if (open) View.GONE else View.VISIBLE
+        orbBtn.visibility = View.GONE // o base não tem orbe: PARAR/Fechar some com tudo
         bubble?.let { runCatching { wm.updateViewLayout(it, bubbleLp) } }
     }
 
@@ -319,7 +319,7 @@ class MacroService : AccessibilityService() {
             })
             addView(pbtn(Ic.GEAR, "Configurações") { startActivity(Intent(this@MacroService, OptionsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
             addView(pbtn(Ic.INFO, "Registro ao vivo") { toggleLog() })
-            addView(pbtn(Ic.CANCEL, "Fechar o painel") { openPanel(false) })
+            addView(pbtn(Ic.CANCEL, "Fechar o painel") { hideControls() })
         }
         panel = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
@@ -329,7 +329,7 @@ class MacroService : AccessibilityService() {
             addView(row1); addView(row2)
         }
         fillRow1()
-        orbBtn = circleBtn(Ic.TAP, C.BLUE, 48, "Abrir o painel de controle") { openPanel(true) }
+        orbBtn = circleBtn(Ic.TAP, C.BLUE, 48, "Abrir o painel de controle") { openPanel(true) }.also { it.visibility = View.GONE }
         dragger(orbBtn)
 
         val frame = FrameLayout(this).apply { addView(orbBtn); addView(panel) }
