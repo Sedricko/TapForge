@@ -87,12 +87,12 @@ class Engine(
             }, null)
             if (!accepted) Diag.e("gesto", "dispatchGesture recusou")
             check(accepted) { "gesto rejeitado (serviço sem permissão de gestos?)" }
-            check(done.await(ms + 3000L, TimeUnit.MILLISECONDS)) { "gesto sem resposta do sistema" }
-            if (!ok) Diag.e("gesto", "gesto cancelado pelo sistema")
-            check(ok) { "gesto cancelado (tela bloqueada ou app protegido)" }
+            // Como no base: gesto cancelado ou sem resposta não derruba a macro; só a recusa do despacho é erro.
+            if (!done.await(ms + 3000L, TimeUnit.MILLISECONDS)) Diag.e("gesto", "gesto sem resposta do sistema")
+            else if (!ok) Diag.e("gesto", "gesto cancelado pelo sistema")
         }
 
-        override fun key(code: Int) { check(svc.performGlobalAction(code)) { "tecla recusada pelo sistema" } }
+        override fun key(code: Int) { if (!svc.performGlobalAction(code)) Diag.e("tecla", "ação global $code recusada pelo sistema") }
 
         override fun alert(vib: Boolean, snd: Boolean) {
             runCatching {
@@ -222,7 +222,7 @@ class Engine(
         override fun log(line: String) {
             Diag.d("aviso", line)
             if (line.contains(" → Passo ")) { val t = now(); if (t - lastJump < 1000) return; lastJump = t }
-            say(line)
+            if (store.debugOverlay) say(line)
         }
     }
 }

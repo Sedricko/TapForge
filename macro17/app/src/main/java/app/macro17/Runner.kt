@@ -153,9 +153,9 @@ class Runner(private val p: Ports) {
                     m.validate()?.let { return Outcome.Failed("macro “${m.name}” inválida: $it") }
                     if (m.steps.isNotEmpty()) {
                         if (s.ret) {
-                            if (stack.size >= MAX_DEPTH) return Outcome.Failed("chamadas aninhadas demais (máximo $MAX_DEPTH)")
+                            if (stack.size >= MAX_DEPTH) return Outcome.Failed("chamadas aninhadas demais (máximo $MAX_DEPTH)") // desvio consciente do base (que descarta o mais antigo): recursão infinita travaria a macro
                             f.resume = true
-                        } else stack.removeAt(stack.lastIndex)
+                        } else stack.clear()
                         stack.add(Frame(m))
                         continue
                     }

@@ -439,9 +439,9 @@ class MacroService : AccessibilityService() {
         toast(if (base != null) "Gravando em “${base.name}”: os itens entram no fim. Arraste o marcador e toque em +." else "Gravando: arraste o marcador e toque em +. Toque no tipo para trocar.")
     }
 
-    /** Atraso medido, como no base: tempo desde o último "+" menos a duração do item, em passos de 0,1 s. */
-    private fun measuredDelay(pressedAt: Long, dur: Int): Int =
-        ((((pressedAt - recLast - dur).coerceAtLeast(0) + 50) / 100) * 100).toInt().coerceAtMost(MAX_MS)
+    /** Atraso medido, como no base: tempo desde o último "+" menos 5 ms fixos, em passos de 0,1 s. */
+    private fun measuredDelay(pressedAt: Long, @Suppress("UNUSED_PARAMETER") dur: Int): Int =
+        ((((pressedAt - recLast - 5).coerceAtLeast(0) + 50) / 100) * 100).toInt().coerceAtMost(MAX_MS)
 
     private fun addItem() {
         if (!recording || adding) return
@@ -495,8 +495,8 @@ class MacroService : AccessibilityService() {
                         bmp?.let { b -> cropAround(b, px, py, THUMB_PX)?.let { c -> thumb = store.newTemplateId(); store.saveTemplate(thumb, c); c.recycle() } }
                     }
                     st = base.copy(delay = measuredDelay(pressedAt, base.ms), img = thumb,
-                        // Como no base: o item gravado só age quando a imagem de 80 px é achada (busca de 5 s, a cada 1 s, tela toda).
-                        useImg = thumb.isNotEmpty(), sms = 5000, cycle = 1000, thr = 95)
+                        // Como no base: a miniatura de 80 px só ilustra a lista; a busca por imagem fica desligada no item gravado.
+                        useImg = false)
                     perform(st) // a ação roda no ponto; os marcadores voltam depois da duração
                     restoreAfter = st.ms + 100L
                 }

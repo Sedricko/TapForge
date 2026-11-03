@@ -143,7 +143,7 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
         val a = p1 ?: return null
         val (x1, y1) = center(a)
         return when (mode) {
-            Mode.TAP -> Step(Type.TAP, x1, y1, ms = 50, delay = delay)
+            Mode.TAP -> Step(Type.TAP, x1, y1, ms = 5, delay = delay)
             Mode.PRESS -> Step(Type.TAP, x1, y1, ms = 1000, delay = delay)    // pressionar = toque longo, 1 s como no base
             Mode.SWIPE -> p2?.let { val (x2, y2) = center(it); Step(Type.SWIPE, x1, y1, x2, y2, ms = 1000, delay = delay) }
             Mode.IMAGE -> null
