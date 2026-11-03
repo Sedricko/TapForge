@@ -11,7 +11,7 @@ const val KEY_SCREENSHOT = 9   // GLOBAL_ACTION_TAKE_SCREENSHOT
 const val MAX_MS = 60_000      // getMaxGestureDuration() do sistema é 60 s
 const val MAX_COORD = 20_000
 const val MAX_LOOPS = 1_000_000
-const val MAX_CASES = 5        // o app de referência aceita 10; 5 cobre o uso e cabe na tela do editor
+const val MAX_CASES = 10       // como no app de referência
 const val MAX_COUNTERS = 10
 
 /** Caso de um contador: ao alcançar [n] execuções, salta para o passo [to] (1-based; 0 = seguir). */

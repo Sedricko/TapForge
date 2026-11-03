@@ -232,9 +232,15 @@ class MacroService : AccessibilityService() {
                 setOnClickListener { recorder.cycle(); fillRow1() }
             })
         } else {
-            val pb = pbtn(if (engine.running) Ic.STOP else Ic.PLAY, "Executar ou parar a macro") { togglePlay() }
+            val pb = pbtn(if (playing) Ic.STOP else Ic.PLAY, "Executar ou parar a macro") { togglePlay() }
             playBtn = pb
             row1.addView(pb)
+            if (playing) { // reproduzindo, como no base: só Parar e Pausar/Retomar
+                row1.addView(pbtn(if (engine.paused) Ic.PLAY else Ic.PAUSE, if (engine.paused) "Retomar" else "Pausar") {
+                    if (engine.paused) ui.postDelayed({ engine.paused = false; fillRow1() }, 500) else { engine.paused = true; fillRow1() }
+                })
+                return
+            }
             // "Modo de Reprodução": só o ▶. "Visualização Simples": sem enquadrar e sem a segunda linha.
             if (!store.playMode) row1.addView(pbtn(Ic.REC, "Gravar") { startRecording() })
             if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.FRAME, "Capturar imagem para a macro") { captureImage() })
@@ -248,7 +254,8 @@ class MacroService : AccessibilityService() {
     }
 
     /** Atualiza o ▶/■ do painel; chamável de qualquer thread. */
-    private fun setPlayIcon(running: Boolean) = ui.post { playBtn?.setImageDrawable(Icon(if (running) Ic.STOP else Ic.PLAY, teal)) }
+    private var playing = false // estado mostrado no painel (engine.running ainda é true dentro do callback de fim)
+    private fun setPlayIcon(running: Boolean) = ui.post { playing = running; if (::row1.isInitialized && !recording) fillRow1() else playBtn?.setImageDrawable(Icon(if (running) Ic.STOP else Ic.PLAY, teal)) }
 
     private fun openPanel(open: Boolean) {
         if (!::panel.isInitialized) return

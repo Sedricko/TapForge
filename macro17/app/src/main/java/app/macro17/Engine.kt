@@ -32,9 +32,12 @@ class Engine(
 ) {
     @Volatile private var thread: Thread? = null
     val running get() = thread?.isAlive == true
+    /** Pausa entre os passos (o Runner dorme ao menos 1 ms por passo); parar a macro também solta a pausa. */
+    @Volatile var paused = false
 
     @Synchronized fun start(m: Macro): Boolean {
         if (running) return false
+        paused = false
         thread = Thread({ run(m) }, "macro17-engine").also { it.start() }
         return true
     }
@@ -67,7 +70,7 @@ class Engine(
         override val width get() = bounds.width()
         override val height get() = bounds.height()
 
-        override fun sleep(ms: Long) = Thread.sleep(ms)
+        override fun sleep(ms: Long) { Thread.sleep(ms); while (paused) Thread.sleep(50) }
 
         override fun gesture(strokes: List<Stroke>, ms: Int) {
             val b = GestureDescription.Builder()
