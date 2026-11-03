@@ -136,13 +136,22 @@ class AlarmEditActivity : Activity() {
             inputType = InputType.TYPE_CLASS_NUMBER; hint = "Tempo de Atividade do Script (min)"; setText((old?.uptime ?: 10).toString())
         }
         macroTxt = label("", 16f, B.TEXT); timeTxt = label("", 16f, B.TEXT)
-        fun pick(title: String, txt: android.widget.TextView, ic: Ic, click: () -> Unit) = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(8))
-            background = rounded(Color.WHITE, 4, 0xFF9E9E9E.toInt())
-            addView(label(title, 12f, B.TEXT2)); addView(txt)
-            setOnClickListener { click() }
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(12) }
+        /** Caixa de 60dp com borda cinza, rótulo flutuante sobre a borda e botão verde 36x48 à direita (como no base). */
+        fun outlined(title: String, content: android.view.View, ic: Ic?, click: (() -> Unit)?) = FrameLayout(this).apply {
+            val box = LinearLayout(this@AlarmEditActivity).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                background = rounded(Color.WHITE, 8, 0xFFBBBBBB.toInt())
+                setPadding(dp(12), 0, 0, 0)
+                addView(content, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+                if (ic != null) addView(glyph(ic, Color.WHITE, 24).apply { background = rounded(B.PRIMARY, 4); setPadding(dp(6), dp(12), dp(6), dp(12)) }, LinearLayout.LayoutParams(dp(36), dp(48)).also { it.marginEnd = dp(6) })
+                if (click != null) setOnClickListener { click() }
+            }
+            addView(box, FrameLayout.LayoutParams(MATCH_PARENT, dp(60)).also { it.topMargin = dp(8) })
+            addView(label(title, 12f, 0xFF616161.toInt()).apply { setBackgroundColor(Color.WHITE); setPadding(dp(4), 0, dp(4), 0) }, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.marginStart = dp(10) })
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(10) }
         }
+        macroTxt.textSize = 18f; timeTxt.textSize = 18f
+        up.background = null; up.textSize = 18f; up.hint = null
         val save = label("Salvar", 16f, Color.WHITE, bold = true).apply {
             gravity = Gravity.CENTER; background = rounded(B.PRIMARY, 28)
             setOnClickListener {
@@ -157,26 +166,34 @@ class AlarmEditActivity : Activity() {
                 finish()
             }
         }
-        val cancel = label("Cancelar", 16f, B.PRIMARY, bold = true).apply { gravity = Gravity.CENTER; setOnClickListener { finish() } }
-        setContentView(ScrollView(this).apply {
-            setBackgroundColor(B.BG)
-            setOnApplyWindowInsetsListener { v, i -> val s = i.getInsets(WindowInsets.Type.systemBars()); v.setPadding(0, s.top, 0, s.bottom); i }
-            addView(card().apply {
-                setPadding(dp(16), dp(16), dp(16), dp(16)); background = rounded(Color.WHITE, 20); elevation = dp(4).toFloat()
-                (layoutParams as LinearLayout.LayoutParams).setMargins(dp(16), dp(16), dp(16), dp(16))
-                addView(label(if (old == null) "Novo agendamento" else "Editar agendamento", 20f, B.TEXT, bold = true))
-                addView(pick("Arquivo de Macro", macroTxt, Ic.FOLDER) {
-                    val ms = store.list()
-                    if (ms.isEmpty()) Toast.makeText(context, "Nenhum arquivo de macro", Toast.LENGTH_SHORT).show()
-                    else AlertDialog.Builder(context).setTitle("Arquivos de Macro").setItems(ms.map { it.name }.toTypedArray()) { _, w -> macroId = ms[w].id; refresh() }.show()
+        val cancel = label("Cancelar", 16f, Color.WHITE, bold = true).apply { gravity = Gravity.CENTER; background = rounded(B.PRIMARY, 28); setOnClickListener { finish() } }
+        setContentView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(0xFFF5F5F5.toInt())
+            addView(appBar("Agendamento", Ic.BACK, { finish() }))
+            addView(ScrollView(this@AlarmEditActivity).apply {
+                setOnApplyWindowInsetsListener { v, i -> v.setPadding(0, 0, 0, i.getInsets(WindowInsets.Type.navigationBars()).bottom); i }
+                addView(LinearLayout(this@AlarmEditActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(card().apply {
+                        setPadding(dp(16), dp(8), dp(16), dp(16)); background = rounded(Color.WHITE, 20); elevation = dp(4).toFloat()
+                        (layoutParams as LinearLayout.LayoutParams).setMargins(dp(12), dp(14), dp(12), dp(14))
+                        addView(outlined("Arquivo de Macro", macroTxt, Ic.FOLDER) {
+                            val ms = store.list()
+                            if (ms.isEmpty()) Toast.makeText(context, "Nenhum arquivo de macro", Toast.LENGTH_SHORT).show()
+                            else AlertDialog.Builder(context).setTitle("Arquivos de Macro").setItems(ms.map { it.name }.toTypedArray()) { _, w -> macroId = ms[w].id; refresh() }.show()
+                        })
+                        addView(outlined("Hora de Início", timeTxt, Ic.CLOCK) {
+                            TimePickerDialog(context, { _, h, mi -> start = h * 60 + mi; refresh() }, start / 60, start % 60, true).show()
+                        })
+                        addView(outlined("Tempo de Atividade do Script", up, null, null))
+                    })
+                    addView(LinearLayout(this@AlarmEditActivity).apply {
+                        addView(save, LinearLayout.LayoutParams(0, dp(56), 1f).also { it.setMargins(dp(5), 0, dp(5), 0) })
+                        addView(cancel, LinearLayout.LayoutParams(0, dp(56), 1f).also { it.setMargins(dp(5), 0, dp(5), 0) })
+                    }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(10), dp(20), dp(10), dp(20)) })
                 })
-                addView(pick("Hora de Início", timeTxt, Ic.CLOCK) {
-                    TimePickerDialog(context, { _, h, mi -> start = h * 60 + mi; refresh() }, start / 60, start % 60, true).show()
-                })
-                addView(up, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(12) })
-                addView(save, LinearLayout.LayoutParams(MATCH_PARENT, dp(56)).also { it.topMargin = dp(16) })
-                addView(cancel, LinearLayout.LayoutParams(MATCH_PARENT, dp(56)))
-            })
+            }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
         })
         refresh()
     }
