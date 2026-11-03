@@ -25,6 +25,10 @@ class Store(ctx: Context) {
     var thumbPx: Int
         get() = prefs.getInt("thumbPx", 80)
         set(v) = prefs.edit().putInt("thumbPx", v).apply()
+    /** "Mostrar Toques": ponto na tela onde a macro toca (padrão ligado, como no base). */
+    var showTouches: Boolean
+        get() = prefs.getBoolean("showTouches", true)
+        set(v) = prefs.edit().putBoolean("showTouches", v).apply()
     var keepOn: Boolean
         get() = prefs.getBoolean("keepOn", false)
         set(v) = prefs.edit().putBoolean("keepOn", v).apply()

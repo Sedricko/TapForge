@@ -126,6 +126,21 @@ class MacroService : AccessibilityService() {
     /** Abre ou fecha o painel de registro ao vivo. Chamável de qualquer thread. */
     fun toggleLog() { ui.post { if (logPanel.shown) logPanel.hide() else logPanel.show() } }
 
+    /** "Mostrar Toques": um ponto claro sob cada dedo durante o gesto; janela sem toque, some logo depois. */
+    fun showTouches(points: List<Pair<Int, Int>>, ms: Int) {
+        if (!store.showTouches) return
+        ui.post {
+            val size = dp(36)
+            points.take(4).forEach { (x, y) ->
+                val v = View(this).apply { background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFFD5DDFF.toInt()) }; alpha = 0.8f }
+                val lp = WindowManager.LayoutParams(size, size, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT).apply { gravity = Gravity.TOP or Gravity.START; this.x = x - size / 2; this.y = y - size / 2 }
+                runCatching { wm.addView(v, lp) }.onSuccess { ui.postDelayed({ runCatching { wm.removeView(v) } }, ms + 120L) }
+            }
+        }
+    }
+
     fun stopMacro() { Diag.d("serviço", "parar macro pedido"); engine.stop() }
 
     fun toast(msg: String) { ui.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() } }

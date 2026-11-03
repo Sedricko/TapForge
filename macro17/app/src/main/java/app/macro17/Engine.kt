@@ -81,6 +81,7 @@ class Engine(
                 }
                 b.addStroke(GestureDescription.StrokeDescription(path, 0, ms.toLong()))
             }
+            (svc as? MacroService)?.showTouches(strokes.map { it.x1 to it.y1 }, ms)
             val done = CountDownLatch(1)
             var ok = false // escrito na thread principal antes do countDown; lido depois do await
             Diag.d("gesto", strokes.joinToString(" | ") { "${it.x1},${it.y1}>${it.x2},${it.y2}" } + " @${ms}ms")

@@ -37,7 +37,7 @@ class OptionsActivity : Activity() {
         }
         p.switchRow("Parar Reprodução com Tecla de Volume", "Qualquer tecla de volume, ao soltar, para a macro em execução.", store.stopVolume) { store.stopVolume = it }
         p.switchRow("Iniciar macro com tecla de volume.", "Com o app ocioso, soltar a tecla de volume inicia a macro selecionada.", store.startVolume) { store.startVolume = it }
-        p.switchRow("Mostrar Toques", "Mostrar feedback visual para reproduções (indisponível)", false, enabled = false)
+        p.switchRow("Mostrar Toques", "Mostrar feedback visual para reproduções", store.showTouches) { store.showTouches = it }
         p.switchRow("Manter Tela Ligada", "A tela permanecerá ligada enquanto o Macro17 estiver em execução.", store.keepOn) { store.keepOn = it }
         p.switchRow("Depurar", "Exibir informações de depuração na tela: abre o registro ao vivo ao iniciar uma macro.", store.debugOverlay) { store.debugOverlay = it }
         p.switchRow("Alarme", "Um alarme soará quando a macro terminar.", store.endAlarm) { store.endAlarm = it }
