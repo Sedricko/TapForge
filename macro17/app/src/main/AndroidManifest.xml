@@ -15,6 +15,9 @@
     <!-- Mesmas permissões de rede do app base (acesso à rede, estado da rede e dispositivos da rede local). O Macro17 não envia nada sozinho. -->
     <!-- "Exibir sobre outros apps" (sobreposição): o app base pede; o Macro17 desenha o painel como janela de acessibilidade e não depende dela. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Declaradas só para a lista de permissões ficar igual à do app base (versão por assinatura do Google Play); o Macro17 não as usa. -->
+    <uses-permission android:name="com.android.vending.CHECK_LICENSE" />
+    <uses-permission android:name="com.android.vending.BILLING" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
