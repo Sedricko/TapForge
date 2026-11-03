@@ -18,7 +18,7 @@ class AccessibilityAgreementActivity : Activity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         setFinishOnTouchOutside(false)
-        val agree = CheckBox(this).apply { text = "Concordo com o uso da Acessibilidade."; textSize = 16f; setTextColor(Color.BLACK) }
+        val agree = CheckBox(this).apply { text = "Eu concordo com o uso da Acessibilidade."; textSize = 16f; setTextColor(Color.BLACK) }
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
             setPadding(dp(16), dp(16), dp(16), dp(16))

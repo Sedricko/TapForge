@@ -45,6 +45,7 @@ class OptionsActivity : Activity() {
         p.switchRow("Monitoramento contínuo da tela", "Mantém a captura de tela em ociosidade para reduzir o atraso de inicialização. (indisponível: o Macro17 captura sob demanda)", false, enabled = false)
         battery = p.switchRow("Desativar otimização de bateria", "Permita o uso em segundo plano sem restrições para uma operação estável.", ignoringBattery()) {
             startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            battery?.isChecked = ignoringBattery() // o toque não decide: o switch reflete o estado real (também relido no onResume)
         }
 
         p.category("Janela Pop-up")

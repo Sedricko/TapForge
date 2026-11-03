@@ -53,7 +53,7 @@ class AlarmListActivity : Activity() {
             setOnClickListener { startActivity(Intent(this@AlarmListActivity, AlarmEditActivity::class.java)) }
         }
         setContentView(FrameLayout(this).apply {
-            setBackgroundColor(B.BG)
+            setBackgroundColor(0xFFF5F5F5.toInt())
             addView(LinearLayout(this@AlarmListActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(appBar("Agendamento", Ic.MENU, { drawer.open() }))
@@ -62,7 +62,7 @@ class AlarmListActivity : Activity() {
                     setOnApplyWindowInsetsListener { v, i -> v.setPadding(0, 0, 0, i.getInsets(WindowInsets.Type.navigationBars()).bottom); i }
                 }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
             }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
-            addView(fab, FrameLayout.LayoutParams(dp(56), dp(56), Gravity.END or Gravity.BOTTOM).also { it.setMargins(0, 0, dp(16), dp(32)) })
+            addView(fab, FrameLayout.LayoutParams(dp(56), dp(56), Gravity.END or Gravity.BOTTOM).also { it.setMargins(0, 0, dp(16), dp(16)) })
             drawer.attach(this)
         })
     }
@@ -100,7 +100,7 @@ class AlarmListActivity : Activity() {
                     isChecked = a.enabled
                     setOnCheckedChangeListener { _, on ->
                         val upd = all.map { if (it.id == a.id) it.copy(enabled = on) else it }
-                        if (on && Alarms.conflict(a, all)) { Toast.makeText(context, "Este horário se sobrepõe a outro. Ajuste a hora para ativá-lo.", Toast.LENGTH_LONG).show(); isChecked = false; return@setOnCheckedChangeListener }
+                        if (on && Alarms.conflict(a, all)) { Toast.makeText(context, "Este cronograma se sobrepõe a outro. Ajuste o horário para ativá-lo.", Toast.LENGTH_LONG).show(); isChecked = false; return@setOnCheckedChangeListener }
                         store.saveAlarms(upd); if (!Alarms.rearm(context)) permissionDialog(); render()
                     }
                 })

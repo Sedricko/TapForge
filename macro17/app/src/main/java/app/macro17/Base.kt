@@ -59,6 +59,7 @@ fun Context.bigButton(ic: Ic, text: String, click: () -> Unit): View = FrameLayo
     elevation = dp(2).toFloat()
     addView(glyph(ic, B.PRIMARY, 25), FrameLayout.LayoutParams(dp(25), dp(25), Gravity.START or Gravity.CENTER_VERTICAL).also { it.marginStart = dp(60) })
     addView(label(text.uppercase(), 20f, B.BLUE, bold = true), FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER).also { it.topMargin = dp(12); it.bottomMargin = dp(12) })
+    minimumHeight = dp(49)
     layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(5), dp(4), dp(5), dp(4)) }
     setOnClickListener { click() }
 }
@@ -66,7 +67,7 @@ fun Context.bigButton(ic: Ic, text: String, click: () -> Unit): View = FrameLayo
 /** Menu lateral: painel de 280dp sobre um véu. [items] = (ícone, texto, ação); o primeiro é a tela atual. */
 class Drawer(private val a: Activity, private val items: List<Triple<Ic, String, () -> Unit>>, private val selected: Int = 0) {
     private val panelW = a.dp(280)
-    private val scrim = View(a).apply { setBackgroundColor(0x66000000); visibility = View.GONE; setOnClickListener { close() } }
+    private val scrim = View(a).apply { setBackgroundColor(0x99000000.toInt()); visibility = View.GONE; setOnClickListener { close() } }
     private val panel = LinearLayout(a).apply {
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(Color.WHITE); elevation = a.dp(16).toFloat(); visibility = View.GONE

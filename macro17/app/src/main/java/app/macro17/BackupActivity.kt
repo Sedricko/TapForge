@@ -34,10 +34,8 @@ class BackupActivity : Activity() {
             })
             addView(bigText("Backup de Dados") { chooseMacros() })
             addView(bigText("Restaurar Dados") {
-                AlertDialog.Builder(this@BackupActivity).setTitle("Restaurar dados")
-                    .setMessage("Macros e imagens do backup substituem as que têm o mesmo identificador. Arquivos inválidos são ignorados. Continuar?")
-                    .setPositiveButton("Escolher arquivo") { _, _ -> startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), LOAD) }
-                    .setNegativeButton("Cancelar", null).show()
+                // Como no base: primeiro o seletor (application/zip); o aviso vem depois de escolher o arquivo.
+                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip"), LOAD)
             })
         }
         val scroll = ScrollView(this).apply {
@@ -97,6 +95,16 @@ class BackupActivity : Activity() {
         super.onActivityResult(req, res, data)
         val uri = data?.data ?: return
         if (res != RESULT_OK) return
+        if (req == LOAD) {
+            AlertDialog.Builder(this).setTitle("Aviso!")
+                .setMessage("Sobrescreve ou substitui arquivos existentes. Os dados da macro podem ser perdidos.")
+                .setPositiveButton("Continuar") { _, _ -> runBackup(req, uri) }.setNegativeButton("Cancelar", null).show()
+            return
+        }
+        runBackup(req, uri)
+    }
+
+    private fun runBackup(req: Int, uri: android.net.Uri) {
         Toast.makeText(this, if (req == SAVE) "Gerando o backup…" else "Restaurando…", Toast.LENGTH_SHORT).show()
         Thread({
             val msg = try {
