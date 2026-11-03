@@ -244,7 +244,7 @@ class EditorActivity : Activity() {
 
     private fun toggleSkip() {
         val idx = needSelection() ?: return
-        steps = steps.mapIndexed { i, s -> if (i in idx) s.copy(skip = !s.skip) else s }
+        steps = steps.mapIndexed { i, s -> if (i in idx) s.copy(off = !s.off) else s }
         refresh()
     }
 
@@ -310,7 +310,7 @@ class EditorActivity : Activity() {
         return LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(8), dp(12), dp(8))
-            alpha = if (s.skip) 0.45f else 1f
+            alpha = if (s.off) 0.4f else if (s.skip) 0.7f else 1f
             addView(CheckBox(this@EditorActivity).apply {
                 isChecked = i in selected; buttonTintList = ColorStateList.valueOf(B.TEXT2)
                 setOnCheckedChangeListener { _, on -> if (on) selected.add(i) else selected.remove(i) }

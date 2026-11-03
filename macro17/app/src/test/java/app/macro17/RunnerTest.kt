@@ -68,6 +68,18 @@ class RunnerTest {
         assertEquals(listOf("g:1,100>1,100@10", "g:2,100>2,100@10", "g:1,100>1,100@10", "g:2,100>2,100@10"), f.events)
     }
 
+    @Test fun disabledItemIsPassedWithoutDelayOrAction() {
+        val (o, f) = run(macro(tap(1), tap(2, delay = 500).copy(off = true), tap(3)))
+        assertTrue(o is Outcome.Done)
+        assertEquals(listOf("g:1,100>1,100@10", "g:3,100>3,100@10"), f.events)
+        assertTrue(f.sleeps.none { it == 500L })
+    }
+
+    @Test fun disabledFlagSurvivesJson() {
+        val m = macro(tap(1).copy(off = true))
+        assertTrue(Macro.fromJson(m.toJson(), "m").steps[0].off)
+    }
+
     @Test fun delayRunsBeforeAction() {
         val (_, f) = run(macro(tap(1, delay = 500)))
         assertEquals(500L, f.sleeps.first())   // o atraso vem antes do gesto

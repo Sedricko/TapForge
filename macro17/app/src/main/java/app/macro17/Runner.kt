@@ -83,6 +83,7 @@ class Runner(private val p: Ports) {
             val f = stack[stack.lastIndex]
             if (f.resume) { f.resume = false; advance(stack, f, f.pc + 1); continue }
             val s = f.macro.steps[f.pc]
+            if (s.off) { advance(stack, f, f.pc + 1); continue }
             val wait = delayOf(s) // uma vez só: delayOf sorteia quando o atraso é aleatório, e o rastro tem de mostrar o valor usado
             p.trace("passo ${f.pc + 1}/${f.macro.steps.size} ${s.type}" + (if (s.skip) " (pular)" else "") + " atraso=${wait}ms")
 
