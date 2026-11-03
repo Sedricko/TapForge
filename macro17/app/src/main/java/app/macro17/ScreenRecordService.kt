@@ -50,7 +50,7 @@ class ScreenRecordService : Service() {
         try {
             startForeground(1, n, type)
             val data = intent.getParcelableExtra<Intent>("data")!!
-            val mp = getSystemService(MediaProjectionManager::class.java).getMediaProjection(intent.getIntExtra("code", 0), data)
+            val mp = getSystemService(MediaProjectionManager::class.java).getMediaProjection(intent.getIntExtra("code", 0), data)!!
             projection = mp
             mp.registerCallback(object : MediaProjection.Callback() { override fun onStop() { finish() } }, null)
             val m = resources.displayMetrics
