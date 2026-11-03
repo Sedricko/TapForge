@@ -24,6 +24,9 @@ class PanelSettingsActivity : Activity() {
         render()
     }
 
+    // Aberta pelo painel (fora do app): não pode ficar por cima de outras telas depois de fechada.
+    override fun onStop() { super.onStop(); if (!isChangingConfigurations) finish() }
+
     private fun row(title: String, value: String, enabled: Boolean = true, click: (() -> Unit)? = null) {
         col.addView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)); alpha = if (enabled) 1f else 0.45f

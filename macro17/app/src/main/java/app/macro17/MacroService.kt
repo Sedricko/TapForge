@@ -123,7 +123,7 @@ class MacroService : AccessibilityService() {
     /** PARAR da Home ou Fechar: fecha o painel e some com a janela. */
     fun hideControls() {
         Diag.d("serviço", "painel fechado pela Home")
-        ui.post { stopRecording(save = false); if (engine.running) engine.stop(); hideList(); openPanel(false) }
+        ui.post { stopRecording(save = false); if (engine.running) engine.stop(); hideList(); guideWin?.let { runCatching { wm.removeView(it) } }; guideWin = null; openPanel(false) }
     }
 
     fun panelOpen() = ::panel.isInitialized && panel.visibility == View.VISIBLE
@@ -494,8 +494,42 @@ class MacroService : AccessibilityService() {
     private var adding = false
 
     private fun startRecording() {
-        if (store.recGuide) { startActivity(Intent(this, RecordGuideActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return }
+        if (store.recGuide) { showGuide(); return }
         beginRecording()
+    }
+
+    private var guideWin: View? = null
+
+    /** "Guia para gravar locais de toque.": janela de overlay no centro (não uma Activity, que ficava por cima de outras telas). */
+    private fun showGuide() {
+        if (guideWin != null) return
+        fun row(res: Int, text: String) = android.widget.LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(ImageView(this@MacroService).apply { setImageResource(res); setColorFilter(0xFF00574B.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(28), dp(28)).also { it.marginEnd = dp(8) })
+            addView(label(text, 15f, Color.BLACK))
+            layoutParams = android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = dp(8) }
+        }
+        val again = android.widget.CheckBox(this).apply { text = "Não mostrar novamente"; setTextColor(0xFF00574B.toInt()) }
+        val card = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL; background = rounded(Color.WHITE, 8, 0xFFE0E0E0.toInt()); setPadding(dp(24), dp(16), dp(24), dp(8))
+            addView(label("Guia para gravar locais de toque.", 18f, Color.BLACK, bold = true).apply { setPadding(0, 0, 0, dp(12)) })
+            addView(row(R.drawable.bp_ic_target, "Mova o ícone para o local que deseja tocar."))
+            addView(row(R.drawable.bp_playlist_add, "Guarda a localização selecionada."))
+            addView(row(R.drawable.bp_ic_tap, "Muda o método de toque."))
+            addView(again)
+            addView(label("OK", 15f, 0xFFD81B60.toInt(), bold = true).apply {
+                gravity = Gravity.CENTER; setPadding(dp(16), dp(12), dp(16), dp(12))
+                setOnClickListener {
+                    if (again.isChecked) store.recGuide = false
+                    guideWin?.let { runCatching { wm.removeView(it) } }; guideWin = null
+                    beginRecordingNow()
+                }
+            }, android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT).also { it.gravity = Gravity.END })
+        }
+        val lp = WindowManager.LayoutParams(minOf(dp(320), resources.displayMetrics.widthPixels - dp(32)), WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT)
+            .apply { gravity = Gravity.CENTER }
+        runCatching { wm.addView(card, lp) }.onSuccess { guideWin = card }
     }
 
     /** Chamado pelo guia (OK) ou direto quando ele está desligado. */
