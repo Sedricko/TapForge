@@ -206,7 +206,7 @@ class MacroService : AccessibilityService() {
     private fun awake(on: Boolean) {
         val v = bubble ?: return
         val lp = v.layoutParams as WindowManager.LayoutParams
-        val keep = on && store.keepOn
+        val keep = on || (store.keepOn && panelOpen()) // como no base: ligada ao reproduzir/gravar; ociosa só com a opção
         lp.flags = if (keep) lp.flags or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON else lp.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON.inv()
         wm.updateViewLayout(v, lp)
     }

@@ -85,6 +85,8 @@ class Runner(private val p: Ports) {
         loop(root)
     } catch (e: InterruptedException) {
         Outcome.Stopped
+    } catch (e: java.io.IOException) { // shell (ADB/root) que falha no meio da macro
+        Outcome.Failed("shell indisponível: ${e.message ?: e.javaClass.simpleName}")
     } catch (e: IllegalStateException) {
         Outcome.Failed(e.message ?: "erro")
     } catch (e: RuntimeException) {
@@ -101,7 +103,8 @@ class Runner(private val p: Ports) {
             val f = stack[stack.lastIndex]
             if (f.resume) { f.resume = false; advance(stack, f, f.pc + 1); continue }
             val dj = p.takeJump()
-            if (dj != 0) f.pc = (f.pc + dj).coerceIn(0, f.macro.steps.size - 1)
+            // O pedido nasce durante o passo pausado, que já avançou o ponteiro: Próximo = seguir (0), Anterior = voltar dois (-2).
+            if (dj != 0) f.pc = (f.pc + dj - 1).coerceIn(0, f.macro.steps.size - 1)
             val s = f.macro.steps[f.pc]
             p.progress(f.lap + 1, f.macro.loops, f.pc + 1, f.macro.steps.size, s.name)
             if (s.off) { advance(stack, f, f.pc + 1); continue }
@@ -134,7 +137,7 @@ class Runner(private val p: Ports) {
                     }
                     if (imgHit != null) jump = s.goto
                 }
-                Type.KEY -> if (!s.skip) p.key(s.x1)
+                Type.KEY -> if (!s.skip) { p.key(s.x1); if (s.ms > 0) p.sleep(s.ms.toLong()) } // espera depois da tecla, como no base
                 Type.WAIT -> p.sleep(s.ms.toLong())
                 Type.STATUS -> if (!s.skip) { if (s.vib || s.snd) p.alert(s.vib, s.snd); p.status(s.text, s.ms) }
                 Type.GOTO -> jump = s.goto

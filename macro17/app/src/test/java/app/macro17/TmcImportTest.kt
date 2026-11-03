@@ -49,4 +49,15 @@ class TmcImportTest {
         assertEquals(Type.WAIT, r.macro.steps[0].type)
         assertTrue(r.notes.any { it.contains("gesto") })
     }
+
+    @Test fun groupsBecomeGroupItemsWithTheirChildren() {
+        val g = row(0 to "Grupo", 7 to "0", 13 to "1", 14 to "3", 11 to "1", 24 to "1")
+        val c1 = row(0 to "\tTap", 1 to "5", 2 to "6", 7 to "0", 13 to "11", 11 to "1", 24 to "2")
+        val c2 = row(0 to "\tTap", 1 to "7", 2 to "8", 7 to "0", 13 to "11", 11 to "1", 24 to "3")
+        val after = row(0 to "Fora", 1 to "9", 2 to "9", 7 to "0", 11 to "1", 24 to "4")
+        val r = TmcImport.parse(file(g, c1, c2, after), "m", "id", emptyMap(), emptyMap())
+        assertEquals(listOf(Type.GROUP, Type.TAP, Type.TAP, Type.TAP), r.macro.steps.map { it.type })
+        assertEquals(2, r.macro.steps[0].grp); assertEquals(3, r.macro.steps[0].rep)
+        assertTrue(r.macro.validate() == null)
+    }
 }

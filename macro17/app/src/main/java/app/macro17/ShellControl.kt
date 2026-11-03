@@ -14,7 +14,7 @@ interface Shell { fun run(command: String): ByteArray }
 /** Root: `su -c <comando>`. */
 class RootShell : Shell {
     override fun run(command: String): ByteArray {
-        val p = ProcessBuilder("su", "-c", command).redirectErrorStream(false).start()
+        val p = ProcessBuilder("su", "-c", command.removePrefix("exec:")).redirectErrorStream(false).start()
         val out = p.inputStream.readBytes()
         if (!p.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)) { p.destroyForcibly(); throw java.io.IOException("su sem resposta") }
         if (p.exitValue() != 0 && out.isEmpty()) throw java.io.IOException("su recusado ou comando falhou (código ${p.exitValue()})")

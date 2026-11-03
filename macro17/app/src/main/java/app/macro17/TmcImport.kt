@@ -40,16 +40,18 @@ object TmcImport {
         val header = rows.indexOfFirst { it.getOrNull(0) == "Title" && it.size > 20 }
         val items = if (header >= 0) rows.drop(header + 1) else emptyList()
         // Itens: ignora linhas de grupo (a0 com tipo e profundidade 0) e a captura interna de grupo de imagens (tipo 16).
-        data class Row(val c: List<String>, val pos: Int)
+        data class Row(val c: List<String>, val pos: Int, val depth: Int = 0, val grp: Int = 0)
         val flat = ArrayList<Row>()
         for (r0 in items) {
             if (r0.size < 16) continue
             val c = if (r0.size < 47) r0 + List(47 - r0.size) { "" } else r0
             val a0 = c[13].trim().toIntOrNull(16) ?: 0
-            if (a0 != 0 && (a0 shr 4) == 0) { notes.add("Grupo “${c[0]}”: os itens entram em sequência, sem repetição de grupo"); continue }
+            val isHeader = a0 != 0 && (a0 shr 4) == 0
             if (c[7].trim().toIntOrNull() == 16) continue
-            flat += Row(c, flat.size)
+            flat += Row(c, flat.size, depth = if (isHeader) -1 else (a0 shr 4), grp = a0 and 0xF)
         }
+        // Cabeçalho de grupo (depth -1): vira Type.GROUP com os filhos seguintes (depth 1).
+        val childCount = IntArray(flat.size).also { cc -> flat.forEachIndexed { k, r -> if (r.depth == -1) { var j = k + 1; while (j < flat.size && flat[j].depth == 1) j++; cc[k] = j - k - 1 } } }
         val idToPos = HashMap<Int, Int>()
         flat.forEach { r -> r.c[24].trim().toIntOrNull()?.takeIf { it >= 0 }?.let { idToPos.putIfAbsent(it, r.pos + 1) } }
         fun target(v: String): Int {
@@ -63,7 +65,8 @@ object TmcImport {
 
         fun sec(s: String) = ((s.trim().toDoubleOrNull() ?: 0.0) * 1000).toInt().coerceIn(0, MAX_MS)
         fun f(c: List<String>, n: Int) = c[n].trim()
-        val steps = flat.map { (c, pos) ->
+        val steps = flat.map { (c, pos, depth, grp) ->
+            if (depth == -1) return@map Step(Type.GROUP, grp = childCount[pos], rep = (f(c, 14).toIntOrNull() ?: 1).coerceIn(0, MAX_LOOPS), mono = grp == 2, name = f(c, 0).trim('\t').take(60), off = (f(c, 15).toIntOrNull() ?: 0) > 0)
             val p = f(c, 7).toIntOrNull() ?: 0
             val cond = f(c, 11).toIntOrNull() ?: 1
             var delay = if (cond and 1 != 0) sec(f(c, 3)) else 0
@@ -78,7 +81,7 @@ object TmcImport {
             val area = f(c, 36).split(',', '-').mapNotNull { it.trim().toIntOrNull() }.takeIf { it.size == 4 && it[2] > it[0] && it[3] > it[1] }
             val custom = (f(c, 28).toIntOrNull() ?: 1) >= 3 && area != null
             val searchMs = sec(f(c, 16))
-            val cycle = (f(c, 40).toIntOrNull() ?: -1).let { if (it < 50) 1000 else it.coerceAtMost(MAX_MS) }
+            val cycle = (f(c, 40).toIntOrNull() ?: -1).let { if (it < 0) 200 else it.coerceIn(50, MAX_MS) }
             val thr = (f(c, 19).toIntOrNull() ?: 100).coerceIn(20, 100)
             val devs = f(c, 41).split('|').map { it.trim().toIntOrNull() ?: 0 }
             val common = Step(Type.WAIT, delay = delay, rnd = rnd, rndMin = rndMin, jitter = jitter, name = nm, off = (f(c, 15).toIntOrNull() ?: 0) > 0)
@@ -126,7 +129,7 @@ object TmcImport {
                 }
                 15 -> {
                     val code = when (f(c, 32).toIntOrNull() ?: 4) { 4 -> 1; 3 -> 2; 187 -> 3; 120 -> KEY_SCREENSHOT; else -> 1 }
-                    common.copy(type = Type.KEY, x1 = code)
+                    common.copy(type = Type.KEY, x1 = code, ms = (f(c, 10).toIntOrNull() ?: 0).coerceIn(0, MAX_MS))
                 }
                 17 -> {
                     val texts = f(c, 33).split('|', ',').map { it.trim() }.filter { it.isNotEmpty() }
@@ -134,7 +137,7 @@ object TmcImport {
                     common.copy(
                         type = Type.TEXT, text = texts.joinToString(","), ms = searchMs, cycle = cycle, minConf = (f(c, 42).toDoubleOrNull() ?: 0.0).toInt().coerceIn(0, 100),
                         x1 = if (custom) area!![0] else 0, y1 = if (custom) area!![1] else 0, x2 = if (custom) area!![2] else 0, y2 = if (custom) area!![3] else 0,
-                        goto = if (searchMs > 0) goto else 0, fail = if (searchMs > 0) fail else 0, tap = true,
+                        goto = if (searchMs > 0) goto else 0, fail = if (searchMs > 0) fail else 0, tap = (f(c, 20).toIntOrNull() ?: 1) == 0, // "Saltar" desliga o toque
                     )
                 }
                 18 -> common.copy(type = Type.RESET, counter = slot((f(c, 34).toIntOrNull() ?: 0) and 0x0FFFFFFF))
