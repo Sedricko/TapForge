@@ -113,9 +113,16 @@ class BackupActivity : Activity() {
                     Diag.d("backup", "gravou $n arquivos")
                     "Backup salvo ($n arquivos)"
                 } else {
-                    val r = contentResolver.openInputStream(uri)!!.use { BackupZip.read(it, filesDir) }
-                    Diag.d("backup", "restaurou ${r.restored}, ignorou ${r.skipped.size}: ${r.skipped.take(5)}")
-                    "Restaurados ${r.restored} arquivos" + if (r.skipped.isEmpty()) "" else "; ${r.skipped.size} ignorados (veja Monitor e logs)"
+                    // Backup do app base (.tmc)? Importa convertendo; senão é backup do Macro17.
+                    val base = contentResolver.openInputStream(uri)!!.use { TmcZip.import(it, Store(this)) }
+                    if (base != null) {
+                        Diag.d("backup", "importou do app base: ${base.macros} macros, ${base.images} imagens; avisos: ${base.notes.take(8)}")
+                        "Importadas ${base.macros} macros do app base (${base.images} imagens)" + if (base.notes.isEmpty()) "" else "; ${base.notes.size} avisos (veja Monitor e logs)"
+                    } else {
+                        val r = contentResolver.openInputStream(uri)!!.use { BackupZip.read(it, filesDir) }
+                        Diag.d("backup", "restaurou ${r.restored}, ignorou ${r.skipped.size}: ${r.skipped.take(5)}")
+                        "Restaurados ${r.restored} arquivos" + if (r.skipped.isEmpty()) "" else "; ${r.skipped.size} ignorados (veja Monitor e logs)"
+                    }
                 }
             } catch (e: Exception) { Diag.e("backup", "falhou", e); "Falhou: ${e.message ?: e.javaClass.simpleName}" }
             runOnUiThread { Toast.makeText(this, msg, Toast.LENGTH_LONG).show() }
