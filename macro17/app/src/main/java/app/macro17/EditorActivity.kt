@@ -318,20 +318,20 @@ class EditorActivity : Activity() {
     private fun chip(ic: Ic, text: String) = LinearLayout(this).apply {
         gravity = Gravity.CENTER_VERTICAL
         layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.marginEnd = dp(14) }
-        addView(glyph(ic, B.TEXT, 16)); addView(label(text, 13f, B.TEXT).apply { setPadding(dp(4), 0, 0, 0) })
+        addView(glyph(ic, 0xFF000000.toInt(), 14)); addView(label(text, 14f, 0xDE000000.toInt()).apply { setPadding(dp(4), 0, 0, 0) })
     }
 
     private fun stepRow(i: Int, s: Step): View {
         val vision = s.type == Type.IMAGE || s.type == Type.TEXT || s.type == Type.NODE || s.type == Type.NUMBER
         val thumbId = if (s.type == Type.IMAGE) s.text else s.img
         val thumb: View = (if (thumbId.isNotEmpty()) thumbs.getOrPut(thumbId) { store.templateThumb(thumbId, 120) } else null)?.let { bmp ->
-            ImageView(this).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER; layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)) }
-        } ?: badge(icons.getValue(s.type), tones.getValue(s.type), 44).apply { layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) } }
+            ImageView(this).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER; layoutParams = LinearLayout.LayoutParams(dp(32), dp(32)) }
+        } ?: glyph(icons.getValue(s.type), 0xFF607D8B.toInt(), 32).apply { layoutParams = LinearLayout.LayoutParams(dp(32), dp(32)) } // ícone do tipo: 32dp, #607D8B
         val jumps = listOfNotNull(s.goto.takeIf { it > 0 }?.let { it to 0xFF2121FF.toInt() }, s.fail.takeIf { it > 0 }?.let { it to 0xFFF44336.toInt() })
         val delayText = if (s.rnd > 0) "${secs(s.rndMin)}–${secs(s.rnd)}" else secs(s.delay)
         return LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(8), dp(12), dp(8))
+            setPadding(dp(6), dp(2), dp(12), dp(2))
             alpha = if (s.off) 0.4f else if (s.skip) 0.7f else 1f
             addView(CheckBox(this@EditorActivity).apply {
                 isChecked = i in selected; buttonTintList = ColorStateList.valueOf(B.TEXT2)
@@ -350,7 +350,6 @@ class EditorActivity : Activity() {
                     else addView(chip(icons.getValue(s.type), secs(s.ms)))
                     if (s.delay > 0 || s.rnd > 0) addView(chip(Ic.WAIT, delayText))
                 })
-                addView(label(detail(s), 12f, B.TEXT2).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, dp(2), 0, 0) })
             })
             jumps.forEach { (to, color) ->
                 addView(LinearLayout(this@EditorActivity).apply {
