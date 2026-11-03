@@ -396,6 +396,16 @@ class EditorActivity : Activity() {
     }
 
     private fun addOfType(type: Type) {
+        // Como no base, estes itens do catálogo entram direto na lista, com os padrões dele; o toque na linha abre a edição.
+        val direct = when (type) {
+            Type.KEY -> Step(type, x1 = 1, delay = 5000)
+            Type.STATUS -> Step(type, ms = 5000, snd = true, text = "Alerta de status")
+            Type.GOTO -> Step(type, goto = 0)
+            Type.RESET, Type.COUNTER -> Step(type, counter = 1)
+            Type.CALL -> Step(type)
+            else -> null
+        }
+        if (direct != null) { steps = steps.afterInsert(steps.size, direct); refresh(); list.setSelection(steps.size - 1); return }
         run {
             // Padrões que já passam na validação; a tela mostra um centro razoável.
             val base = when (type) {

@@ -155,7 +155,7 @@ class Runner(private val p: Ports) {
                     if (hit != null && s.tap && !s.skip) tapAt(s, hit.first, hit.second)
                     jump = if (hit != null) s.goto else s.fail
                 }
-                Type.CALL -> if (!s.skip) {
+                Type.CALL -> if (!s.skip && s.text.isNotBlank()) {
                     val m = p.resolve(s.text) ?: return Outcome.Failed("macro chamada não encontrada")
                     m.validate()?.let { return Outcome.Failed("macro “${m.name}” inválida: $it") }
                     if (m.steps.isNotEmpty()) {

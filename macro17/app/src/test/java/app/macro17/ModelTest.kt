@@ -43,13 +43,13 @@ class ModelTest {
         assertNotNull(tap.copy(rnd = 100, rndMin = 200).validate(1))           // mínimo > máximo
         assertNotNull(Step(Type.PINCH_OUT, 5, 5, 5, 5, ms = 100).validate(1))  // pinça com um ponto só
         assertNotNull(Step(Type.STATUS, ms = 100, text = " ").validate(1))
-        assertNotNull(Step(Type.GOTO, goto = 0).validate(3))                   // GOTO sem destino
+        assertNull(Step(Type.GOTO, goto = 0).validate(3))                      // 0 = próximo, como no base
         assertNotNull(Step(Type.GOTO, goto = 4).validate(3))                   // destino fora da lista
         assertNotNull(Step(Type.COUNTER, counter = 0).validate(1))
         assertNotNull(Step(Type.COUNTER, counter = 1, cases = listOf(Case(0, 1))).validate(2))   // limiar 0
         assertNotNull(Step(Type.COUNTER, counter = 1, cases = listOf(Case(2, 9))).validate(2))   // destino fora
         assertNotNull(Step(Type.COUNTER, counter = 1, cases = List(MAX_CASES + 1) { Case(it + 1, 0) }).validate(2))
-        assertNotNull(Step(Type.CALL, text = "").validate(1))
+        assertNull(Step(Type.CALL, text = "").validate(1))                        // arquivo vazio é permitido, como no base
         assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", confirm = 0).validate(1))                // confirmações fora de 1..5
         assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", confirm = 6).validate(1))
         assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", method = 2).validate(1))                 // método inexistente

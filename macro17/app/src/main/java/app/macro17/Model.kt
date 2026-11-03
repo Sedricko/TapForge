@@ -88,13 +88,13 @@ data class Step(
         type in GESTURES && useImg && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
         type in GESTURES && useImg && sms == 0 && (goto != 0 || fail != 0) -> "com tempo da busca 0 (sem limite) não há “se achar / se não achar”"
         name.length > 60 || name.contains('\n') -> "nome do item com mais de 60 caracteres ou com quebra de linha"
-        type == Type.GOTO && goto !in 1..size -> "escolha o passo de destino (1 a $size)"
+        type == Type.GOTO && goto !in 0..size -> "destino fora de 0..$size (0 = próximo)"
         type == Type.COUNTER && !validCounter() -> "contador deve ser 1 a $MAX_COUNTERS"
         type == Type.RESET && !validCounter() -> "contador deve ser 1 a $MAX_COUNTERS"
         type == Type.COUNTER && goto !in 0..size -> "destino padrão fora de 0..$size"
         type == Type.COUNTER && (cases.size > MAX_CASES || cases.any { it.n !in 1..MAX_LOOPS || it.to !in 0..size }) ->
             "casos: até $MAX_CASES, com limiar de 1 a $MAX_LOOPS e destino de 0 a $size"
-        type == Type.CALL && (text.isBlank() || text.length > 64) -> "escolha a macro a chamar"
+        type == Type.CALL && text.length > 64 -> "id de macro inválido" // vazio é permitido (o base cria "Arquivo de macro" sem arquivo); o executor ignora
         type == Type.IMAGE && text.isBlank() -> "passo sem imagem: capture pelo orbe"
         type == Type.IMAGE && thr !in 20..100 -> "semelhança deve ser de 20 a 100%"
         type == Type.IMAGE && confirm !in 1..5 -> "confirmações seguidas devem ser de 1 a 5"
