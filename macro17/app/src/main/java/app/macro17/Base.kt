@@ -14,14 +14,14 @@ import android.widget.LinearLayout
 
 /** Visual claro do app base (Material verde-azulado). Convive com [C] (noturno) até as telas migrarem. */
 object B {
-    val PRIMARY = 0xFF00897B.toInt()
+    val PRIMARY = 0xFF008577.toInt()
     val DARK = 0xFF00574B.toInt()      // faixa da barra de status
     val ON = 0xFF004D40.toInt()        // switch ligado
     val BG = 0xFFFAFAFA.toInt()
     val TEXT = 0xFF212121.toInt()
     val TEXT2 = 0xFF757575.toInt()
     val BLUE = 0xFF2196F3.toInt()      // botões de cartão
-    val PINK = 0xFFE91E63.toInt()      // FAB
+    val PINK = 0xFFD81B60.toInt()      // FAB
     val RED = 0xFFF44336.toInt()
 }
 

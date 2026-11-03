@@ -471,7 +471,7 @@ class EditorActivity : Activity() {
                 if (type == Type.STATUS || (type == Type.NODE || type == Type.TEXT)) textEdit!!.text.toString().trim() else if (type == Type.CALL || type == Type.IMAGE) text else "", retSw?.isChecked ?: true,
                 nv[THR], nv[CYC], nv[FAIL], tapSw?.isChecked ?: true, exactSw?.isChecked ?: false, scalesSw?.isChecked ?: false, nv[CMP], nv[LO], nv[HI], nv[METH], monoSw?.isChecked ?: false, nv[CONF],
                 dbl = dblSw?.isChecked ?: false, ox = nv[OX], oy = nv[OY], vib = vibSw?.isChecked ?: false, snd = sndSw?.isChecked ?: false, minConf = nv[MINC],
-                img = s.img, useImg = s.useImg, sms = s.sms, ax1 = s.ax1, ay1 = s.ay1, ax2 = s.ax2, ay2 = s.ay2, // o bloco de imagem não tem campos neste diálogo: preserva
+                name = s.name, img = s.img, useImg = s.useImg, sms = s.sms, ax1 = s.ax1, ay1 = s.ay1, ax2 = s.ax2, ay2 = s.ay2, // o bloco de imagem não tem campos neste diálogo: preserva
             )
             val err = ns.validate(total)
             if (err != null) { toast(err); return@setOnClickListener }

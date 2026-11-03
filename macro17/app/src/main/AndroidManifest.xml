@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Vibração curta junto do alarme de fim de macro (opção "Alarme"). -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Não é concedida a apps comuns; declarada só para que `adb shell pm grant app.macro17 android.permission.READ_LOGS`
          libere o logcat do sistema inteiro no relatório de diagnóstico. -->
     <uses-permission android:name="android.permission.READ_LOGS" tools:ignore="ProtectedPermissions" />
@@ -36,6 +38,9 @@
         <activity android:name=".PermissionsActivity" android:exported="false" />
         <activity android:name=".BackupActivity" android:exported="false" />
         <activity android:name=".AboutActivity" android:exported="false" />
+        <activity android:name=".AlarmListActivity" android:exported="false" />
+        <activity android:name=".AlarmEditActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".FullScreenActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleInstance" android:showWhenLocked="true" android:turnScreenOn="true" />
         <activity android:name=".ItemEditorActivity" android:exported="false" />
         <activity android:name=".DiagActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
         <activity android:name=".ReaderActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
@@ -54,5 +59,13 @@
         </service>
 
         <receiver android:name=".AlarmReceiver" android:exported="false" />
+        <receiver android:name=".BootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

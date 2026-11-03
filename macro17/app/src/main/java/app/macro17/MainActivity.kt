@@ -2,7 +2,6 @@ package app.macro17
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.app.TimePickerDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -53,9 +52,6 @@ class MainActivity : Activity() {
 
     override fun onBackPressed() { if (drawer.isOpen) drawer.close() else super.onBackPressed() }
 
-    /** Horário do alarme, só se ele ainda existir (reinício apaga os alarmes). */
-    private fun scheduled(id: String) = store.scheduleTime(id)?.takeIf { Alarms.isScheduled(this, id) }
-
     /** Macro atual; sem seleção válida, assume a primeira (o orbe lê a mesma seleção). */
     private fun current(): Macro? {
         val m = store.selected?.let { store.get(it) } ?: macros.firstOrNull()
@@ -96,7 +92,6 @@ class MainActivity : Activity() {
             } else {
                 addView(label(cur.name, 16f, B.TEXT2, bold = true).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END })
                 addView(label("Repetir reprodução:" + if (cur.loops == 0) "∞" else cur.loops.toString(), 15f, B.TEXT2, bold = true).apply { setPadding(0, dp(8), 0, 0) })
-                scheduled(cur.id)?.let { addView(label("Agendada: $it", 13f, B.TEXT2)) }
                 foreground = ripple(4, 0x1F00897B)
                 setOnClickListener { menu(cur) }
             }
@@ -139,8 +134,6 @@ class MainActivity : Activity() {
         val acts = buildList<Pair<String, () -> Unit>> {
             add("Executar agora" to { play(m.id) })
             add("Editar" to { edit(m.id) })
-            add("Agendar…" to { schedule(m) })
-            if (scheduled(m.id) != null) add("Cancelar agendamento" to { Alarms.cancel(this@MainActivity, m.id); store.setScheduleTime(m.id, null); refresh() })
             add("Exportar…" to { exportMacro(m) })
             add("Excluir" to { confirmDelete(m) })
         }
@@ -149,17 +142,8 @@ class MainActivity : Activity() {
 
     private fun confirmDelete(m: Macro) {
         AlertDialog.Builder(this).setMessage("Excluir “${m.name}”?")
-            .setPositiveButton("Excluir") { _, _ -> Alarms.cancel(this, m.id); store.delete(m.id); refresh() }
+            .setPositiveButton("Excluir") { _, _ -> store.delete(m.id); Alarms.rearm(this); refresh() }
             .setNegativeButton("Cancelar", null).show()
-    }
-
-    private fun schedule(m: Macro) {
-        TimePickerDialog(this, { _, h, min ->
-            val exact = Alarms.schedule(this, m.id, h, min)
-            store.setScheduleTime(m.id, "%02d:%02d".format(h, min))
-            refresh()
-            toast("Agendada para %02d:%02d".format(h, min) + if (exact) "" else " (aproximada: permita “Alarmes e lembretes” nas configurações do app)")
-        }, 8, 0, true).show()
     }
 
     private fun exportMacro(m: Macro) {

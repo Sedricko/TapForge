@@ -65,6 +65,7 @@ class MacroService : AccessibilityService() {
             if (msg == "Macro concluída" && store.endAlarm) playEndAlarm() // só no fim natural, não em parada manual nem em erro
         }, ::toast, logPanel::captureHide)
         instance = this
+        Alarms.rearm(this)
         Diag.d("serviço", "acessibilidade conectada (gestos/captura/janelas conforme accessibility_config)")
         showBubble()
         lock = object : BroadcastReceiver() {
@@ -129,6 +130,15 @@ class MacroService : AccessibilityService() {
     fun stopMacro() { Diag.d("serviço", "parar macro pedido"); engine.stop() }
 
     fun toast(msg: String) { ui.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() } }
+
+    fun stopMacro() { engine.stop() }
+
+    /** Alarme: para o que estiver rodando, espera 1 s e roda a macro agendada. Recusa se estiver gravando. */
+    fun fireAlarm(id: String) {
+        if (recording) return toast("Agendamento ignorado: gravação em andamento")
+        if (engine.running) engine.stop()
+        ui.postDelayed({ store.selected = id; runMacro(id) }, 1000)
+    }
 
     /** Chamável de qualquer thread (alarme, app). */
     fun runMacro(id: String) {

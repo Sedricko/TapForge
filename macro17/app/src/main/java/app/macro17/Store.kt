@@ -126,11 +126,15 @@ class Store(ctx: Context) {
 
     fun clearGlyphs() { gfile.delete() }
 
-    /** Horário "HH:mm" do alarme de cada macro; vale só se o alarme ainda existir (ver Alarms.isScheduled). */
-    fun scheduleTime(id: String): String? = prefs.getString("at_$id", null)
+    fun alarms(): List<Alarm> = runCatching {
+        val arr = org.json.JSONArray(prefs.getString("alarms", "[]"))
+        (0 until arr.length()).map { val o = arr.getJSONObject(it); Alarm(o.getString("id"), o.getString("m"), o.getInt("s"), o.getInt("u"), o.getBoolean("e")) }
+    }.getOrDefault(emptyList())
 
-    fun setScheduleTime(id: String, t: String?) {
-        prefs.edit().apply { if (t == null) remove("at_$id") else putString("at_$id", t) }.apply()
+    fun saveAlarms(l: List<Alarm>) {
+        val arr = org.json.JSONArray()
+        l.forEach { arr.put(org.json.JSONObject().put("id", it.id).put("m", it.macroId).put("s", it.start).put("u", it.uptime).put("e", it.enabled)) }
+        prefs.edit().putString("alarms", arr.toString()).apply()
     }
 
     /** Macro aguardando o seletor de arquivo do SAF; sobrevive a Activity recriada. */
@@ -160,7 +164,7 @@ class Store(ctx: Context) {
 
     fun delete(id: String) {
         file(id)?.delete()
-        setScheduleTime(id, null)
+        saveAlarms(alarms().filter { it.macroId != id })
         if (selected == id) selected = null
     }
 
