@@ -59,11 +59,11 @@ class ItemEditorActivity : Activity() {
 
     // --- formatação --------------------------------------------------------------------------
 
-    private fun secs(ms: Int) = "%.1f s".format(ms / 1000.0)
+    private fun secs(ms: Int) = "%.1f Sec".format(java.util.Locale.US, ms / 1000.0)
     private fun gotoLabel(n: Int) = if (n == 0) "Seguir para o próximo" else "Passo $n"
     private val speeds = listOf("Muito rápido" to 50, "Rápido" to 200, "1 Seg" to 1000, "2 Seg" to 2000, "3 Seg" to 3000)
 
-    private fun kind() = when { s.type == Type.SWIPE -> "Deslizar"; s.ms >= 500 -> "Pressionar"; else -> "Tocar" }
+    private fun kind() = when { s.type == Type.SWIPE -> "Deslizar"; s.ms >= 500 -> "Pressionar"; else -> "Toque" }
 
     // --- tela --------------------------------------------------------------------------------
 
@@ -189,7 +189,7 @@ class ItemEditorActivity : Activity() {
             ) { v -> s = s.copy(ox = v[0], oy = v[1]); render() }
         }
 
-        p.category("Variação aleatória", Ic.EYE_OFF)
+        p.category("Evasão de Detecção", Ic.EYE_OFF)
         p.valueRow("Coordenadas Aleatórias (Coordenadas ± Valor de Pixel Aleatório)", "${s.jitter} pixels") {
             numDialog("Coordenadas Aleatórias (pixels)", "De 0 a 500. Cada gesto é deslocado por um valor sorteado dentro dessa margem.", s.jitter) { v -> s = s.copy(jitter = v); render() }
         }

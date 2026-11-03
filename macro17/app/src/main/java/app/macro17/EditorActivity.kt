@@ -165,7 +165,7 @@ class EditorActivity : Activity() {
             setBackgroundColor(B.BG)
             addView(LinearLayout(this@EditorActivity).apply {
                 orientation = LinearLayout.VERTICAL
-                addView(appBar("Editor de Macro", Ic.BACK, { finish() }, more))
+                addView(appBar("Editor de Macro", Ic.BACK, { onBackPressed() }, more))
                 addView(tools); addView(head); addView(emptyHint)
                 addView(list, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
             }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
@@ -349,6 +349,8 @@ class EditorActivity : Activity() {
                     if (vision || s.useImg) addView(chip(Ic.IMAGE_SEARCH, secs(if (s.useImg) s.sms else s.ms)))
                     else addView(chip(icons.getValue(s.type), secs(s.ms)))
                     if (s.delay > 0 || s.rnd > 0) addView(chip(Ic.WAIT, delayText))
+                    // Tipos sem busca/gesto mostram a informação do item ao lado (tv_string_info do base): tecla, alerta, arquivo, contador...
+                    if (s.type in setOf(Type.KEY, Type.STATUS, Type.CALL, Type.COUNTER, Type.RESET, Type.GOTO, Type.TEXT, Type.NODE, Type.NUMBER)) addView(label(detail(s), 14f, 0xDE000000.toInt()).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
                 })
             })
             jumps.forEach { (to, color) ->
