@@ -1,6 +1,7 @@
 package app.macro17
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -162,6 +163,7 @@ class ModelTest {
         t, 11, 22, 33, 44, ms = 555, delay = 3, rnd = 400, rndMin = 100, jitter = 7, skip = true, goto = 2, counter = 4,
         cases = listOf(Case(2, 1), Case(5, 2)), text = "texto ç ã", ret = false, thr = 77, cycle = 321, fail = 1, tap = false,
         exact = true, scales = true, cmp = 3, lo = 10, hi = 20, method = 1, mono = true, confirm = 3,
+        dbl = true, ox = 12, oy = -34, vib = true, snd = true, minConf = 65,
     )
 
     @Test fun everyTypeSurvivesAJsonRoundTrip() {
@@ -197,5 +199,36 @@ class ModelTest {
         assertNotNull(Macro("i", "n", -1, emptyList()).validate())                       // repetições negativas
         assertNull(Macro("i", "x".repeat(60), 0, emptyList()).validate())                // 60 chars e infinito: limite exato válido
         assertNotNull(Macro("i", "n", 1, List(MAX_STEPS + 1) { Step(Type.WAIT, ms = 1) }).validate())
+    }
+
+    // --- manual oficial do base ---
+    @Test fun zeroSearchTimeoutIsInfiniteAndForbidsJumps() {
+        for (t in listOf(Type.NODE, Type.IMAGE, Type.TEXT, Type.NUMBER)) {
+            val ok = Step(t, 0, 0, 100, 100, ms = 0, text = "x", cycle = 500, cmp = 0, lo = 1)
+            assertNull("$t sem limite e sem desvios é válido", ok.validate(3))
+            assertNotNull("$t sem limite com 'se achar' é inválido", ok.copy(goto = 2).validate(3))
+            assertNotNull("$t sem limite com 'se não achar' é inválido", ok.copy(fail = 2).validate(3))
+            assertNotNull("$t com 50 ms continua curto demais", ok.copy(ms = 50).validate(3))
+        }
+    }
+
+    @Test fun screenshotKeyIsValidAndOthersStayInvalid() {
+        assertNull(Step(Type.KEY, x1 = KEY_SCREENSHOT).validate(1))
+        assertNull(Step(Type.KEY, x1 = 3).validate(1))
+        assertNotNull(Step(Type.KEY, x1 = 5).validate(1))
+        assertNotNull(Step(Type.KEY, x1 = 0).validate(1))
+    }
+
+    @Test fun tapOffsetAndConfidenceBounds() {
+        assertNull(Step(Type.NODE, ms = 1000, text = "x", ox = -MAX_COORD, oy = MAX_COORD).validate(1))
+        assertNotNull(Step(Type.NODE, ms = 1000, text = "x", ox = MAX_COORD + 1).validate(1))
+        assertNull(Step(Type.TEXT, ms = 1000, text = "x", cycle = 500, minConf = 100).validate(1))
+        assertNotNull(Step(Type.TEXT, ms = 1000, text = "x", cycle = 500, minConf = 101).validate(1))
+        assertNotNull(Step(Type.TEXT, ms = 1000, text = "x", cycle = 500, minConf = -1).validate(1))
+    }
+
+    @Test fun oldJsonWithoutTheNewFieldsKeepsTheOldBehavior() {
+        val s = Step.fromJson(org.json.JSONObject("{\"t\":\"NODE\",\"ms\":3000,\"tx\":\"a\",\"cy\":200}"))
+        assertFalse(s.dbl); assertEquals(0, s.ox); assertEquals(0, s.oy); assertFalse(s.vib); assertFalse(s.snd); assertEquals(0, s.minConf)
     }
 }

@@ -94,6 +94,12 @@ class Engine(
 
         override fun key(code: Int) { check(svc.performGlobalAction(code)) { "tecla recusada pelo sistema" } }
 
+        override fun alert(vib: Boolean, snd: Boolean) {
+            runCatching {
+                if (snd) android.media.RingtoneManager.getRingtone(svc, android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)).play()
+                if (vib) svc.getSystemService(android.os.VibratorManager::class.java).defaultVibrator.vibrate(android.os.VibrationEffect.createOneShot(500, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            }.onFailure { Diag.e("alerta", "som ou vibração falhou", it) }
+        }
         override fun status(text: String, ms: Int) { Diag.d("alerta", text); say(text); Thread.sleep(ms.toLong()) }
 
         override fun resolve(id: String) = store.get(id)
@@ -184,7 +190,7 @@ class Engine(
          * [exact]: texto inteiro igual, diferenciando maiúsculas; senão "contém" sem diferenciar.
          * shortcut: só alfabeto latino; para outros idiomas trocar o reconhecedor.
          */
-        override fun findText(query: String, exact: Boolean, area: IntArray?): Pair<Int, Int>? {
+        override fun findText(query: String, exact: Boolean, area: IntArray?, minConf: Int): Pair<Int, Int>? {
             val targets = query.split(',', '|').map { it.trim() }.filter { it.isNotEmpty() }
             if (targets.isEmpty()) return null
             val full = capture() ?: return null
@@ -201,7 +207,10 @@ class Engine(
                   catch (e: TimeoutException) { throw IllegalStateException("OCR sem resposta em 10 s") }
                 val hit = { t: String -> targets.any { if (exact) t == it else t.contains(it, ignoreCase = true) } }
                 val lines = text.textBlocks.flatMap { it.lines }
-                val cands = lines.flatMap { it.elements.map { e -> e.text to e.boundingBox } } + lines.map { it.text to it.boundingBox }
+                // Confiança mínima do manual do base: abaixo dela a leitura é descartada (0 = sem filtro).
+                val min = minConf / 100f
+                val cands = lines.flatMap { l -> l.elements.filter { it.confidence >= min }.map { e -> e.text to e.boundingBox } } +
+                    lines.filter { it.confidence >= min }.map { it.text to it.boundingBox }
                 for ((t, box) in cands) if (box != null && hit(t)) return (x0 + box.centerX()) to (y0 + box.centerY())
                 return null
             } finally { crop?.recycle(); full.recycle() }

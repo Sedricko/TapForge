@@ -43,12 +43,14 @@ class EditorActivity : Activity() {
     private val X1 = 0; private val Y1 = 1; private val X2 = 2; private val Y2 = 3; private val MS = 4
     private val DELAY = 5; private val RND = 6; private val JIT = 7; private val RMIN = 8; private val GOTO = 9; private val CNT = 10; private val CASE0 = 11
     private val THR = CASE0 + MAX_CASES * 2; private val CYC = THR + 1; private val FAIL = THR + 2
+    private val OX = FAIL + 20; private val OY = FAIL + 21; private val MINC = FAIL + 22
     private val CMP = FAIL + 1; private val LO = FAIL + 2; private val HI = FAIL + 3; private val CONF = FAIL + 4; private val METH = FAIL + 5
 
     private val labels = mapOf(
         X1 to "X", Y1 to "Y", X2 to "X final", Y2 to "Y final", MS to "Duração (ms)",
         DELAY to "Atraso antes da ação (ms)", RND to "Atraso aleatório: máximo (ms, 0 = desligado)", RMIN to "Atraso aleatório: mínimo (ms)",
         JIT to "Jitter (px)", GOTO to "Ir para o passo (0 = seguir)", CNT to "Contador (1 a $MAX_COUNTERS)",
+        OX to "Deslocamento do toque X (px; negativo = esquerda)", OY to "Deslocamento do toque Y (px; negativo = acima)", MINC to "Confiança mínima do reconhecimento (0 a 100%; 0 = sem filtro)",
         THR to "Semelhança mínima (20 a 100%): % de pixels que precisam bater com o modelo", CYC to "Intervalo entre tentativas (ms)", FAIL to "Se não achar, ir para o passo (0 = seguir)",
         METH to "Método (0 = correlação, como o app original; 1 = diferença de pixels)", CONF to "Confirmações seguidas, no mesmo lugar (1 a 5; 1 = como o original)", CMP to "Condição (0 ≥, 1 ≤, 2 =, 3 entre)", LO to "Valor (ou o mínimo, se “entre”)", HI to "Máximo (só para “entre”)",
     )
@@ -65,12 +67,12 @@ class EditorActivity : Activity() {
         Type.COUNTER to intArrayOf(CNT, GOTO) + IntArray(MAX_CASES * 2) { CASE0 + it } + common,
         Type.RESET to intArrayOf(CNT) + common,
         Type.CALL to common,
-        Type.IMAGE to intArrayOf(X1, Y1, X2, Y2, MS, CYC, THR, METH, CONF, GOTO, FAIL) + common,
-        Type.NODE to intArrayOf(MS, CYC, GOTO, FAIL) + common,
-        Type.TEXT to intArrayOf(X1, Y1, X2, Y2, MS, CYC, GOTO, FAIL) + common,
+        Type.IMAGE to intArrayOf(X1, Y1, X2, Y2, MS, CYC, THR, METH, CONF, GOTO, FAIL, OX, OY) + common,
+        Type.NODE to intArrayOf(MS, CYC, GOTO, FAIL, OX, OY) + common,
+        Type.TEXT to intArrayOf(X1, Y1, X2, Y2, MS, CYC, MINC, GOTO, FAIL, OX, OY) + common,
         Type.NUMBER to intArrayOf(X1, Y1, X2, Y2, MS, CYC, CMP, LO, HI, GOTO, FAIL) + common,
     )
-    private val optional = setOf(DELAY, RND, JIT, RMIN, GOTO, FAIL, CMP, LO, HI) + (CASE0 until CASE0 + MAX_CASES * 2) // em branco vale 0
+    private val optional = setOf(DELAY, RND, JIT, RMIN, GOTO, FAIL, CMP, LO, HI, OX, OY, MINC) + (CASE0 until CASE0 + MAX_CASES * 2) // em branco vale 0
 
     private val titles = mapOf(
         Type.TAP to "Toque", Type.SWIPE to "Deslizar", Type.PINCH_IN to "Pinça para dentro", Type.PINCH_OUT to "Pinça para fora",
@@ -375,9 +377,9 @@ class EditorActivity : Activity() {
 
     /** [total] é o número de passos depois da edição, para validar os destinos de salto. */
     private fun editStep(type: Type, s: Step, total: Int, done: (Step) -> Unit) {
-        val v = IntArray(METH + 1)
+        val v = IntArray(MINC + 1)
         v[X1] = s.x1; v[Y1] = s.y1; v[X2] = s.x2; v[Y2] = s.y2; v[MS] = s.ms; v[DELAY] = s.delay; v[RND] = s.rnd
-        v[JIT] = s.jitter; v[RMIN] = s.rndMin; v[GOTO] = s.goto; v[CNT] = s.counter; v[THR] = s.thr; v[CYC] = s.cycle; v[FAIL] = s.fail; v[CMP] = s.cmp; v[LO] = s.lo; v[HI] = s.hi; v[CONF] = s.confirm; v[METH] = s.method
+        v[JIT] = s.jitter; v[RMIN] = s.rndMin; v[GOTO] = s.goto; v[CNT] = s.counter; v[THR] = s.thr; v[CYC] = s.cycle; v[FAIL] = s.fail; v[CMP] = s.cmp; v[LO] = s.lo; v[HI] = s.hi; v[CONF] = s.confirm; v[METH] = s.method; v[OX] = s.ox; v[OY] = s.oy; v[MINC] = s.minConf
         s.cases.forEachIndexed { k, c -> v[CASE0 + 2 * k] = c.n; v[CASE0 + 2 * k + 1] = c.to }
 
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(4)) }
@@ -395,10 +397,10 @@ class EditorActivity : Activity() {
         val idx = fields.getValue(type)
         val edits = idx.map { k ->
             val lbl = when {
-                k == X1 && type == Type.KEY -> "Tecla (1 voltar, 2 início, 3 recentes, 4 notificações)"
+                k == X1 && type == Type.KEY -> "Tecla (1 voltar, 2 início, 3 recentes, 4 notificações, 9 captura de tela)"
                 k == MS && type == Type.WAIT -> "Espera (ms)"
                 k == MS && type == Type.STATUS -> "Tempo da mensagem (ms)"
-                k == MS && (type == Type.IMAGE || (type == Type.NODE || type == Type.TEXT) || type == Type.NUMBER) -> "Tentar por até (ms)"
+                k == MS && (type == Type.IMAGE || (type == Type.NODE || type == Type.TEXT) || type == Type.NUMBER) -> "Tentar por até (ms; 0 = sem limite, sem “se achar / não”)"
                 k == GOTO && type == Type.NUMBER -> "Se a condição valer, ir para o passo (0 = seguir)"
                 k == FAIL && type == Type.NUMBER -> "Se não valer no prazo, ir para o passo (0 = seguir)"
                 type == Type.NUMBER && k in X1..Y2 -> "Área do número: " + labels.getValue(k)
@@ -408,7 +410,7 @@ class EditorActivity : Activity() {
                 k == GOTO && type == Type.COUNTER -> "Destino padrão (0 = seguir)"
                 else -> labels.getValue(k)
             }
-            field(if (v[k] == 0 && (k in optional || ((type == Type.IMAGE || type == Type.TEXT) && k in X1..Y2))) "" else v[k].toString(), lbl, numeric = true).also { col.addView(labeled(lbl, it)) }
+            field(if (v[k] == 0 && (k in optional || ((type == Type.IMAGE || type == Type.TEXT) && k in X1..Y2))) "" else v[k].toString(), lbl, numeric = true).also { f -> if (k == OX || k == OY) f.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED; col.addView(labeled(lbl, f)) }
         }
         val skipSw = if (type in Step.GESTURES || type == Type.KEY || type == Type.STATUS || type == Type.CALL)
             Switch(this).apply { isChecked = s.skip; contentDescription = "Pular a ação" }.also { col.addView(labeled("Pular a ação (só roda o atraso)", it)) } else null
@@ -423,6 +425,11 @@ class EditorActivity : Activity() {
             Switch(this).apply { isChecked = s.scales; contentDescription = "Tolerar variação de escala" }.also { col.addView(labeled("Tolerar variação de escala (mais lento)", it)) } else null
         val tapSw = if (type == Type.IMAGE || (type == Type.NODE || type == Type.TEXT))
             Switch(this).apply { isChecked = s.tap; contentDescription = "Tocar no centro ao achar" }.also { col.addView(labeled("Tocar no centro do que achou", it)) } else null
+
+        val dblSw = if (type == Type.TAP || type == Type.IMAGE || type == Type.NODE || type == Type.TEXT)
+            Switch(this).apply { isChecked = s.dbl; contentDescription = "Clique duplo" }.also { col.addView(labeled("Clique duplo (dois toques seguidos no mesmo ponto)", it)) } else null
+        val vibSw = if (type == Type.STATUS) Switch(this).apply { isChecked = s.vib; contentDescription = "Vibrar" }.also { col.addView(labeled("Vibrar ao exibir", it)) } else null
+        val sndSw = if (type == Type.STATUS) Switch(this).apply { isChecked = s.snd; contentDescription = "Tocar som" }.also { col.addView(labeled("Tocar o som de notificação", it)) } else null
 
         val dlg = AlertDialog.Builder(this).setView(ScrollView(this).apply { addView(col) })
             .setPositiveButton("OK", null).setNegativeButton("Cancelar", null).create()
@@ -441,6 +448,7 @@ class EditorActivity : Activity() {
                 skipSw?.isChecked ?: false, nv[GOTO], if (nv[CNT] == 0) 1 else nv[CNT], if (type == Type.COUNTER) cases else emptyList(),
                 if (type == Type.STATUS || (type == Type.NODE || type == Type.TEXT)) textEdit!!.text.toString().trim() else if (type == Type.CALL || type == Type.IMAGE) text else "", retSw?.isChecked ?: true,
                 nv[THR], nv[CYC], nv[FAIL], tapSw?.isChecked ?: true, exactSw?.isChecked ?: false, scalesSw?.isChecked ?: false, nv[CMP], nv[LO], nv[HI], nv[METH], monoSw?.isChecked ?: false, nv[CONF],
+                dbl = dblSw?.isChecked ?: false, ox = nv[OX], oy = nv[OY], vib = vibSw?.isChecked ?: false, snd = sndSw?.isChecked ?: false, minConf = nv[MINC],
             )
             val err = ns.validate(total)
             if (err != null) { toast(err); return@setOnClickListener }

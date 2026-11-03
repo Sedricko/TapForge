@@ -7,6 +7,7 @@ import org.json.JSONObject
 enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER, TEXT }
 
 const val MAX_STEPS = 5000
+const val KEY_SCREENSHOT = 9   // GLOBAL_ACTION_TAKE_SCREENSHOT
 const val MAX_MS = 60_000      // getMaxGestureDuration() do sistema é 60 s
 const val MAX_COORD = 20_000
 const val MAX_LOOPS = 1_000_000
@@ -51,6 +52,12 @@ data class Step(
     val method: Int = 0,
     val mono: Boolean = false,
     val confirm: Int = 1,
+    // Do manual oficial do base: clique duplo; deslocamento do toque em relação ao que foi achado (px, pode ser negativo);
+    // alerta com vibração e som; confiança mínima do OCR (0 = sem filtro).
+    val dbl: Boolean = false,
+    val ox: Int = 0, val oy: Int = 0,
+    val vib: Boolean = false, val snd: Boolean = false,
+    val minConf: Int = 0,
 ) {
     /** [size] é o total de passos da macro, para validar os alvos de salto. */
     fun validate(size: Int): String? = when {
@@ -58,10 +65,14 @@ data class Step(
         listOf(ms, delay, rnd, rndMin).any { it !in 0..MAX_MS } -> "tempo fora de 0..$MAX_MS ms"
         rnd > 0 && rndMin > rnd -> "faixa aleatória: mínimo maior que o máximo"
         jitter !in 0..500 -> "jitter fora de 0..500 px"
-        type == Type.KEY && x1 !in 1..4 -> "tecla deve ser 1 a 4"
+        type == Type.KEY && x1 !in 1..4 && x1 != KEY_SCREENSHOT -> "tecla deve ser 1 a 4 ou $KEY_SCREENSHOT (captura de tela)"
         type in GESTURES && ms < 1 -> "duração mínima de 1 ms"
         (type == Type.PINCH_IN || type == Type.PINCH_OUT) && x1 == x2 && y1 == y2 -> "a pinça precisa de dois pontos diferentes"
         type == Type.STATUS && (text.isBlank() || text.length > 200) -> "mensagem vazia ou maior que 200 caracteres"
+        (ox !in -MAX_COORD..MAX_COORD || oy !in -MAX_COORD..MAX_COORD) -> "deslocamento do toque fora de ±$MAX_COORD px"
+        type == Type.TEXT && minConf !in 0..100 -> "confiança mínima deve ser de 0 a 100%"
+        // Como no base: tempo máximo 0 = busca sem limite, e então não existe "falhou"; os saltos "se achar / se não achar" exigem tempo > 0.
+        type in SEARCHES && ms == 0 && (goto != 0 || fail != 0) -> "com tempo máximo 0 (sem limite) não há “se achar / se não achar”: use um tempo maior que 0 ou zere os destinos"
         type == Type.GOTO && goto !in 1..size -> "escolha o passo de destino (1 a $size)"
         type == Type.COUNTER && !validCounter() -> "contador deve ser 1 a $MAX_COUNTERS"
         type == Type.RESET && !validCounter() -> "contador deve ser 1 a $MAX_COUNTERS"
@@ -73,20 +84,20 @@ data class Step(
         type == Type.IMAGE && thr !in 20..100 -> "semelhança deve ser de 20 a 100%"
         type == Type.IMAGE && confirm !in 1..5 -> "confirmações seguidas devem ser de 1 a 5"
         type == Type.IMAGE && method !in 0..1 -> "método deve ser 0 (correlação, como o app original) ou 1 (diferença de pixels)"
-        type == Type.IMAGE && (cycle !in 50..MAX_MS || ms < 100) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de pelo menos 100 ms"
+        type == Type.IMAGE && (cycle !in 50..MAX_MS || (ms != 0 && ms < 100)) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de 0 (sem limite) ou pelo menos 100 ms"
         type == Type.IMAGE && !(listOf(x1, y1, x2, y2).all { it == 0 } || (x2 > x1 && y2 > y1)) -> "área de busca inválida: use tudo 0 ou X/Y finais maiores que os iniciais"
         type == Type.IMAGE && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
         type == Type.NODE && (text.isBlank() || text.length > 200) -> "texto do elemento vazio ou maior que 200 caracteres"
-        type == Type.NODE && (cycle !in 50..MAX_MS || ms < 100) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de pelo menos 100 ms"
+        type == Type.NODE && (cycle !in 50..MAX_MS || (ms != 0 && ms < 100)) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de 0 (sem limite) ou pelo menos 100 ms"
         type == Type.NODE && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
         type == Type.TEXT && (text.isBlank() || text.length > 200) -> "texto vazio ou maior que 200 caracteres"
         type == Type.TEXT && !(x1 == 0 && y1 == 0 && x2 == 0 && y2 == 0) && !(x2 > x1 && y2 > y1) -> "área inválida: deixe tudo 0 (tela toda) ou X e Y finais maiores que os iniciais"
-        type == Type.TEXT && (cycle !in 200..MAX_MS || ms < 100) -> "intervalo de 200 ms a $MAX_MS (o reconhecimento é pesado) e tempo máximo de pelo menos 100 ms"
+        type == Type.TEXT && (cycle !in 200..MAX_MS || (ms != 0 && ms < 100)) -> "intervalo de 200 ms a $MAX_MS (o reconhecimento é pesado) e tempo máximo de 0 (sem limite) ou pelo menos 100 ms"
         type == Type.TEXT && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
         type == Type.NUMBER && !(x2 > x1 && y2 > y1) -> "área do número inválida: X e Y finais devem ser maiores que os iniciais"
         type == Type.NUMBER && cmp !in 0..3 -> "condição deve ser 0 (≥), 1 (≤), 2 (=) ou 3 (entre)"
         type == Type.NUMBER && (lo < 0 || hi < 0 || (cmp == 3 && hi < lo)) -> "valores não podem ser negativos; em 'entre' o máximo não pode ser menor que o mínimo"
-        type == Type.NUMBER && (cycle !in 50..MAX_MS || ms < 100) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de pelo menos 100 ms"
+        type == Type.NUMBER && (cycle !in 50..MAX_MS || (ms != 0 && ms < 100)) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de 0 (sem limite) ou pelo menos 100 ms"
         type == Type.NUMBER && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
         else -> null
     }
@@ -97,10 +108,12 @@ data class Step(
         .put("ms", ms).put("d", delay).put("r", rnd).put("rm", rndMin).put("j", jitter).put("sk", skip)
         .put("g", goto).put("c", counter).put("tx", text).put("rt", ret)
         .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact).put("sl", scales).put("cm", cmp).put("lo", lo).put("hi", hi).put("mt", method).put("mo", mono).put("cf", confirm)
+        .put("db", dbl).put("ox", ox).put("oy", oy).put("vb", vib).put("sn", snd).put("mc", minConf)
         .put("cs", JSONArray().also { a -> cases.forEach { a.put(JSONObject().put("n", it.n).put("to", it.to)) } })
 
     companion object {
         val GESTURES = setOf(Type.TAP, Type.SWIPE, Type.PINCH_IN, Type.PINCH_OUT)
+        val SEARCHES = setOf(Type.IMAGE, Type.NODE, Type.TEXT, Type.NUMBER)
 
         // valueOf lança IllegalArgumentException para tipo desconhecido; o chamador trata.
         fun fromJson(o: JSONObject): Step {
@@ -112,6 +125,7 @@ data class Step(
                 List(minOf(cs?.length() ?: 0, MAX_CASES)) { Case(cs!!.getJSONObject(it).optInt("n"), cs.getJSONObject(it).optInt("to")) },
                 o.optString("tx"), o.optBoolean("rt", true),
                 o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"), o.optInt("cm"), o.optInt("lo"), o.optInt("hi"), o.optInt("mt"), o.optBoolean("mo"), o.optInt("cf", 1),
+                o.optBoolean("db"), o.optInt("ox"), o.optInt("oy"), o.optBoolean("vb"), o.optBoolean("sn"), o.optInt("mc"),
             )
         }
     }

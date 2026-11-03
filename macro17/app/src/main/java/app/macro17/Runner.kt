@@ -16,6 +16,9 @@ interface Ports {
     @Throws(InterruptedException::class) fun gesture(strokes: List<Stroke>, ms: Int)
     fun key(code: Int)
     @Throws(InterruptedException::class) fun status(text: String, ms: Int)
+
+    /** Vibração e/ou som de notificação do alerta de status. Padrão: nada. */
+    fun alert(vib: Boolean, snd: Boolean) {}
     fun resolve(id: String): Macro?
 
     /** Quadro atual da tela em tons de cinza; null se esta captura falhou de forma passiva (ex.: intervalo mínimo). */
@@ -30,7 +33,7 @@ interface Ports {
      * Centro do primeiro texto reconhecido por OCR que casa com [query] (alvos separados por vírgula ou "|").
      * [area] = x1,y1,x2,y2 em pixels, ou null para a tela toda. Padrão: sem OCR (testes).
      */
-    @Throws(InterruptedException::class) fun findText(query: String, exact: Boolean, area: IntArray?): Pair<Int, Int>? = null
+    @Throws(InterruptedException::class) fun findText(query: String, exact: Boolean, area: IntArray?, minConf: Int): Pair<Int, Int>? = null
 
     /** Centro, em pixels da tela, do primeiro elemento visível que casa com [query]; null se não há (ou a janela está em transição). */
     fun findNode(query: String, exact: Boolean): Pair<Int, Int>?
@@ -88,10 +91,14 @@ class Runner(private val p: Ports) {
 
             var jump = 0
             when (s.type) {
-                Type.TAP, Type.SWIPE, Type.PINCH_IN, Type.PINCH_OUT -> if (!s.skip) p.gesture(strokes(s), s.ms)
+                Type.TAP, Type.SWIPE, Type.PINCH_IN, Type.PINCH_OUT -> if (!s.skip) {
+                    val st = strokes(s) // um só sorteio de jitter: o segundo toque do clique duplo cai no mesmo ponto
+                    p.gesture(st, s.ms)
+                    if (s.dbl && s.type == Type.TAP) { p.sleep(DOUBLE_GAP_MS); p.gesture(st, s.ms) }
+                }
                 Type.KEY -> if (!s.skip) p.key(s.x1)
                 Type.WAIT -> p.sleep(s.ms.toLong())
-                Type.STATUS -> if (!s.skip) p.status(s.text, s.ms)
+                Type.STATUS -> if (!s.skip) { if (s.vib || s.snd) p.alert(s.vib, s.snd); p.status(s.text, s.ms) }
                 Type.GOTO -> jump = s.goto
                 Type.RESET -> f.counters[s.counter] = 0
                 Type.COUNTER -> jump = counterJump(f, s)
@@ -99,7 +106,7 @@ class Runner(private val p: Ports) {
                     val needle = p.template(s.text) ?: return Outcome.Failed("imagem do passo ${f.pc + 1} não encontrada no aparelho")
                     val hit = search(s, needle, f.pc + 1)
                     p.trace("passo ${f.pc + 1} imagem: " + (hit?.let { "achou em ${it.x},${it.y} semelhança ${(it.score * 100).toInt()}%" } ?: "não achou"))
-                    if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.x, hit.y, hit.x, hit.y)), TAP_MS)
+                    if (hit != null && s.tap && !s.skip) tapAt(s, hit.x, hit.y)
                     jump = if (hit != null) s.goto else s.fail
                 }
                 Type.NUMBER -> {
@@ -117,14 +124,14 @@ class Runner(private val p: Ports) {
                 Type.NODE -> {
                     val hit = poll(s) { p.findNode(s.text, s.exact) }
                     p.trace("passo ${f.pc + 1} elemento: ${hit ?: "não achou"}")
-                    if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.first, hit.second, hit.first, hit.second)), TAP_MS)
+                    if (hit != null && s.tap && !s.skip) tapAt(s, hit.first, hit.second)
                     jump = if (hit != null) s.goto else s.fail
                 }
                 Type.TEXT -> {
                     val area = if (s.x2 > s.x1 && s.y2 > s.y1) intArrayOf(s.x1, s.y1, s.x2, s.y2) else null
-                    val hit = poll(s) { p.findText(s.text, s.exact, area) }
+                    val hit = poll(s) { p.findText(s.text, s.exact, area, s.minConf) }
                     p.trace("passo ${f.pc + 1} texto: ${hit ?: "não achou"}")
-                    if (hit != null && s.tap && !s.skip) p.gesture(listOf(Stroke(hit.first, hit.second, hit.first, hit.second)), TAP_MS)
+                    if (hit != null && s.tap && !s.skip) tapAt(s, hit.first, hit.second)
                     jump = if (hit != null) s.goto else s.fail
                 }
                 Type.CALL -> if (!s.skip) {
@@ -196,9 +203,17 @@ class Runner(private val p: Ports) {
         val start = p.now()
         while (true) {
             attempt()?.let { return it }
-            if (p.now() - start >= s.ms) return null
+            if (s.ms > 0 && p.now() - start >= s.ms) return null // ms = 0: sem limite (só a parada interrompe)
             p.sleep(s.cycle.toLong())
         }
+    }
+
+    /** Toca em (x,y) mais o deslocamento do passo, sem sair da tela; clique duplo repete no mesmo ponto. */
+    private fun tapAt(s: Step, x: Int, y: Int) {
+        val tx = (x + s.ox).coerceIn(0, maxOf(0, p.width - 1)); val ty = (y + s.oy).coerceIn(0, maxOf(0, p.height - 1))
+        val g = listOf(Stroke(tx, ty, tx, ty))
+        p.gesture(g, TAP_MS)
+        if (s.dbl) { p.sleep(DOUBLE_GAP_MS); p.gesture(g, TAP_MS) }
     }
 
     /** Fim da lista conta uma volta; atingido o limite de repetições, a macro termina e o chamador (se houver) retoma. */
@@ -240,5 +255,5 @@ class Runner(private val p: Ports) {
         }
     }
 
-    private companion object { const val MAX_DEPTH = 8; const val TAP_MS = 50; const val STILL_PX = 3 }
+    private companion object { const val MAX_DEPTH = 8; const val TAP_MS = 50; const val DOUBLE_GAP_MS = 80L; const val STILL_PX = 3 }
 }

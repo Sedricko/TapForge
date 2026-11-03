@@ -21,7 +21,11 @@ private class Fake(
     override fun trace(line: String) { traces += line }
     val texts = ArrayDeque<Pair<Int, Int>?>()      // resultados de findText em ordem; esgotada = nada achado
     val textQueries = ArrayList<String>()
-    override fun findText(query: String, exact: Boolean, area: IntArray?): Pair<Int, Int>? {
+    val textConfs = ArrayList<Int>()
+    val alerts = ArrayList<String>()
+    override fun alert(vib: Boolean, snd: Boolean) { alerts += "vib=$vib snd=$snd" }
+    override fun findText(query: String, exact: Boolean, area: IntArray?, minConf: Int): Pair<Int, Int>? {
+        textConfs += minConf
         textQueries += "$query|$exact|${area?.joinToString(",") ?: "tela"}"
         return if (texts.isNotEmpty()) texts.removeFirst() else null
     }
@@ -517,5 +521,74 @@ class RunnerTest {
         assertEquals(150L, f.sleeps.first())                       // 100 + primeiro sorteio (50)
         assertTrue(f.traces.any { it.endsWith("atraso=150ms") })   // o rastro mostra o mesmo valor
         assertEquals(1, f.rolls.size)                              // só um sorteio consumido (sobrou o 77)
+    }
+
+    // --- funções do manual oficial do base ---
+    @Test fun searchWithZeroTimeoutNeverGivesUp() {
+        // ms = 0: busca sem limite. 50 tentativas em vão e a 51ª acha: não pode ter desistido antes.
+        val f = Fake().also { fk -> repeat(50) { fk.nodes.add(null) }; fk.nodes.add(77 to 88) }
+        val (o, _) = run(macro(Step(Type.NODE, ms = 0, text = "x", cycle = 100)), f)
+        assertTrue(o is Outcome.Done)
+        assertEquals(51, f.queries.size)
+        assertEquals(listOf("g:77,88>77,88@50"), gestures(f))
+    }
+
+    @Test fun doubleTapRepeatsAtTheSamePointEvenWithJitter() {
+        val s = Step(Type.TAP, 100, 200, ms = 10, jitter = 20, dbl = true)
+        val f = Fake(rolls = ArrayDeque(listOf(5, 7, 9, 11)))
+        run(macro(s), f)
+        val g = gestures(f)
+        assertEquals(2, g.size)
+        assertEquals(g[0], g[1])                                       // o jitter é sorteado uma vez só
+        assertTrue(f.sleeps.contains(80L))                             // intervalo entre os dois toques
+    }
+
+    @Test fun singleTapIsUnchangedWhenDoubleIsOff() {
+        val f = Fake()
+        run(macro(Step(Type.TAP, 5, 6, ms = 10)), f)
+        assertEquals(1, gestures(f).size)
+    }
+
+    @Test fun tapOffsetMovesTheTapAwayFromWhatWasFound() {
+        val f = Fake().also { it.nodes.add(100 to 200) }
+        run(macro(Step(Type.NODE, ms = 1000, text = "x", cycle = 100, ox = 10, oy = -20)), f)
+        assertEquals(listOf("g:110,180>110,180@50"), gestures(f))
+    }
+
+    @Test fun tapOffsetIsClampedToTheScreen() {
+        val f = Fake(width = 1000, height = 2000).also { it.nodes.add(5 to 1995) }
+        run(macro(Step(Type.NODE, ms = 1000, text = "x", cycle = 100, ox = -50, oy = 500)), f)
+        assertEquals(listOf("g:0,1999>0,1999@50"), gestures(f))
+    }
+
+    @Test fun doubleTapAlsoAppliesToAFoundElement() {
+        val f = Fake().also { it.nodes.add(10 to 20) }
+        run(macro(Step(Type.NODE, ms = 1000, text = "x", cycle = 100, dbl = true)), f)
+        assertEquals(listOf("g:10,20>10,20@50", "g:10,20>10,20@50"), gestures(f))
+    }
+
+    @Test fun screenshotKeyReachesThePort() {
+        val (o, f) = run(macro(Step(Type.KEY, x1 = KEY_SCREENSHOT)))
+        assertTrue(o is Outcome.Done)
+        assertEquals(listOf("k:9"), f.events)
+    }
+
+    @Test fun statusAlertTriggersVibrationAndSoundBeforeTheMessage() {
+        val f = Fake()
+        run(macro(Step(Type.STATUS, ms = 10, text = "oi", vib = true, snd = true)), f)
+        assertEquals(listOf("vib=true snd=true"), f.alerts)
+        assertEquals(listOf("s:oi"), f.events)
+    }
+
+    @Test fun statusWithoutAlertFlagsStaysSilent() {
+        val f = Fake()
+        run(macro(Step(Type.STATUS, ms = 10, text = "oi")), f)
+        assertTrue(f.alerts.isEmpty())
+    }
+
+    @Test fun ocrReceivesTheMinimumConfidence() {
+        val f = Fake().also { it.texts.add(1 to 1) }
+        run(macro(Step(Type.TEXT, ms = 1000, text = "x", cycle = 500, minConf = 70)), f)
+        assertEquals(listOf(70), f.textConfs)
     }
 }
