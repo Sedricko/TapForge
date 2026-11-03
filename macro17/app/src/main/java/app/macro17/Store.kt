@@ -29,6 +29,10 @@ class Store(ctx: Context) {
     var showTouches: Boolean
         get() = prefs.getBoolean("showTouches", true)
         set(v) = prefs.edit().putBoolean("showTouches", v).apply()
+    /** Diálogo "Guia para gravar locais de toque." antes de gravar; some com "Não mostrar novamente". */
+    var recGuide: Boolean
+        get() = prefs.getBoolean("recGuide", true)
+        set(v) = prefs.edit().putBoolean("recGuide", v).apply()
     var keepOn: Boolean
         get() = prefs.getBoolean("keepOn", false)
         set(v) = prefs.edit().putBoolean("keepOn", v).apply()

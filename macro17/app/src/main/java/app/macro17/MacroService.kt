@@ -12,6 +12,7 @@ import android.graphics.Bitmap
 import android.graphics.drawable.GradientDrawable
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -65,7 +66,7 @@ class MacroService : AccessibilityService() {
         }, ::toast, logPanel::captureHide)
         engine.onProgress = { lap, loops, step, total, name ->
             lastInfo = (if (loops == 1) "" else "$lap${if (loops > 0) "/$loops" else ""} · ") + "$step/$total" + (if (name.isNotBlank()) " $name" else "")
-            ui.post { tvInfo?.text = lastInfo }
+            ui.post { tvInfo?.text = lastInfo; highlightStep(step - 1) }
         }
         instance = this
         Alarms.rearm(this)
@@ -122,7 +123,7 @@ class MacroService : AccessibilityService() {
     /** PARAR da Home ou Fechar: fecha o painel e some com a janela. */
     fun hideControls() {
         Diag.d("serviço", "painel fechado pela Home")
-        ui.post { stopRecording(save = false); if (engine.running) engine.stop(); openPanel(false) }
+        ui.post { stopRecording(save = false); if (engine.running) engine.stop(); hideList(); openPanel(false) }
     }
 
     fun panelOpen() = ::panel.isInitialized && panel.visibility == View.VISIBLE
@@ -220,7 +221,7 @@ class MacroService : AccessibilityService() {
     private val baseIcons = mapOf(
         Ic.REC to R.drawable.bp_ic_menu_record, Ic.ADDLIST to R.drawable.bp_playlist_add, Ic.ALARM to R.drawable.bp_schedule_fill,
         Ic.EDIT to R.drawable.bp_ic_menu_edit, Ic.GEAR to R.drawable.bp_ic_settings, Ic.CANCEL to R.drawable.bp_ic_cancel_circle_fill_24,
-        Ic.FRAME to R.drawable.bp_ic_crop_free_24px, Ic.STOP to R.drawable.ic_stop, Ic.PLAY to R.drawable.bp_play_arrow, Ic.PAUSE to R.drawable.bp_ic_media_pause,
+        Ic.FRAME to R.drawable.bp_ic_crop_free_24px, Ic.EYE to R.drawable.bp_ic_visibility_on, Ic.EYE_OFF to R.drawable.bp_ic_visibility_off, Ic.STOP to R.drawable.ic_stop, Ic.PLAY to R.drawable.bp_play_arrow, Ic.PAUSE to R.drawable.bp_ic_media_pause,
     )
 
     private fun pbtn(ic: Ic, desc: String, click: () -> Unit) = ImageView(this).apply {
@@ -268,6 +269,7 @@ class MacroService : AccessibilityService() {
                     row1.addView(pbtn(Ic.UP, "Anterior") { engine.jump = -1 }.also { it.rotation = -90f })
                     row1.addView(pbtn(Ic.UP, "Próximo") { engine.jump = 1 }.also { it.rotation = 90f })
                 } else row1.addView(pbtn(Ic.PAUSE, "Pausar") { engine.paused = true; fillRow1() })
+                if (engine.paused) row1.addView(pbtn(if (listWin != null) Ic.EYE_OFF else Ic.EYE, "Lista da macro") { toggleList() })
                 row1.addView(android.view.View(this).apply { setBackgroundColor(0xFFE0E0E0.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(1), dp(30)).also { it.setMargins(dp(4), 0, dp(4), 0) })
                 tvInfo = label(lastInfo, 13f, teal).apply { maxLines = 1; maxWidth = dp(110); ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, 0, dp(6), 0) }
                 row1.addView(tvInfo)
@@ -275,6 +277,7 @@ class MacroService : AccessibilityService() {
             }
             // "Modo de Reprodução": só o ▶. "Visualização Simples": sem enquadrar e sem a segunda linha.
             if (!store.playMode) row1.addView(pbtn(Ic.REC, "Gravar") { startRecording() })
+            if (!store.playMode && !store.simpleView) row1.addView(pbtn(if (listWin != null) Ic.EYE_OFF else Ic.EYE, "Lista da macro") { toggleList() })
             if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.FRAME, "Capturar imagem para a macro") { captureImage() })
             if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.CHEVRON, if (expanded) "Recolher" else "Mais opções") { expanded = !expanded; row2.visibility = if (expanded) View.VISIBLE else View.GONE; fillRow1() }.also { it.rotation = if (expanded) -90f else 90f })
         }
@@ -286,6 +289,33 @@ class MacroService : AccessibilityService() {
     }
 
     /** Atualiza o ▶/■ do painel; chamável de qualquer thread. */
+    // --- lista flutuante da macro ("olho"): 170x240dp com o passo atual em rosa, como no base ---
+    private var listWin: View? = null
+    private var listCol: android.widget.LinearLayout? = null
+
+    private fun toggleList() {
+        if (listWin != null) { hideList(); fillRow1(); return }
+        val m = store.selected?.let { store.get(it) } ?: return toast("Por favor, selecione um arquivo.")
+        val col = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)) }
+        m.steps.forEachIndexed { i, s -> col.addView(label("${i + 1}. ${s.name.ifBlank { s.type.name.lowercase().replaceFirstChar { it.uppercase() } }}", 13f, B.TEXT).apply { setPadding(0, dp(3), 0, dp(3)); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }) }
+        val sv = android.widget.ScrollView(this).apply { background = rounded(0xF2FFFFFF.toInt(), 8, 0xFFE0E0E0.toInt()); addView(col) }
+        val lp = WindowManager.LayoutParams(dp(170), dp(240), WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT)
+            .apply { gravity = Gravity.TOP or Gravity.START; x = bubbleLp.x; y = bubbleLp.y + dp(48) }
+        runCatching { wm.addView(sv, lp) }.onSuccess { listWin = sv; listCol = col }
+        fillRow1()
+    }
+
+    private fun hideList() { listWin?.let { runCatching { wm.removeView(it) } }; listWin = null; listCol = null }
+
+    private fun highlightStep(i: Int) {
+        val col = listCol ?: return
+        for (k in 0 until col.childCount) (col.getChildAt(k) as? android.widget.TextView)?.apply {
+            setTextColor(if (k == i) 0xFFD81B60.toInt() else B.TEXT); typeface = if (k == i) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        }
+        (listWin as? android.widget.ScrollView)?.let { sv -> col.getChildAt(i)?.let { v -> sv.post { sv.smoothScrollTo(0, (v.top - dp(60)).coerceAtLeast(0)) } } }
+    }
+
     private var tvInfo: android.widget.TextView? = null
     private var lastInfo = ""
     private var playing = false // estado mostrado no painel (engine.running ainda é true dentro do callback de fim)
@@ -464,6 +494,14 @@ class MacroService : AccessibilityService() {
     private var adding = false
 
     private fun startRecording() {
+        if (store.recGuide) { startActivity(Intent(this, RecordGuideActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return }
+        beginRecording()
+    }
+
+    /** Chamado pelo guia (OK) ou direto quando ele está desligado. */
+    fun beginRecording() { ui.post { beginRecordingNow() } }
+
+    private fun beginRecordingNow() {
         Diag.d("gravação", "início (marcadores)")
         if (engine.running) return toast("Pare a macro antes de gravar")
         if (recording) return
