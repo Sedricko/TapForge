@@ -96,7 +96,9 @@ class Runner(private val p: Ports) {
             if (needle != null) p.trace("passo ${f.pc + 1} imagem do item: " + (if (imgHit != null) "achou em ${imgHit.x},${imgHit.y} semelhança ${(imgHit.score * 100).toInt()}%" else "não achou"))
 
             // Mínimo de 1 ms por passo: macro infinita sem nenhuma espera não pode virar laço quente.
-            p.sleep(if (imgMiss) 1L else maxOf(1, wait).toLong())
+            // IMAGE/NODE/TEXT/NUMBER: como no base, o atraso vem depois de achar (abaixo), não antes da busca.
+            val searchFirst = s.type == Type.IMAGE || s.type == Type.NODE || s.type == Type.TEXT || s.type == Type.NUMBER
+            p.sleep(if (imgMiss || searchFirst) 1L else maxOf(1, wait).toLong())
 
             var jump = 0
             when (s.type) {
@@ -121,6 +123,7 @@ class Runner(private val p: Ports) {
                     val needle = p.template(s.text) ?: return Outcome.Failed("imagem do passo ${f.pc + 1} não encontrada no aparelho")
                     val hit = search(specOf(s), needle, f.pc + 1)
                     p.trace("passo ${f.pc + 1} imagem: " + (hit?.let { "achou em ${it.x},${it.y} semelhança ${(it.score * 100).toInt()}%" } ?: "não achou"))
+                    if (hit != null) p.sleep(maxOf(1, wait).toLong())
                     if (hit != null && s.tap && !s.skip) tapAt(s, hit.x, hit.y)
                     jump = if (hit != null) s.goto else s.fail
                 }
@@ -134,11 +137,13 @@ class Runner(private val p: Ports) {
                         Digits.read(frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1), set)?.takeIf { holds(s, it) }
                     }
                     p.trace("passo ${f.pc + 1} número: ${read ?: "condição não satisfeita no prazo"}")
+                    if (read != null) p.sleep(maxOf(1, wait).toLong())
                     jump = if (read != null) s.goto else s.fail
                 }
                 Type.NODE -> {
                     val hit = poll(s) { p.findNode(s.text, s.exact) }
                     p.trace("passo ${f.pc + 1} elemento: ${hit ?: "não achou"}")
+                    if (hit != null) p.sleep(maxOf(1, wait).toLong())
                     if (hit != null && s.tap && !s.skip) tapAt(s, hit.first, hit.second)
                     jump = if (hit != null) s.goto else s.fail
                 }
@@ -146,6 +151,7 @@ class Runner(private val p: Ports) {
                     val area = if (s.x2 > s.x1 && s.y2 > s.y1) intArrayOf(s.x1, s.y1, s.x2, s.y2) else null
                     val hit = poll(s) { p.findText(s.text, s.exact, area, s.minConf) }
                     p.trace("passo ${f.pc + 1} texto: ${hit ?: "não achou"}")
+                    if (hit != null) p.sleep(maxOf(1, wait).toLong())
                     if (hit != null && s.tap && !s.skip) tapAt(s, hit.first, hit.second)
                     jump = if (hit != null) s.goto else s.fail
                 }

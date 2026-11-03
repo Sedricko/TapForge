@@ -70,7 +70,12 @@ class Engine(
         override val width get() = bounds.width()
         override val height get() = bounds.height()
 
-        override fun sleep(ms: Long) { Thread.sleep(ms); while (paused) Thread.sleep(50) }
+        override fun sleep(ms: Long) {
+            // Fatias de 100 ms: a pausa vale no meio de esperas longas, não só depois delas.
+            var left = ms
+            while (left > 0) { val n = minOf(left, 100L); Thread.sleep(n); left -= n; while (paused) Thread.sleep(50) }
+            while (paused) Thread.sleep(50)
+        }
 
         override fun gesture(strokes: List<Stroke>, ms: Int) {
             val b = GestureDescription.Builder()
@@ -165,13 +170,13 @@ class Engine(
                 override fun onFailure(code: Int) { err = code; latch.countDown() }
             })
             if (!latch.await(3, TimeUnit.SECONDS)) Diag.e("captura", "sem resposta em 3 s")
-            check(latch.count == 0L) { "captura de tela sem resposta do sistema" }
+            if (latch.count != 0L) return null // como no base, captura sem resposta = "não achou"; a busca tenta de novo
             SystemClock.elapsedRealtime().minus(t0).let { if (it > 400) Diag.d("captura", "lenta: $it ms") }
             val r = shot
             if (r == null) {
                 // Intervalo mínimo entre capturas se resolve na próxima tentativa; os outros erros não.
                 if (err != AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) Diag.e("captura", "recusada, código $err")
-                check(err == AccessibilityService.ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) { "captura de tela recusada (código $err)" }
+                check(err != AccessibilityService.ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS) { "captura de tela recusada: o serviço perdeu a permissão" }
                 return null
             }
             val hb = r.hardwareBuffer
@@ -207,8 +212,8 @@ class Engine(
                 crop = Bitmap.createBitmap(full, x0, y0, x1 - x0, y1 - y0)
                 val text = try {
                     Tasks.await(recognizer.process(InputImage.fromBitmap(crop, 0)), 10, TimeUnit.SECONDS)
-                } catch (e: ExecutionException) { throw IllegalStateException("OCR falhou: ${e.cause?.message ?: e.message}") }
-                  catch (e: TimeoutException) { throw IllegalStateException("OCR sem resposta em 10 s") }
+                } catch (e: ExecutionException) { Diag.e("ocr", "falhou: ${e.cause?.message ?: e.message}"); return null }
+                  catch (e: TimeoutException) { Diag.e("ocr", "sem resposta em 10 s"); return null }
                 val hit = { t: String -> targets.any { if (exact) t == it else t.contains(it, ignoreCase = true) } }
                 val lines = text.textBlocks.flatMap { it.lines }
                 // Confiança mínima do manual do base: abaixo dela a leitura é descartada (0 = sem filtro).

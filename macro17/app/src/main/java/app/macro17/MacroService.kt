@@ -118,7 +118,7 @@ class MacroService : AccessibilityService() {
     /** PARAR da Home ou Fechar: fecha o painel e some com a janela. */
     fun hideControls() {
         Diag.d("serviço", "painel fechado pela Home")
-        ui.post { stopRecording(save = false); openPanel(false) }
+        ui.post { stopRecording(save = false); if (engine.running) engine.stop(); openPanel(false) }
     }
 
     fun panelOpen() = ::panel.isInitialized && panel.visibility == View.VISIBLE
@@ -166,7 +166,7 @@ class MacroService : AccessibilityService() {
                 if (engine.start(m)) {
                     toast("Executando: ${m.name}"); logPanel.setThrough(true); setPlayIcon(true)
                     // Ocultar: o painel some durante a reprodução (a tecla de volume para a macro, ver onKeyEvent). Depurar: abre o registro.
-                    ui.post { if (store.hidePopup) bubble?.visibility = View.INVISIBLE; if (store.debugOverlay && !logPanel.shown) logPanel.show() }
+                    ui.post { bubble?.visibility = View.VISIBLE; openPanel(true); if (store.hidePopup) bubble?.visibility = View.INVISIBLE; if (store.debugOverlay && !logPanel.shown) logPanel.show() }
                 } else ui.post { awake(false) }
             }
         }
@@ -178,7 +178,7 @@ class MacroService : AccessibilityService() {
             val r = RingtoneManager.getRingtone(this, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
             r.audioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
             r.play(); ui.postDelayed({ runCatching { r.stop() } }, 5000)
-            getSystemService(VibratorManager::class.java).defaultVibrator.vibrate(VibrationEffect.createOneShot(800, VibrationEffect.DEFAULT_AMPLITUDE))
+            getSystemService(VibratorManager::class.java).defaultVibrator.vibrate(VibrationEffect.createOneShot(5000, VibrationEffect.DEFAULT_AMPLITUDE))
         }.onFailure { Diag.e("serviço", "alarme de fim falhou", it) }
     }
 
@@ -489,6 +489,7 @@ class MacroService : AccessibilityService() {
     }
 
     private fun commitItem(pressedAt: Long, bmp: Bitmap?) {
+        if (!recording) return // Stop durante o Add: nada de gravar nem tocar depois de salvar
         var restoreAfter = 0L
         try {
             val mode = recorder.mode
