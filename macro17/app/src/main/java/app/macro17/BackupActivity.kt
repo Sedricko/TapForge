@@ -22,7 +22,7 @@ class BackupActivity : Activity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(4), dp(4), dp(4))
+            orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, 0)
             addView(card().apply {
                 gravity = Gravity.CENTER_HORIZONTAL
                 setPadding(dp(14), dp(14), dp(14), dp(14))

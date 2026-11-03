@@ -21,8 +21,12 @@ class Store(ctx: Context) {
         set(v) = prefs.edit().putString("selected", v).apply()
 
     // Opções da tela "Opções". Padrões: tela ligada e parada ao bloquear (gestos já seriam cancelados), bolha opaca.
+    /** "Tamanho da imagem a salvar" (px do recorte gravado em volta do toque). */
+    var thumbPx: Int
+        get() = prefs.getInt("thumbPx", 80)
+        set(v) = prefs.edit().putInt("thumbPx", v).apply()
     var keepOn: Boolean
-        get() = prefs.getBoolean("keepOn", true)
+        get() = prefs.getBoolean("keepOn", false)
         set(v) = prefs.edit().putBoolean("keepOn", v).apply()
 
     // Diagnóstico: grava eventos em arquivo (ligado por padrão); diagRoot inclui log do sistema via su, só se o usuário pedir.

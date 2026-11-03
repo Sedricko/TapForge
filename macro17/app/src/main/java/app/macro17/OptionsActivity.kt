@@ -28,7 +28,13 @@ class OptionsActivity : Activity() {
         store = Store(this)
         val p = Prefs(this)
 
-        p.category("Reprodução", Ic.PLAY)
+        val sizes = intArrayOf(40, 60, 80, 100, 120, 160)
+        var sizeTxt: TextView? = null
+        sizeTxt = p.valueRow("Tamanho da imagem a salvar", "${store.thumbPx} Pixel") {
+            AlertDialog.Builder(this).setTitle("Tamanho da imagem a salvar").setSingleChoiceItems(sizes.map { "$it Pixel" }.toTypedArray(), sizes.indexOf(store.thumbPx)) { d, w ->
+                store.thumbPx = sizes[w]; sizeTxt?.text = "${sizes[w]} Pixel"; d.dismiss()
+            }.setNegativeButton("Cancelar", null).show()
+        }
         p.switchRow("Parar Reprodução com Tecla de Volume", "Qualquer tecla de volume, ao soltar, para a macro em execução.", store.stopVolume) { store.stopVolume = it }
         p.switchRow("Iniciar macro com tecla de volume.", "Com o app ocioso, soltar a tecla de volume inicia a macro selecionada.", store.startVolume) { store.startVolume = it }
         p.switchRow("Mostrar Toques", "Mostrar feedback visual para reproduções (indisponível)", false, enabled = false)
@@ -45,8 +51,10 @@ class OptionsActivity : Activity() {
         val tr = p.valueRow("Transparência da janela flutuante (%)", "${100 - store.opacity} %") { transparencyDialog() }
         transparencyText = tr
         p.switchRow("Ocultar janela pop-up durante a reprodução", "Pressione a tecla de volume para parar a reprodução da macro.", store.hidePopup) { store.hidePopup = it; pushOptions() }
-        p.switchRow("Visualização Simples", "Simplifica os botões de controle exibidos na tela.", store.simpleView) { store.simpleView = it; pushOptions() }
-        p.switchRow("Modo de Reprodução", "Apenas o botão de reprodução é exibido.", store.playMode) { store.playMode = it; pushOptions() }
+        // Exclusivos, como no base: ligar um desliga o outro.
+        var playSw: Switch? = null
+        val simpleSw = p.switchRow("Visualização Simples", "Simplifica os botões de controle exibidos na tela.", store.simpleView) { store.simpleView = it; if (it) playSw?.isChecked = false; pushOptions() }
+        playSw = p.switchRow("Modo de Reprodução", "Apenas o botão de reprodução é exibido.", store.playMode) { store.playMode = it; if (it) simpleSw.isChecked = false; pushOptions() }
 
         p.category("Gravação de tela", Ic.REC)
         p.valueRow("Configurações de gravação de áudio", "Sem áudio (indisponível)", enabled = false)

@@ -47,20 +47,19 @@ fun Activity.appBar(title: String, nav: Ic, onNav: () -> Unit, vararg actions: V
 /** Cartão branco de cantos pouco arredondados, como os do base. */
 fun Context.card(): LinearLayout = LinearLayout(this).apply {
     orientation = LinearLayout.VERTICAL
-    background = rounded(Color.WHITE, 4)
+    background = rounded(Color.WHITE, 2)
     elevation = dp(2).toFloat()
-    layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) }
+    layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(5), dp(4), dp(5), dp(4)) }
 }
 
 /** Cartão-botão: ícone verde à esquerda, texto azul em caixa alta no centro. */
 fun Context.bigButton(ic: Ic, text: String, click: () -> Unit): View = FrameLayout(this).apply {
-    background = rounded(Color.WHITE, 4)
-    foreground = ripple(4, 0x1F00897B)
+    background = rounded(Color.WHITE, 2)
+    foreground = ripple(2, 0x1F000000)
     elevation = dp(2).toFloat()
-    minimumHeight = dp(64)
-    addView(glyph(ic, B.PRIMARY, 28), FrameLayout.LayoutParams(dp(28), dp(28), Gravity.START or Gravity.CENTER_VERTICAL).also { it.marginStart = dp(48) })
-    addView(label(text.uppercase(), 20f, B.BLUE, bold = true), FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER).also { it.topMargin = dp(18); it.bottomMargin = dp(18) })
-    layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) }
+    addView(glyph(ic, B.PRIMARY, 25), FrameLayout.LayoutParams(dp(25), dp(25), Gravity.START or Gravity.CENTER_VERTICAL).also { it.marginStart = dp(60) })
+    addView(label(text.uppercase(), 20f, B.BLUE, bold = true), FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.CENTER).also { it.topMargin = dp(12); it.bottomMargin = dp(12) })
+    layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(5), dp(4), dp(5), dp(4)) }
     setOnClickListener { click() }
 }
 

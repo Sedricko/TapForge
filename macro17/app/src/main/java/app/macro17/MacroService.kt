@@ -37,7 +37,6 @@ import java.util.UUID
 import kotlin.math.hypot
 
 // Lado do recorte de miniatura ao redor do ponto gravado (opção "tamanho da imagem a salvar" do base, padrão 80 px).
-private const val THUMB_PX = 80
 
 class MacroService : AccessibilityService() {
     companion object {
@@ -492,7 +491,7 @@ class MacroService : AccessibilityService() {
                 if (base != null) {
                     var thumb = ""
                     recorder.point()?.let { (px, py) ->
-                        bmp?.let { b -> cropAround(b, px, py, THUMB_PX)?.let { c -> thumb = store.newTemplateId(); store.saveTemplate(thumb, c); c.recycle() } }
+                        bmp?.let { b -> cropAround(b, px, py, store.thumbPx)?.let { c -> thumb = store.newTemplateId(); store.saveTemplate(thumb, c); c.recycle() } }
                     }
                     st = base.copy(delay = measuredDelay(pressedAt, base.ms), img = thumb,
                         // Como no base: a miniatura de 80 px só ilustra a lista; a busca por imagem fica desligada no item gravado.

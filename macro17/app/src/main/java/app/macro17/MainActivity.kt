@@ -30,7 +30,7 @@ class MainActivity : Activity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         store = Store(this)
-        content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(4), dp(4), dp(4)) }
+        content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(this).apply {
             addView(content)
             setOnApplyWindowInsetsListener { v, i -> v.setPadding(0, 0, 0, i.getInsets(WindowInsets.Type.navigationBars()).bottom); i }
@@ -65,41 +65,31 @@ class MainActivity : Activity() {
         content.removeAllViews()
 
         content.addView(card().apply {
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER
             orientation = LinearLayout.HORIZONTAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
-            if (MacroService.instance != null) {
-                addView(glyph(Ic.INFO, B.PRIMARY, 24))
-                addView(label("Permissão de Acessibilidade Concedida", 15f, B.TEXT2, bold = true).apply { setPadding(dp(8), 0, 0, 0) })
-            } else {
-                addView(glyph(Ic.WARN, B.RED, 24))
-                addView(LinearLayout(this@MainActivity).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(dp(8), 0, 0, 0)
-                    addView(label("A permissão de acessibilidade deve ser concedida.", 15f, B.TEXT2, bold = true))
-                    addView(label("Toque aqui. Se “Macro17” estiver cinza: Informações do app > ⋮ > Permitir configurações restritas.", 12f, B.TEXT2))
-                })
-                setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-            }
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            val ok = MacroService.instance != null
+            addView(glyph(Ic.INFO, if (ok) 0xFF00574B.toInt() else B.RED, 24))
+            addView(label(if (ok) "Permissão de Acessibilidade Concedida" else "A acessibilidade não está ativada.", 14f, if (ok) 0xFF00574B.toInt() else B.RED, bold = true).apply { setPadding(dp(8), 0, 0, 0) })
+            if (!ok) setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
         })
 
         content.addView(card().apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            foreground = ripple(2, 0x1F000000)
+            setOnClickListener { fileDialog() }
             if (cur == null) {
-                addView(label("Nenhuma macro", 16f, B.TEXT2, bold = true))
-                addView(label("Toque em ARQUIVO para criar ou importar.", 14f, B.TEXT2))
+                addView(label("Por favor, selecione um arquivo.", 14f, 0xFF212121.toInt(), bold = true))
             } else {
-                addView(label(cur.name, 16f, B.TEXT2, bold = true).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END })
-                addView(label("Repetir reprodução:" + if (cur.loops == 0) "∞" else cur.loops.toString(), 15f, B.TEXT2, bold = true).apply { setPadding(0, dp(8), 0, 0) })
-                foreground = ripple(4, 0x1F00897B)
-                setOnClickListener { menu(cur) }
+                addView(label(cur.name, 14f, 0xFF212121.toInt(), bold = true).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END })
+                addView(label("Repetir reprodução:" + if (cur.loops == 0) "Infinito" else cur.loops.toString(), 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(0, dp(4), 0, 0) })
             }
         })
 
         content.addView(bigButton(Ic.EDIT, "Editor de macro") { edit(cur?.id ?: "new") })
         content.addView(bigButton(Ic.FOLDER, "Arquivo") { fileDialog() })
-        content.addView(bigButton(Ic.INFO, "Monitor e logs") { startActivity(Intent(this, DiagActivity::class.java)) })
+        if (store.debugOverlay) content.addView(bigButton(Ic.INFO, "Arquivo de Depuração") { startActivity(Intent(this, DiagActivity::class.java)) })
         // Como no app base: INICIAR abre os controles flutuantes para montar (gravar) e rodar; não exige macro pronta.
         content.addView(bigButton(Ic.TAP, if (MacroService.instance?.panelOpen() == true) "Parar" else "Iniciar") { start() })
     }

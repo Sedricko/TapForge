@@ -25,7 +25,7 @@ class PermissionsActivity : Activity() {
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
-        content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(4), dp(4), dp(4)) }
+        content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, 0) }
         drawer = mainDrawer(1)
         val scroll = ScrollView(this).apply {
             addView(content)
@@ -49,10 +49,10 @@ class PermissionsActivity : Activity() {
     private fun option(title: String, body: String, click: () -> Unit): View = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
-        background = rounded(Color.WHITE, 4); elevation = dp(2).toFloat()
+        background = rounded(Color.WHITE, 2); elevation = dp(2).toFloat()
         foreground = ripple(4, 0x1F00897B)
         setPadding(dp(16), dp(18), dp(16), dp(18))
-        layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) }
+        layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(5), dp(4), dp(5), dp(4)) }
         addView(label(title, 15f, B.TEXT2, bold = true))
         addView(label(body, 15f, B.TEXT).apply { gravity = Gravity.CENTER; setPadding(0, dp(10), 0, 0) })
         setOnClickListener { click() }
