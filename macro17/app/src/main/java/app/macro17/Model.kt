@@ -58,7 +58,12 @@ data class Step(
     val ox: Int = 0, val oy: Int = 0,
     val vib: Boolean = false, val snd: Boolean = false,
     val minConf: Int = 0,
-    val img: String = "",   // id do recorte de 80 px ao redor do ponto gravado: só a miniatura na lista, como no base
+    val img: String = "",   // id do recorte de 80 px ao redor do ponto gravado (miniatura e, com useImg, a imagem buscada)
+    // Toque/deslizar com "Correspondência de imagem" (como o item do base): busca [img] antes do atraso e age RELATIVO ao achado.
+    // sms = tempo máximo da busca (0 = sem limite); a área de busca é ax1..ay2 (tudo 0 = tela toda); thr, cycle, goto e fail valem aqui também.
+    val useImg: Boolean = false,
+    val sms: Int = 5000,
+    val ax1: Int = 0, val ay1: Int = 0, val ax2: Int = 0, val ay2: Int = 0,
 ) {
     /** [size] é o total de passos da macro, para validar os alvos de salto. */
     fun validate(size: Int): String? = when {
@@ -74,6 +79,12 @@ data class Step(
         type == Type.TEXT && minConf !in 0..100 -> "confiança mínima deve ser de 0 a 100%"
         // Como no base: tempo máximo 0 = busca sem limite, e então não existe "falhou"; os saltos "se achar / se não achar" exigem tempo > 0.
         type in SEARCHES && ms == 0 && (goto != 0 || fail != 0) -> "com tempo máximo 0 (sem limite) não há “se achar / se não achar”: use um tempo maior que 0 ou zere os destinos"
+        type in GESTURES && useImg && img.isBlank() -> "correspondência de imagem sem imagem: grave o item pelo painel"
+        type in GESTURES && useImg && thr !in 20..100 -> "semelhança deve ser de 20 a 100%"
+        type in GESTURES && useImg && (cycle !in 50..MAX_MS || sms !in 0..MAX_MS || (sms != 0 && sms < 100)) -> "intervalo de 50 ms a $MAX_MS e tempo da busca 0 (sem limite) ou de 100 ms a $MAX_MS"
+        type in GESTURES && useImg && !(listOf(ax1, ay1, ax2, ay2).all { it == 0 } || (ax2 > ax1 && ay2 > ay1)) -> "área de busca inválida: use tudo 0 ou X/Y finais maiores que os iniciais"
+        type in GESTURES && useImg && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
+        type in GESTURES && useImg && sms == 0 && (goto != 0 || fail != 0) -> "com tempo da busca 0 (sem limite) não há “se achar / se não achar”"
         type == Type.GOTO && goto !in 1..size -> "escolha o passo de destino (1 a $size)"
         type == Type.COUNTER && !validCounter() -> "contador deve ser 1 a $MAX_COUNTERS"
         type == Type.RESET && !validCounter() -> "contador deve ser 1 a $MAX_COUNTERS"
@@ -110,6 +121,7 @@ data class Step(
         .put("g", goto).put("c", counter).put("tx", text).put("rt", ret)
         .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact).put("sl", scales).put("cm", cmp).put("lo", lo).put("hi", hi).put("mt", method).put("mo", mono).put("cf", confirm)
         .put("db", dbl).put("ox", ox).put("oy", oy).put("vb", vib).put("sn", snd).put("mc", minConf).put("im", img)
+        .put("ui", useImg).put("sm", sms).put("a1", ax1).put("b1", ay1).put("a2", ax2).put("b2", ay2)
         .put("cs", JSONArray().also { a -> cases.forEach { a.put(JSONObject().put("n", it.n).put("to", it.to)) } })
 
     companion object {
@@ -127,6 +139,7 @@ data class Step(
                 o.optString("tx"), o.optBoolean("rt", true),
                 o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"), o.optInt("cm"), o.optInt("lo"), o.optInt("hi"), o.optInt("mt"), o.optBoolean("mo"), o.optInt("cf", 1),
                 o.optBoolean("db"), o.optInt("ox"), o.optInt("oy"), o.optBoolean("vb"), o.optBoolean("sn"), o.optInt("mc"), o.optString("im"),
+                o.optBoolean("ui"), o.optInt("sm", 5000), o.optInt("a1"), o.optInt("b1"), o.optInt("a2"), o.optInt("b2"),
             )
         }
     }

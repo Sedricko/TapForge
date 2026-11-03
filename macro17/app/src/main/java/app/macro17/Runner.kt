@@ -86,15 +86,29 @@ class Runner(private val p: Ports) {
             val wait = delayOf(s) // uma vez só: delayOf sorteia quando o atraso é aleatório, e o rastro tem de mostrar o valor usado
             p.trace("passo ${f.pc + 1}/${f.macro.steps.size} ${s.type}" + (if (s.skip) " (pular)" else "") + " atraso=${wait}ms")
 
+            // Como no base, um item com imagem busca PRIMEIRO e só então espera o atraso e age; sem imagem, o atraso vem antes.
+            val wantsImg = s.type in Step.GESTURES && s.useImg && s.img.isNotEmpty()
+            val needle = if (wantsImg) p.template(s.img) else null
+            if (wantsImg && needle == null) p.log("Passo ${f.pc + 1}: imagem do item não encontrada no aparelho; age sem comparar")
+            val imgHit: TemplateMatcher.Hit? = if (needle != null) search(specOf(s), needle, f.pc + 1) else null
+            val imgMiss = needle != null && imgHit == null
+            if (needle != null) p.trace("passo ${f.pc + 1} imagem do item: " + (if (imgHit != null) "achou em ${imgHit.x},${imgHit.y} semelhança ${(imgHit.score * 100).toInt()}%" else "não achou"))
+
             // Mínimo de 1 ms por passo: macro infinita sem nenhuma espera não pode virar laço quente.
-            p.sleep(maxOf(1, wait).toLong())
+            p.sleep(if (imgMiss) 1L else maxOf(1, wait).toLong())
 
             var jump = 0
             when (s.type) {
-                Type.TAP, Type.SWIPE, Type.PINCH_IN, Type.PINCH_OUT -> if (!s.skip) {
-                    val st = strokes(s) // um só sorteio de jitter: o segundo toque do clique duplo cai no mesmo ponto
-                    p.gesture(st, s.ms)
-                    if (s.dbl && s.type == Type.TAP) { p.sleep(DOUBLE_GAP_MS); p.gesture(st, s.ms) }
+                Type.TAP, Type.SWIPE, Type.PINCH_IN, Type.PINCH_OUT -> if (imgMiss) jump = s.fail else {
+                    if (!s.skip) {
+                        // Relativo à imagem: o gesto anda junto com o deslocamento do achado em relação ao ponto gravado (mais o desvio).
+                        val dx = if (imgHit != null) imgHit.x - s.x1 + s.ox else 0
+                        val dy = if (imgHit != null) imgHit.y - s.y1 + s.oy else 0
+                        val st = strokes(s, dx, dy) // um só sorteio de jitter: o segundo toque do clique duplo cai no mesmo ponto
+                        p.gesture(st, s.ms)
+                        if (s.dbl && s.type == Type.TAP) { p.sleep(DOUBLE_GAP_MS); p.gesture(st, s.ms) }
+                    }
+                    if (imgHit != null) jump = s.goto
                 }
                 Type.KEY -> if (!s.skip) p.key(s.x1)
                 Type.WAIT -> p.sleep(s.ms.toLong())
@@ -104,7 +118,7 @@ class Runner(private val p: Ports) {
                 Type.COUNTER -> jump = counterJump(f, s)
                 Type.IMAGE -> {
                     val needle = p.template(s.text) ?: return Outcome.Failed("imagem do passo ${f.pc + 1} não encontrada no aparelho")
-                    val hit = search(s, needle, f.pc + 1)
+                    val hit = search(specOf(s), needle, f.pc + 1)
                     p.trace("passo ${f.pc + 1} imagem: " + (hit?.let { "achou em ${it.x},${it.y} semelhança ${(it.score * 100).toInt()}%" } ?: "não achou"))
                     if (hit != null && s.tap && !s.skip) tapAt(s, hit.x, hit.y)
                     jump = if (hit != null) s.goto else s.fail
@@ -157,35 +171,42 @@ class Runner(private val p: Ports) {
      * Tenta achar [needle] na tela a cada [Step.cycle] ms até [Step.ms]. A primeira tentativa é imediata.
      * Devolve o centro do achado em coordenadas da tela inteira (a área de busca é recortada antes).
      */
+    /** Parâmetros de uma busca de imagem: vêm do passo IMAGE (x1..y2, ms) ou do bloco de imagem de um toque/deslize (ax1..ay2, sms). */
+    private class Spec(val x1: Int, val y1: Int, val x2: Int, val y2: Int, val ms: Int, val cycle: Int, val thr: Int, val method: Int, val mono: Boolean, val confirm: Int, val scales: Boolean)
+
+    private fun specOf(s: Step) =
+        if (s.type == Type.IMAGE) Spec(s.x1, s.y1, s.x2, s.y2, s.ms, s.cycle, s.thr, s.method, s.mono, s.confirm, s.scales)
+        else Spec(s.ax1, s.ay1, s.ax2, s.ay2, s.sms, s.cycle, s.thr, s.method, s.mono, s.confirm, s.scales)
+
     /**
-     * Procura [needle] até o prazo. Com [Step.confirm] > 1, só vale o achado que se repete em quadros seguidos no mesmo lugar
+     * Procura [needle] até o prazo. Com [Spec.confirm] > 1, só vale o achado que se repete em quadros seguidos no mesmo lugar
      * (evita agir sobre um quadro de transição ou de animação). Ao falhar, diz o quanto faltou.
      */
-    private fun search(s: Step, needle: Gray, number: Int): TemplateMatcher.Hit? {
+    private fun search(sp: Spec, needle: Gray, number: Int): TemplateMatcher.Hit? {
         val probe = TemplateMatcher.Probe()
         var streak = 0
         var last: TemplateMatcher.Hit? = null
         // Método 0 = o do app de referência (correlação, limiar max(A,20) com teto 99, sucesso estritamente maior); 1 = diferença de pixels.
-        val th = if (s.method == 1) s.thr / 100f else TemplateMatcher.baseThreshold(s.thr)
-        val hit = poll(s) {
+        val th = if (sp.method == 1) sp.thr / 100f else TemplateMatcher.baseThreshold(sp.thr)
+        val hit = poll(sp.ms, sp.cycle) {
             val frame = p.screen() ?: return@poll null
-            val whole = s.x1 == 0 && s.y1 == 0 && s.x2 == 0 && s.y2 == 0
-            val ox = if (whole) 0 else s.x1.coerceIn(0, frame.w)
-            val oy = if (whole) 0 else s.y1.coerceIn(0, frame.h)
-            val hay = if (whole) frame else frame.crop(ox, oy, s.x2 - s.x1, s.y2 - s.y1)
+            val whole = sp.x1 == 0 && sp.y1 == 0 && sp.x2 == 0 && sp.y2 == 0
+            val ox = if (whole) 0 else sp.x1.coerceIn(0, frame.w)
+            val oy = if (whole) 0 else sp.y1.coerceIn(0, frame.h)
+            val hay = if (whole) frame else frame.crop(ox, oy, sp.x2 - sp.x1, sp.y2 - sp.y1)
             // Dentro da área, compara os pixels com o modelo e confere com a % configurada.
-            val find = { n: Gray -> if (s.method == 1) TemplateMatcher.findSqdiff(hay, n, th, s.mono, probe) else p.matchNcc(hay, n, th, probe) }
-            val h = (if (s.scales) TemplateMatcher.scaled(needle, find) else find(needle))?.let { it.copy(x = it.x + ox, y = it.y + oy) }
+            val find = { n: Gray -> if (sp.method == 1) TemplateMatcher.findSqdiff(hay, n, th, sp.mono, probe) else p.matchNcc(hay, n, th, probe) }
+            val h = (if (sp.scales) TemplateMatcher.scaled(needle, find) else find(needle))?.let { it.copy(x = it.x + ox, y = it.y + oy) }
             val prev = last
             if (h == null) { streak = 0; last = null; return@poll null }
             streak = if (prev != null && abs(prev.x - h.x) <= STILL_PX && abs(prev.y - h.y) <= STILL_PX) streak + 1 else 1
             last = h
-            if (streak >= s.confirm) h else null
+            if (streak >= sp.confirm) h else null
         }
         if (hit == null) p.log(
             "Passo $number: imagem não achada. " +
                 (if (probe.best <= 0f) "Nada parecido na área" else "Melhor semelhança ${(probe.best * 100).toInt()}%") +
-                " (exigido ${s.thr}%" + (if (s.confirm > 1) ", ${s.confirm} quadros seguidos" else "") + ")"
+                " (exigido ${sp.thr}%" + (if (sp.confirm > 1) ", ${sp.confirm} quadros seguidos" else "") + ")"
         )
         return hit
     }
@@ -199,12 +220,14 @@ class Runner(private val p: Ports) {
     }
 
     /** Repete [attempt] a cada [Step.cycle] ms até dar certo ou passar [Step.ms]. A primeira tentativa é imediata. */
-    private fun <T : Any> poll(s: Step, attempt: () -> T?): T? {
+    private fun <T : Any> poll(s: Step, attempt: () -> T?): T? = poll(s.ms, s.cycle, attempt)
+
+    private fun <T : Any> poll(ms: Int, cycle: Int, attempt: () -> T?): T? {
         val start = p.now()
         while (true) {
             attempt()?.let { return it }
-            if (s.ms > 0 && p.now() - start >= s.ms) return null // ms = 0: sem limite (só a parada interrompe)
-            p.sleep(s.cycle.toLong())
+            if (ms > 0 && p.now() - start >= ms) return null // ms = 0: sem limite (só a parada interrompe)
+            p.sleep(cycle.toLong())
         }
     }
 
@@ -235,16 +258,16 @@ class Runner(private val p: Ports) {
         return hit?.to ?: s.goto
     }
 
-    private fun strokes(s: Step): List<Stroke> {
+    private fun strokes(s: Step, shiftX: Int = 0, shiftY: Int = 0): List<Stroke> {
         val w = p.width
         val h = p.height
         // Um único (dx,dy) para o gesto inteiro: o gesto se move, o comprimento não muda.
         val dx = if (s.jitter > 0) p.nextInt(2 * s.jitter + 1) - s.jitter else 0
         val dy = if (s.jitter > 0) p.nextInt(2 * s.jitter + 1) - s.jitter else 0
-        val x1 = (s.x1 + dx).coerceIn(0, w - 1)
-        val y1 = (s.y1 + dy).coerceIn(0, h - 1)
-        val x2 = (s.x2 + dx).coerceIn(0, w - 1)
-        val y2 = (s.y2 + dy).coerceIn(0, h - 1)
+        val x1 = (s.x1 + shiftX + dx).coerceIn(0, w - 1)
+        val y1 = (s.y1 + shiftY + dy).coerceIn(0, h - 1)
+        val x2 = (s.x2 + shiftX + dx).coerceIn(0, w - 1)
+        val y2 = (s.y2 + shiftY + dy).coerceIn(0, h - 1)
         val mx = (x1 + x2) / 2
         val my = (y1 + y2) / 2
         return when (s.type) {

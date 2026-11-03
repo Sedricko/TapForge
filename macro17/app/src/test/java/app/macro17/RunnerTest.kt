@@ -1,6 +1,7 @@
 package app.macro17
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -590,5 +591,60 @@ class RunnerTest {
         val f = Fake().also { it.texts.add(1 to 1) }
         run(macro(Step(Type.TEXT, ms = 1000, text = "x", cycle = 500, minConf = 70)), f)
         assertEquals(listOf(70), f.textConfs)
+    }
+
+    // --- toque/deslizar com a imagem gravada (como o item do base) ---
+    private fun tapWithImage(x: Int = 65, y: Int = 70, goto: Int = 0, fail: Int = 0, sms: Int = 1000, skip: Boolean = false) =
+        Step(Type.TAP, x, y, ms = 10, delay = 300, img = "t", useImg = true, sms = sms, cycle = 100, thr = 95, goto = goto, fail = fail, skip = skip)
+
+    @Test fun imageTapActsRelativeToWhereTheImageWasFound() {
+        // O recorte foi gravado centrado em (65,70); a tela agora o mostra 40 px à direita e 10 abaixo: o toque anda junto.
+        val f = fakeWith(screenWith(90, 70))                      // centro do recorte em (105,80)
+        val (o, _) = run(macro(tapWithImage()), f)
+        assertTrue(o is Outcome.Done)
+        assertEquals(listOf("g:105,80>105,80@10"), gestures(f))
+    }
+
+    @Test fun imageTapSearchesBeforeTheDelayAndSkipsTheDelayOnAMiss() {
+        val miss = fakeWith(noise(200, 150, 99))                  // a imagem não está na tela
+        run(macro(tapWithImage(sms = 300), tap(1)), miss)
+        assertTrue(gestures(miss).none { it.startsWith("g:65,70") })   // sem imagem não toca
+        assertFalse(miss.sleeps.contains(300L))                         // e o atraso de 300 ms não é gasto
+    }
+
+    @Test fun imageTapMissFollowsFailAndHitFollowsGoto() {
+        val m = { fail: Int, goto: Int -> macro(tapWithImage(goto = goto, fail = fail, sms = 300), tap(1), tap(2)) }
+        val miss = fakeWith(noise(200, 150, 98))
+        run(m(3, 2), miss)
+        assertEquals(listOf("2"), tapXs(miss))                    // falhou: pulou para o passo 3
+        val hit = fakeWith(screenWith(50, 60))
+        run(m(3, 2), hit)
+        assertEquals(listOf("6", "1", "2"), tapXs(hit))           // achou: tocou no item, foi para o passo 2 e seguiu
+    }
+
+    @Test fun imageTapWithSkipOnlyChecksTheImage() {
+        val f = fakeWith(screenWith(50, 60))
+        run(macro(tapWithImage(skip = true, goto = 3), tap(1), tap(2)), f)
+        assertEquals(listOf("2"), tapXs(f))                       // não tocou no item, mas saltou ao achar
+    }
+
+    @Test fun imageTapWithMissingTemplateStillActs() {
+        val f = Fake(frame = screenWith(50, 60))                  // sem o modelo "t" no aparelho
+        run(macro(tapWithImage()), f)
+        assertEquals(1, gestures(f).size)                         // age sem comparar, como o log diz
+    }
+
+    @Test fun imageTapWithZeroSearchTimeWaitsForever() {
+        val f = Fake(templates = mapOf("t" to needle)).also { fk -> repeat(30) { fk.queue.add(noise(200, 150, 77)) }; fk.queue.add(screenWith(50, 60)) }
+        run(macro(tapWithImage(sms = 0)), f)
+        assertEquals(31, f.shots)
+        assertEquals(1, gestures(f).size)
+    }
+
+    @Test fun swipeMovesBothEndsWithTheImage() {
+        val s = Step(Type.SWIPE, 65, 70, 300, 400, ms = 10, img = "t", useImg = true, sms = 1000, cycle = 100, thr = 95)
+        val f = fakeWith(screenWith(90, 70))                      // deslocamento (+40,+10)
+        run(macro(s), f)
+        assertEquals(listOf("g:105,80>340,410@10"), gestures(f))
     }
 }

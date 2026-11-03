@@ -486,7 +486,9 @@ class MacroService : AccessibilityService() {
                     recorder.point()?.let { (px, py) ->
                         bmp?.let { b -> cropAround(b, px, py, THUMB_PX)?.let { c -> thumb = store.newTemplateId(); store.saveTemplate(thumb, c); c.recycle() } }
                     }
-                    st = base.copy(delay = measuredDelay(pressedAt, base.ms), img = thumb)
+                    st = base.copy(delay = measuredDelay(pressedAt, base.ms), img = thumb,
+                        // Como no base: o item gravado só age quando a imagem de 80 px é achada (busca de 5 s, a cada 1 s, tela toda).
+                        useImg = thumb.isNotEmpty(), sms = 5000, cycle = 1000, thr = 95)
                     perform(st) // a ação roda no ponto; os marcadores voltam depois da duração
                     restoreAfter = st.ms + 100L
                 }

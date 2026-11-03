@@ -163,7 +163,7 @@ class ModelTest {
         t, 11, 22, 33, 44, ms = 555, delay = 3, rnd = 400, rndMin = 100, jitter = 7, skip = true, goto = 2, counter = 4,
         cases = listOf(Case(2, 1), Case(5, 2)), text = "texto ç ã", ret = false, thr = 77, cycle = 321, fail = 1, tap = false,
         exact = true, scales = true, cmp = 3, lo = 10, hi = 20, method = 1, mono = true, confirm = 3,
-        dbl = true, ox = 12, oy = -34, vib = true, snd = true, minConf = 65, img = "abc",
+        dbl = true, ox = 12, oy = -34, vib = true, snd = true, minConf = 65, img = "abc", useImg = true, sms = 3000, ax1 = 1, ay1 = 2, ax2 = 30, ay2 = 40,
     )
 
     @Test fun everyTypeSurvivesAJsonRoundTrip() {
@@ -230,5 +230,19 @@ class ModelTest {
     @Test fun oldJsonWithoutTheNewFieldsKeepsTheOldBehavior() {
         val s = Step.fromJson(org.json.JSONObject("{\"t\":\"NODE\",\"ms\":3000,\"tx\":\"a\",\"cy\":200}"))
         assertFalse(s.dbl); assertEquals(0, s.ox); assertEquals(0, s.oy); assertFalse(s.vib); assertFalse(s.snd); assertEquals(0, s.minConf)
+    }
+
+    @Test fun gestureImageBlockIsValidatedOnlyWhenOn() {
+        val off = Step(Type.TAP, 5, 5, ms = 10)
+        assertNull(off.validate(1))
+        assertNull(off.copy(thr = 5, sms = 7).validate(1))                       // bloco desligado: campos de imagem ignorados
+        val on = off.copy(useImg = true, img = "x", sms = 5000, cycle = 1000, thr = 95)
+        assertNull(on.validate(2))
+        assertNotNull(on.copy(img = "").validate(2))                              // sem imagem
+        assertNotNull(on.copy(thr = 10).validate(2))
+        assertNotNull(on.copy(sms = 50).validate(2))
+        assertNotNull(on.copy(ax1 = 10, ax2 = 5, ay2 = 9).validate(2))
+        assertNotNull(on.copy(sms = 0, fail = 2).validate(2))                    // sem limite não tem "se não achar"
+        assertNull(on.copy(sms = 0).validate(2))
     }
 }
