@@ -212,9 +212,17 @@ class MacroService : AccessibilityService() {
     private var expanded = false
     private val teal = 0xFF00574B.toInt() // cor dos ícones do painel do base
 
+    /** Vetores do próprio painel do base, esticados até o tamanho do botão (FIT_XY, sem padding), como lá. */
+    private val baseIcons = mapOf(
+        Ic.REC to R.drawable.bp_ic_menu_record, Ic.ADDLIST to R.drawable.bp_playlist_add, Ic.ALARM to R.drawable.bp_schedule_fill,
+        Ic.EDIT to R.drawable.bp_ic_menu_edit, Ic.GEAR to R.drawable.bp_ic_settings, Ic.CANCEL to R.drawable.bp_ic_cancel_circle_fill_24,
+        Ic.FRAME to R.drawable.bp_ic_crop_free_24px, Ic.STOP to R.drawable.ic_stop, Ic.PLAY to R.drawable.bp_play_arrow, Ic.PAUSE to R.drawable.bp_ic_media_pause,
+    )
+
     private fun pbtn(ic: Ic, desc: String, click: () -> Unit) = ImageView(this).apply {
-        setImageDrawable(Icon(ic, teal))
-        setPadding(dp(5), dp(5), dp(5), dp(5))
+        val res = baseIcons[ic]
+        if (res != null) { setImageResource(res); scaleType = ImageView.ScaleType.FIT_XY; setColorFilter(teal) }
+        else { setImageDrawable(Icon(ic, teal)); setPadding(dp(5), dp(5), dp(5), dp(5)) }
         contentDescription = desc
         layoutParams = android.widget.LinearLayout.LayoutParams(dp(42), dp(42)).also { it.setMargins(dp(1), dp(1), dp(1), dp(1)) }
         setOnClickListener { click() }
@@ -270,7 +278,7 @@ class MacroService : AccessibilityService() {
 
     /** Atualiza o ▶/■ do painel; chamável de qualquer thread. */
     private var playing = false // estado mostrado no painel (engine.running ainda é true dentro do callback de fim)
-    private fun setPlayIcon(running: Boolean) = ui.post { playing = running; if (running) { expanded = false; if (::row2.isInitialized) row2.visibility = View.GONE }; if (::row1.isInitialized && !recording) fillRow1() else playBtn?.setImageDrawable(Icon(if (running) Ic.STOP else Ic.PLAY, teal)) }
+    private fun setPlayIcon(running: Boolean) = ui.post { playing = running; if (running) { expanded = false; if (::row2.isInitialized) row2.visibility = View.GONE }; if (::row1.isInitialized && !recording) fillRow1() else playBtn?.setImageResource(if (running) R.drawable.ic_stop else R.drawable.bp_play_arrow) }
 
     private fun openPanel(open: Boolean) {
         if (!::panel.isInitialized) return
