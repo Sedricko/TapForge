@@ -6,7 +6,7 @@ import java.io.InputStream
 import java.util.UUID
 import java.util.zip.ZipInputStream
 
-/** Restaurar um backup do app base: ZIP com TouchMacroPro/<nome>.tmc e TouchMacroPro/image/<nome>/*.png. Gestos (.raw) e capturas não entram. */
+/** Restaurar um backup do app base: ZIP com TouchMacroPro/<nome>.tmc e as imagens PNG em TouchMacroPro/image/<nome>/ (Kotlin lê barra-asterisco como comentário aninhado, por isso sem curinga aqui). Gestos (.raw) e capturas não entram. */
 object TmcZip {
     class Summary(val macros: Int, val images: Int, val notes: List<String>)
 
