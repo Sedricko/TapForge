@@ -64,11 +64,12 @@ class PermissionsActivity : Activity() {
         content.addView(card().apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
-            addView(glyph(Ic.INFO, if (granted) B.PRIMARY else B.RED, 24))
-            addView(label(if (granted) "Permissão de Acessibilidade Concedida" else "Por favor, selecione uma permissão.", 15f, B.TEXT2, bold = true).apply { setPadding(dp(10), 0, 0, 0) })
+            addView(glyph(Ic.INFO, B.RED, 24))
+            addView(label("Por favor, selecione uma permissão.", 14f, B.RED, bold = true).apply { setPadding(dp(10), 0, 0, 0) })
         })
         content.addView(option("Acessibilidade", if (granted) "A permissão de acessibilidade está concedida." else "A permissão de acessibilidade deve ser concedida.") {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            // Como no base: escolhe o modo de controle (só existe o de acessibilidade) e volta à Home; sem a permissão, abre o Acordo.
+            if (granted) finish() else startActivity(Intent(this, AccessibilityAgreementActivity::class.java))
         })
         content.addView(option("Android Debug Bridge (ADB)", "Precisa ser configurado usando um computador.") {
             info("ADB", "O modo ADB injeta toques com privilégio de shell. O Macro17 não o usa: os gestos saem pelo serviço de acessibilidade.")

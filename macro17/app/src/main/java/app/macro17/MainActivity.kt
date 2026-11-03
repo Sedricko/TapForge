@@ -71,7 +71,7 @@ class MainActivity : Activity() {
             val ok = MacroService.instance != null
             addView(glyph(Ic.INFO, if (ok) 0xFF00574B.toInt() else B.RED, 24))
             addView(label(if (ok) "Permissão de Acessibilidade Concedida" else "A acessibilidade não está ativada.", 14f, if (ok) 0xFF00574B.toInt() else B.RED, bold = true).apply { setPadding(dp(8), 0, 0, 0) })
-            if (!ok) setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            if (!ok) setOnClickListener { startActivity(Intent(this@MainActivity, AccessibilityAgreementActivity::class.java)) }
         })
 
         content.addView(card().apply {
@@ -110,8 +110,7 @@ class MainActivity : Activity() {
     private fun start() {
         val svc = MacroService.instance
         if (svc == null) {
-            toast("Ative o serviço de acessibilidade do Macro17 primeiro")
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            startActivity(Intent(this, AccessibilityAgreementActivity::class.java))
             return
         }
         // Como no base: o botão alterna INICIAR/PARAR e o app continua na tela; o painel aparece por cima.
