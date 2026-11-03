@@ -67,6 +67,7 @@ class Runner(private val p: Ports) {
         var lap = 0
         var resume = false // voltou de uma chamada: avançar antes de executar
         val counters = IntArray(MAX_COUNTERS + 1) // por executor, como no app de referência
+        val baselines = HashMap<Int, Gray>() // Detecção de Mudança: imagem de referência de cada passo, capturada na primeira execução
     }
 
     fun run(root: Macro): Outcome = try {
@@ -106,7 +107,7 @@ class Runner(private val p: Ports) {
 
             // Mínimo de 1 ms por passo: macro infinita sem nenhuma espera não pode virar laço quente.
             // IMAGE/NODE/TEXT/NUMBER: como no base, o atraso vem depois de achar (abaixo), não antes da busca.
-            val searchFirst = s.type == Type.IMAGE || s.type == Type.NODE || s.type == Type.TEXT || s.type == Type.NUMBER
+            val searchFirst = s.type in Step.SEARCHES
             p.sleep(if (imgMiss || searchFirst) 1L else maxOf(1, wait).toLong())
 
             var jump = 0
@@ -126,6 +127,22 @@ class Runner(private val p: Ports) {
                 Type.WAIT -> p.sleep(s.ms.toLong())
                 Type.STATUS -> if (!s.skip) { if (s.vib || s.snd) p.alert(s.vib, s.snd); p.status(s.text, s.ms) }
                 Type.GOTO -> jump = s.goto
+                Type.CHANGE -> {
+                    // Primeira execução: guarda a área como referência e segue; depois espera a área mudar (semelhança abaixo da exigida).
+                    val area = { fr: Gray -> if (s.x2 > s.x1) fr.crop(s.x1, s.y1, s.x2 - s.x1, s.y2 - s.y1) else fr }
+                    val base = f.baselines[f.pc]
+                    if (base == null) {
+                        val fr = p.screen()
+                        if (fr != null) f.baselines[f.pc] = area(fr)
+                        p.trace("passo ${f.pc + 1} mudança: referência capturada")
+                        jump = s.goto
+                    } else {
+                        val hit = poll(s) { p.screen()?.let { fr -> area(fr).takeIf { c -> sameSize(c, base) && similarity(c, base) < s.thr / 100f } } }
+                        p.trace("passo ${f.pc + 1} mudança: ${if (hit != null) "mudou" else "sem mudança no prazo"}")
+                        if (hit != null) { f.baselines[f.pc] = hit; p.sleep(maxOf(1, wait).toLong()) }
+                        jump = if (hit != null) s.goto else s.fail
+                    }
+                }
                 Type.STOP -> return Outcome.Done // "Parar Macro" do base: encerra a reprodução aqui
                 Type.RESET -> f.counters[s.counter] = 0
                 Type.COUNTER -> jump = counterJump(f, s)
@@ -226,6 +243,15 @@ class Runner(private val p: Ports) {
                 " (exigido ${sp.thr}%" + (if (sp.confirm > 1) ", ${sp.confirm} quadros seguidos" else "") + ")"
         )
         return hit
+    }
+
+    private fun sameSize(a: Gray, b: Gray) = a.w == b.w && a.h == b.h && a.d.isNotEmpty()
+
+    /** 1 = idênticas, 0 = totalmente diferentes (diferença média absoluta de luminosidade). */
+    private fun similarity(a: Gray, b: Gray): Float {
+        var sum = 0L
+        for (k in a.d.indices) sum += kotlin.math.abs(a.d[k] - b.d[k])
+        return 1f - sum.toFloat() / (a.d.size * 255f)
     }
 
     /** A leitura satisfaz a condição do passo (≥, ≤, =, entre)? */

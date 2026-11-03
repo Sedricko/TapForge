@@ -19,6 +19,7 @@ class AddItemsActivity : Activity() {
     // Grupo de Pesquisa de Imagem, Detecção de Mudança de Imagem e Parar Macro.
     private val entries = listOf(
         Entry(Type.TEXT, Ic.NUM, "Reconhecimento de Texto", "Reconhece texto na tela e encontra o mesmo texto."),
+        Entry(Type.CHANGE, Ic.IMAGE_SEARCH, "Detecção de Mudança de Imagem", "Captura uma imagem na primeira execução e verifica continuamente se ela mudou da imagem previamente capturada."),
         Entry(Type.GOTO, Ic.JUMP, "Ir Para", "Ir para uma macro específica"),
         Entry(Type.COUNTER, Ic.REPEAT, "Contador de Execuções", "Conta as execuções da macro e aciona ações específicas quando a contagem de execuções excede um número definido."),
         Entry(Type.RESET, Ic.REPEAT, "Reiniciar Contador de Execuções", "Selecione o contador de execuções a reiniciar."),

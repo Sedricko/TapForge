@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Ordem importa: o editor usa o índice do enum no menu de tipos. */
-enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER, TEXT, STOP }
+enum class Type { TAP, SWIPE, PINCH_IN, PINCH_OUT, WAIT, KEY, STATUS, GOTO, COUNTER, RESET, CALL, IMAGE, NODE, NUMBER, TEXT, STOP, CHANGE }
 
 const val MAX_STEPS = 5000
 const val KEY_SCREENSHOT = 9   // GLOBAL_ACTION_TAKE_SCREENSHOT
@@ -94,6 +94,8 @@ data class Step(
         type == Type.COUNTER && goto !in 0..size -> "destino padrão fora de 0..$size"
         type == Type.COUNTER && (cases.size > MAX_CASES || cases.any { it.n !in 1..MAX_LOOPS || it.to !in 0..size }) ->
             "casos: até $MAX_CASES, com limiar de 1 a $MAX_LOOPS e destino de 0 a $size"
+        type == Type.CHANGE && (thr !in 1..100 || cycle !in 50..MAX_MS || (ms != 0 && ms < 100) || !(listOf(x1, y1, x2, y2).all { it == 0 } || (x2 > x1 && y2 > y1))) -> "mudança: sensibilidade 1 a 100%, intervalo 50 ms a $MAX_MS, tempo 0 ou ≥ 100 ms e área válida"
+        type == Type.CHANGE && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
         type == Type.CALL && text.length > 64 -> "id de macro inválido" // vazio é permitido (o base cria "Arquivo de macro" sem arquivo); o executor ignora
         type == Type.IMAGE && text.isBlank() -> "passo sem imagem: capture pelo orbe"
         type == Type.IMAGE && thr !in 20..100 -> "semelhança deve ser de 20 a 100%"
@@ -129,7 +131,7 @@ data class Step(
 
     companion object {
         val GESTURES = setOf(Type.TAP, Type.SWIPE, Type.PINCH_IN, Type.PINCH_OUT)
-        val SEARCHES = setOf(Type.IMAGE, Type.NODE, Type.TEXT, Type.NUMBER)
+        val SEARCHES = setOf(Type.IMAGE, Type.NODE, Type.TEXT, Type.NUMBER, Type.CHANGE)
 
         // valueOf lança IllegalArgumentException para tipo desconhecido; o chamador trata.
         fun fromJson(o: JSONObject): Step {
