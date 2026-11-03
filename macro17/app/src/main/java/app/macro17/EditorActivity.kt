@@ -90,6 +90,7 @@ class EditorActivity : Activity() {
     )
 
     private val REQ_ITEM = 21
+    private val REQ_ADD = 22
     private val selected = HashSet<Int>()
     private val thumbs = HashMap<String, Bitmap?>()
     private lateinit var existingId: String
@@ -189,6 +190,7 @@ class EditorActivity : Activity() {
 
     override fun onActivityResult(req: Int, res: Int, data: android.content.Intent?) {
         super.onActivityResult(req, res, data)
+        if (req == REQ_ADD && res == RESULT_OK) { data?.getStringExtra("type")?.let { addOfType(Type.valueOf(it)) }; return }
         if (req != REQ_ITEM || res != RESULT_OK || data == null) return
         val st = runCatching { Step.fromJson(org.json.JSONObject(data.getStringExtra("step") ?: return)) }.getOrNull() ?: return
         val i = data.getIntExtra("index", -1)
@@ -369,9 +371,11 @@ class EditorActivity : Activity() {
 
     private fun pickType() {
         if (steps.size >= MAX_STEPS) return toast("Limite de $MAX_STEPS passos")
-        val offered = Type.entries.filter { it != Type.IMAGE } // IMAGE nasce da captura pelo orbe
-        AlertDialog.Builder(this).setItems(offered.map { titles.getValue(it) }.toTypedArray()) { _, w ->
-            val type = offered[w]
+        startActivityForResult(android.content.Intent(this, AddItemsActivity::class.java), REQ_ADD)
+    }
+
+    private fun addOfType(type: Type) {
+        run {
             // Padrões que já passam na validação; a tela mostra um centro razoável.
             val base = when (type) {
                 Type.TAP -> Step(type, 500, 1000, ms = 50)
@@ -389,7 +393,7 @@ class EditorActivity : Activity() {
                 Type.NUMBER -> Step(type, 100, 100, 400, 180, ms = 3000, cycle = 300)
             }
             openItem(type, base, -1)
-        }.show()
+        }
     }
 
     private fun rowMenu(i: Int) {
