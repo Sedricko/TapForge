@@ -269,7 +269,7 @@ class MacroService : AccessibilityService() {
                 setPlayIcon(true) // antes do start: uma macro que termina na hora posta o ▶ depois deste ■
                 ui.postDelayed(heartbeat, 30_000)
                 if (engine.start(m)) {
-                    toast("Executando: ${m.name}"); logPanel.setThrough(true)
+                    logPanel.setThrough(true) // o base não mostra aviso ao iniciar
                     // Ocultar: o painel some durante a reprodução (a tecla de volume para a macro, ver onKeyEvent). Depurar: abre o registro.
                     ui.post { bubble?.visibility = View.VISIBLE; openPanel(true); if (store.hidePopup) bubble?.visibility = View.INVISIBLE; if (store.debugOverlay && !logPanel.shown) logPanel.show() }
                 } else { setPlayIcon(false); ui.post { awake(false) } }
@@ -336,15 +336,6 @@ class MacroService : AccessibilityService() {
         dragger(this) // como no base, qualquer botão arrasta o painel
     }
 
-    /** "REC" em disco, como no base. */
-    private fun recBadge(click: () -> Unit) = label("REC", 11f, Color.WHITE, bold = true).apply {
-        gravity = Gravity.CENTER
-        background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(teal) }
-        contentDescription = "Gravar"
-        layoutParams = android.widget.LinearLayout.LayoutParams(dp(30), dp(30)).also { it.setMargins(dp(8), dp(8), dp(8), dp(8)) }
-        setOnClickListener { click() }
-    }
-
     private fun fillRow1() {
         row1.removeAllViews()
         if (store.scheduleOn && !recording && !playing) { // estado "agendado" do base: só o Agendar ligado e o próximo horário; linha 2 aberta
@@ -354,19 +345,14 @@ class MacroService : AccessibilityService() {
             return
         }
         if (recording) {
-            row1.addView(pbtn(Ic.STOP, "Encerrar a gravação (segure para descartar)") { stopRecording(save = true) }.also {
-                it.setOnLongClickListener { stopRecording(save = false); toast("Gravação descartada"); true }
+            // Gravando (base): [Parar, Adicionar 38 m2, Alternar alvo 38 m2 só com o ícone do tipo, divisor, rótulo do tipo]. Parar age ao tocar (DOWN) e não espera o Adicionar.
+            row1.addView(pbtn(Ic.STOP, "Encerrar a gravação") { }.also { b ->
+                b.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN && !adding) stopRecording(save = true); true }
             })
-            row1.addView(pbtn(Ic.ADDLIST, "Adicionar o item na posição dos marcadores") { addItem() })
-            val lbl = label(recorder.mode.label, 15f, B.TEXT, bold = true).apply { setPadding(dp(4), 0, dp(10), 0) }
-            row1.addView(android.widget.LinearLayout(this).apply {
-                gravity = Gravity.CENTER_VERTICAL
-                foreground = ripple(22, 0x2200796B)
-                contentDescription = "Trocar o tipo do item"
-                addView(ImageView(this@MacroService).apply { setImageDrawable(Icon(recorder.mode.ic, teal)); layoutParams = android.widget.LinearLayout.LayoutParams(dp(40), dp(40)); setPadding(dp(8), dp(8), dp(8), dp(8)) })
-                addView(lbl)
-                setOnClickListener { recorder.cycle(); panelToFront(); fillRow1() }
-            })
+            row1.addView(pbtn(Ic.ADDLIST, "Adicionar o item na posição dos marcadores", 38, 38, 2) { addItem() })
+            row1.addView(pres(recorder.mode.res, null, "Alternar alvo: ${recorder.mode.label}", 38, 38, 2) { recorder.cycle(); panelToFront(); fillRow1() })
+            row1.addView(android.view.View(this).apply { setBackgroundColor(0x1E000000) }, android.widget.LinearLayout.LayoutParams(dp(1), -1).also { it.setMargins(dp(4), dp(6), dp(4), dp(6)) })
+            row1.addView(label(recorder.mode.label, 14f, Color.BLACK, bold = true).apply { gravity = Gravity.CENTER; minWidth = dp(42); setPadding(dp(4), 0, dp(8), 0) })
         } else {
             val pb = pbtn(if (playing) Ic.STOP else Ic.PLAY, "Executar ou parar a macro") { togglePlay() }
             playBtn = pb
@@ -581,14 +567,13 @@ class MacroService : AccessibilityService() {
         row2 = android.widget.LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE
-            addView(pbtn(Ic.IMAGE, "Capturar imagem para a macro") { captureImage() })
             addView(pbtn(Ic.ALARM, "Agendar", 38, 38, 2, tint = if (store.scheduleOn) 0xFF002626.toInt() else teal) { toggleSchedule() })
             addView(pbtn(Ic.EDIT, "Abrir o editor da macro", 38, 38, 2) {
                 openScreen(Intent(this@MacroService, EditorActivity::class.java).putExtra("id", store.selected ?: "new").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             })
             addView(pbtn(Ic.GEAR, "Configurações", 38, 38, 2) { openScreen(Intent(this@MacroService, PanelSettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
-            addView(pbtn(Ic.INFO, "Registro ao vivo") { toggleLog() })
             addView(pbtn(Ic.CANCEL, "Fechar o painel", 38, 38, 2) { hideControls() })
+            addView(android.view.View(this@MacroService), android.widget.LinearLayout.LayoutParams(dp(38), dp(38)).also { it.setMargins(dp(2), dp(2), dp(2), dp(2)) }) // Space do base (iconSpace)
         }
         panel = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL

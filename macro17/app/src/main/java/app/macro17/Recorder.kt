@@ -18,8 +18,9 @@ import android.widget.ImageView
  * Imagem = caixa de área com uma alça no canto para redimensionar. Aqui só ficam as janelas e as posições; quem grava é o serviço.
  */
 class Recorder(private val ctx: Context, private val wm: WindowManager) {
-    enum class Mode(val label: String, val ic: Ic) {
-        TAP("Tocar", Ic.TAP), PRESS("Pressionar", Ic.TAP), SWIPE("Deslizar", Ic.SWIPE), GESTURE("Gesto", Ic.GESTURE), IMAGE("Imagem", Ic.IMAGE);
+    enum class Mode(val label: String, val ic: Ic, val res: Int) { // res = vetor do base de cada tipo (ic_tap, ic_tap_hold, ic_gesture_swipe, ic_gesture, ic_image)
+        TAP("Tocar", Ic.TAP, R.drawable.bp_ic_tap), PRESS("Pressionar", Ic.TAP, R.drawable.bp_ic_tap_hold), SWIPE("Deslizar", Ic.SWIPE, R.drawable.bp_ic_gesture_swipe),
+        GESTURE("Gesto", Ic.GESTURE, R.drawable.bp_ic_gesture), IMAGE("Imagem", Ic.IMAGE, R.drawable.bp_ic_image);
         fun next() = values()[(ordinal + 1) % values().size]
     }
 
