@@ -61,7 +61,7 @@ class Engine(
     }
 
     // interrupt() acorda sleep() e await(); um gesto já despachado ainda termina (<= 60 s).
-    @Synchronized fun stop() { thread?.interrupt() }
+    @Synchronized fun stop() { thread?.interrupt(); AdbClient.abortAll() }
 
     private fun run(m: Macro) {
         // Throwable (ex.: OutOfMemoryError ao decodificar quadro): o report sempre roda, para soltar a tela e a bolha.

@@ -61,8 +61,8 @@ class MacroService : AccessibilityService() {
         // Ao terminar (qualquer motivo) a tela volta a poder apagar.
         logPanel = LogPanel(this, wm) { engine.stop() }
         engine = Engine(this, { msg ->
-            toast(msg); ui.post { awake(false); bubble?.visibility = View.VISIBLE }; logPanel.setThrough(false); setPlayIcon(false)
-            if (msg == "Macro concluída" && store.endAlarm) playEndAlarm() // só no fim natural, não em parada manual nem em erro
+            if (!testing) toast(msg); ui.post { awake(false); if (!testing) bubble?.visibility = View.VISIBLE }; logPanel.setThrough(false); setPlayIcon(false)
+            if (msg == "Macro concluída" && store.endAlarm && !testing) playEndAlarm() // só no fim natural, não em parada manual nem em erro
         }, ::toast, logPanel::captureHide)
         engine.onStatus = { t, ms -> instant(t, ms) }
         engine.onTick = { t -> lastTitle = t; ui.post { tvTitle?.text = t } }
@@ -173,6 +173,8 @@ class MacroService : AccessibilityService() {
         return out
     }
 
+    @Volatile private var testing = false // autoteste em curso: sem toast, alarme de fim nem painel reaparecendo
+
     private fun runSelfTest(out: MutableList<SelfTest.Check>) {
         val l1 = java.util.concurrent.CountDownLatch(1); var gok = false
         val path = Path().apply { moveTo(1f, 1f) }
@@ -195,9 +197,11 @@ class MacroService : AccessibilityService() {
         if (engine.running || recording) {
             out += SelfTest.Check("Macro de 2 passos", null, "ignorado: há macro rodando ou gravação")
         } else {
+            testing = true
             val ok = engine.start(Macro("autoteste", "Autoteste", 1, listOf(Step(Type.WAIT, ms = 100), Step(Type.TAP, 1, 1, ms = 10))))
             var t = 0
             while (ok && engine.running && t++ < 50) Thread.sleep(100)
+            testing = false
             out += SelfTest.Check("Macro de 2 passos", ok && !engine.running, if (!ok) "não iniciou" else if (engine.running) "não terminou em 5 s" else "executada")
         }
     }

@@ -83,7 +83,14 @@ object AdbProtocol {
 
 /** Uma conexão por comando (o adbd local abre rápido); a chave fica guardada, então a autorização é pedida só na primeira vez. */
 class AdbClient(private val key: KeyPair, private val port: Int = 5555) {
+    companion object {
+        @Volatile private var active: Socket? = null
+        /** Fecha a conexão em andamento: "Parar" não precisa esperar o tempo limite da leitura (um read de socket não acorda com interrupt). */
+        fun abortAll() { runCatching { active?.close() } }
+    }
+
     fun run(command: String, timeoutMs: Int = 15_000): ByteArray = Socket().use { s ->
+        active = s
         s.connect(InetSocketAddress("127.0.0.1", port), 3000); s.soTimeout = timeoutMs; s.tcpNoDelay = true
         val i = s.getInputStream(); val o = s.getOutputStream()
         o.write(AdbProtocol.encode(AdbProtocol.CNXN, AdbProtocol.VERSION, AdbProtocol.MAXDATA, "host::\u0000".toByteArray())); o.flush()
