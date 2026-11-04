@@ -298,8 +298,9 @@ class ItemEditorActivity : Activity() {
 
         p.category(kind(), if (swipe) Ic.SWIPE else Ic.TAP)
         p.valueRow("Posição do Toque", if (swipe) "${s.x1},${s.y1}  →  ${s.x2},${s.y2}" else "${s.x1},${s.y1}") { positionDialog() }
-        p.valueRow("Duração do Gesto", "${s.ms}ms") {
-            numDialog("Duração do Gesto (ms)", null, s.ms) { v -> s = s.copy(ms = v); render() }
+        // em segundos, como no base; Pressionar = Toque com 0,5 s ou mais (aqui o Toque e o Pressionar são o mesmo tipo)
+        p.valueRow("Duração do Gesto", secs(s.ms)) {
+            secDialog("Duração do Gesto (segundos)", "De 0,1 a 30 s.", s.ms) { v -> s = s.copy(ms = v.coerceIn(100, 30_000)); render() }
         }
 
         p.category("Atraso", Ic.WAIT)
