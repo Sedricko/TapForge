@@ -369,7 +369,7 @@ class MacroService : AccessibilityService() {
             setOnTouchListener { _, e ->
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { oy = e.rawY; sy = lp.y }
-                    MotionEvent.ACTION_MOVE -> { lp.y = (sy + (e.rawY - oy).toInt()).coerceIn(0, resources.displayMetrics.heightPixels - dp(100)); runCatching { wm.updateViewLayout(listWin, lp) } }
+                    MotionEvent.ACTION_MOVE -> { lp.y = (sy + (e.rawY - oy).toInt()).coerceIn(0, resources.displayMetrics.heightPixels - dp(100)); listWin?.let { v -> runCatching { wm.updateViewLayout(v, lp) } } }
                 }
                 true
             }
