@@ -40,6 +40,7 @@ class ScreenRecordService : Service() {
     private var audioThread: Thread? = null
     @Volatile private var audioStop = false
     private var audioFile: File? = null
+    @Volatile private var finishing = false
 
     companion object {
         @Volatile var running = false
@@ -54,6 +55,7 @@ class ScreenRecordService : Service() {
         val intent = i ?: return START_NOT_STICKY
         if (intent.action == ACTION_STOP) { finish(); return START_NOT_STICKY }
         if (running) return START_NOT_STICKY
+        finishing = false
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CH, "Gravação de tela", NotificationManager.IMPORTANCE_LOW))
         val stopPi = android.app.PendingIntent.getService(this, 1, Intent(this, ScreenRecordService::class.java).setAction(ACTION_STOP), android.app.PendingIntent.FLAG_IMMUTABLE)
@@ -172,6 +174,8 @@ class ScreenRecordService : Service() {
     }.getOrDefault(false)
 
     private fun finish() {
+        if (finishing) return // o onStop da projeção volta a chamar depois do release
+        finishing = true
         val f = file; val af = audioFile; val at = audioThread
         audioStop = true
         release()

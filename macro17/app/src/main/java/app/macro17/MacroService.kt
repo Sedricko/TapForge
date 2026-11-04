@@ -250,11 +250,12 @@ class MacroService : AccessibilityService() {
             else -> {
                 // awake(true) entra na fila antes de a thread da macro poder postar o awake(false) do fim.
                 ui.post { awake(true) }
+                setPlayIcon(true) // antes do start: uma macro que termina na hora posta o ▶ depois deste ■
                 if (engine.start(m)) {
-                    toast("Executando: ${m.name}"); logPanel.setThrough(true); setPlayIcon(true)
+                    toast("Executando: ${m.name}"); logPanel.setThrough(true)
                     // Ocultar: o painel some durante a reprodução (a tecla de volume para a macro, ver onKeyEvent). Depurar: abre o registro.
                     ui.post { bubble?.visibility = View.VISIBLE; openPanel(true); if (store.hidePopup) bubble?.visibility = View.INVISIBLE; if (store.debugOverlay && !logPanel.shown) logPanel.show() }
-                } else ui.post { awake(false) }
+                } else { setPlayIcon(false); ui.post { awake(false) } }
             }
         }
     }
@@ -514,6 +515,7 @@ class MacroService : AccessibilityService() {
     private fun openPanel(open: Boolean) {
         if (!::panel.isInitialized) return
         panel.visibility = if (open) View.VISIBLE else View.GONE
+        if (!open) awake(false) // "Manter tela ligada" só vale com o painel aberto
         orbBtn.visibility = View.GONE // o base não tem orbe: PARAR/Fechar some com tudo
         bubble?.let { runCatching { wm.updateViewLayout(it, bubbleLp) } }
     }
@@ -675,7 +677,7 @@ class MacroService : AccessibilityService() {
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply { layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS }
-        wm.addView(root, lp)
+        runCatching { wm.addView(root, lp) }.onFailure { Diag.e("captura", "não foi possível abrir o seletor", it); close(); return }
         toast("Arraste sobre a área e escolha: Imagem, Número ou Amostra")
     }
 
@@ -808,7 +810,7 @@ class MacroService : AccessibilityService() {
                         useImg = false)
                     perform(st) // a ação roda no ponto; os marcadores voltam depois da duração
                     restoreAfter = st.ms + 100L
-                }
+                } else if (mode == Recorder.Mode.GESTURE) toast("Desenhe o gesto antes de adicionar")
             }
             if (st != null) {
                 rec += st; recLast = pressedAt
