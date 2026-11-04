@@ -25,6 +25,8 @@ interface Ports {
 
     /** Vibração e/ou som de notificação do alerta de status. Padrão: nada. */
     fun alert(vib: Boolean, snd: Boolean) {}
+    /** Alerta de status completo (som escolhido, vibração, pop-up). Padrão: som/vibração + mensagem; o Engine sobrescreve. */
+    fun statusStep(s: Step) { if (s.vib || s.snd) alert(s.vib, s.snd); status(s.text, s.ms) }
     fun resolve(id: String): Macro?
 
     /** Quadro atual da tela em tons de cinza; null se esta captura falhou de forma passiva (ex.: intervalo mínimo). */
@@ -147,7 +149,7 @@ class Runner(private val p: Ports) {
                 }
                 Type.KEY -> if (!s.skip) { p.key(s.x1); if (s.ms > 0) p.sleep(s.ms.toLong()) } // espera depois da tecla, como no base
                 Type.WAIT -> p.sleep(s.ms.toLong())
-                Type.STATUS -> if (!s.skip) { if (s.vib || s.snd) p.alert(s.vib, s.snd); p.status(s.text, s.ms) }
+                Type.STATUS -> if (!s.skip) p.statusStep(s)
                 Type.GOTO -> jump = s.goto
                 Type.CHANGE -> {
                     // Como no base: a referência é o 1º quadro válido DESTA visita; o item espera (até o prazo) a área mudar e só então segue.

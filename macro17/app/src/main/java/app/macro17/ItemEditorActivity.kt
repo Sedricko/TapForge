@@ -89,10 +89,17 @@ class ItemEditorActivity : Activity() {
                 }.setNegativeButton("Cancelar", null).show()
             }
             Type.STATUS -> {
-                p.valueRow("Mensagem", s.text.ifBlank { "(vazia)" }) { textDialog("Mensagem", s.text) { v -> s = s.copy(text = v.trim()); render() } }
-                p.valueRow("Duração", secs(s.ms)) { secDialog("Duração (segundos)", null, s.ms) { v -> s = s.copy(ms = v); render() } }
-                p.switchRow("Som", "Toca o som de alarme do aparelho.", s.snd) { v -> s = s.copy(snd = v); render() }
-                p.switchRow("Vibração", "Vibra junto com o alerta.", s.vib) { v -> s = s.copy(vib = v); render() }
+                p.category("Alertas de status", iconRes = R.drawable.bp_outline_notifications_active)
+                p.note("Receba notificações sobre o progresso e o status de execução da macro.")
+                p.valueRow("Nome", s.name.ifBlank { "Alerta de status" }) { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
+                p.valueRow("Duração do alerta", secs(s.ms)) { secDialog("Duração do alerta (segundos)", null, s.ms) { v -> s = s.copy(ms = v); render() } }
+                p.category("Som e vibração", iconRes = R.drawable.bp_volume_high)
+                p.switchRow("Vibração", "", s.vib) { v -> s = s.copy(vib = v); render() }
+                p.switchRow("Som", "", s.snd) { v -> s = s.copy(snd = v); render() }
+                p.valueRow("Selecionar Som", if (s.snu.isBlank()) "Padrão" else soundTitle(s.snu), s.snd) { soundDialog() }
+                p.category("Caixa de diálogo", iconRes = R.drawable.bp_ic_menu_edit)
+                p.switchRow("Mostrar pop-up", "", s.pop) { v -> s = s.copy(pop = v); render() }
+                p.valueRow("Texto da mensagem", s.text.ifBlank { "Alerta de status" }) { textDialog("Texto da mensagem", s.text) { v -> s = s.copy(text = v.trim()); render() } }
             }
             Type.GOTO -> p.valueRow("Ir para o passo", if (s.goto == 0) "Seguir para o próximo" else "Passo ${s.goto}") { gotoDialog("Ir para o passo", s.goto) { v -> s = s.copy(goto = v); render() } }
             Type.RESET -> p.valueRow("Contador", "Contador ${s.counter}") {
@@ -342,13 +349,24 @@ class ItemEditorActivity : Activity() {
 
         p.category("Evasão de Detecção", Ic.EYE_OFF)
         p.valueRow("Coordenadas Aleatórias (Coordenadas ± Valor de Pixel Aleatório)", "${s.jitter} pixels") {
-            numDialog("Coordenadas Aleatórias (pixels)", "De 0 a 500. Cada gesto é deslocado por um valor sorteado dentro dessa margem.", s.jitter) { v -> s = s.copy(jitter = v); render() }
+            // pref_pixel_range_slider_dialog: texto + controle deslizante de 0 a 100 px
+            val vt = TextView(this).apply { text = "${s.jitter.coerceIn(0, 100)} px"; textSize = 16f; gravity = android.view.Gravity.END }
+            val sb = android.widget.SeekBar(this).apply {
+                max = 100; progress = s.jitter.coerceIn(0, 100)
+                setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(b: android.widget.SeekBar, v: Int, u: Boolean) { vt.text = "$v px" }
+                    override fun onStartTrackingTouch(b: android.widget.SeekBar) {}
+                    override fun onStopTrackingTouch(b: android.widget.SeekBar) {}
+                })
+            }
+            AlertDialog.Builder(this).setTitle("Coordenadas Aleatórias").setView(column("Raio para clicar aleatoriamente. Defina como 0 para desativar.", sb, vt))
+                .setPositiveButton("OK") { _, _ -> s = s.copy(jitter = sb.progress); render() }.setNegativeButton("Cancelar", null).show()
         }
         p.valueRow("Atraso Aleatório", if (s.rnd > 0) "${secs(s.rndMin)} a ${secs(s.rnd)}" else "Desligado", delayOn) {
             fieldsDialog(
                 "Atraso Aleatório (segundos)",
                 "A ação será executada após o atraso aleatório especificado. O atraso acima será ignorado. Máximo 0 desliga.",
-                listOf("Mínimo (s)", "Máximo (s)"), listOf(s.rndMin, s.rnd), signed = false, decimal = true,
+                listOf("Atraso Mínimo", "Atraso Máximo"), listOf(s.rndMin, s.rnd), signed = false, decimal = true,
             ) { v -> s = if (v[1] == 0) s.copy(rnd = 0, rndMin = 0) else s.copy(rndMin = v[0], rnd = v[1]); render() }
         }
     }
@@ -368,16 +386,33 @@ class ItemEditorActivity : Activity() {
         AlertDialog.Builder(this).setTitle(title).setView(column(null, et)).setPositiveButton("OK") { _, _ -> ok(et.text.toString()) }.setNegativeButton("Cancelar", null).show()
     }
 
+    /** Campo no formato do base (TextInputLayout): dica, texto de ajuda embaixo e contador n/10. */
+    private fun mfield(hint: String, init: String, type: Int, helper: String?, counter: Boolean = true): Pair<android.view.View, EditText> {
+        val et = box(hint, init, type).apply { filters = arrayOf(android.text.InputFilter.LengthFilter(10)) }
+        val cnt = TextView(this).apply { text = "${init.length}/10"; textSize = 12f; setTextColor(0xFF757575.toInt()) }
+        et.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(e: android.text.Editable?) { cnt.text = "${e?.length ?: 0}/10" }
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
+        val foot = LinearLayout(this).apply {
+            addView(TextView(this@ItemEditorActivity).apply { text = helper.orEmpty(); textSize = 12f; setTextColor(0xFF757575.toInt()) }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            if (counter) addView(cnt)
+        }
+        return LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(et); addView(foot); setPadding(0, 0, 0, dp(8)) } to et
+    }
+
     private fun numDialog(title: String, msg: String?, init: Int, ok: (Int) -> Unit) {
-        val et = box(title, init.toString(), InputType.TYPE_CLASS_NUMBER)
-        AlertDialog.Builder(this).setTitle(title).setView(column(msg, et))
+        val (v, et) = mfield(title, init.toString(), InputType.TYPE_CLASS_NUMBER, null)
+        AlertDialog.Builder(this).setTitle(title).setView(column(msg, v))
             .setPositiveButton("OK") { _, _ -> et.text.toString().toIntOrNull()?.let(ok) ?: toast("Número inválido") }.setNegativeButton("Cancelar", null).show()
     }
 
-    /** Segundos com casas decimais na tela, milissegundos no modelo. */
+    /** Segundos com casas decimais na tela, milissegundos no modelo (hint "Segundos" e faixa 0.0~300.0, como no base). */
     private fun secDialog(title: String, msg: String?, initMs: Int, ok: (Int) -> Unit) {
-        val et = box(title, (initMs / 1000.0).toString(), InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL)
-        AlertDialog.Builder(this).setTitle(title).setView(column(msg, et))
+        val infinite = msg?.contains("infinit") == true // tempo de pesquisa: "0 significa infinito", sem contador
+        val (v, et) = mfield(if (infinite) "0 significa infinito" else "Segundos", (initMs / 1000.0).toString(), InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL, if (infinite) null else "0.0~${MAX_DELAY_MS / 1000.0}", counter = !infinite)
+        AlertDialog.Builder(this).setTitle(title).setView(column(msg, v))
             .setPositiveButton("OK") { _, _ -> et.text.toString().replace(',', '.').toDoubleOrNull()?.let { ok(Math.round(it * 1000).toInt()) } ?: toast("Número inválido") }
             .setNegativeButton("Cancelar", null).show()
     }
@@ -385,18 +420,53 @@ class ItemEditorActivity : Activity() {
     /** Vários números de uma vez. Com [decimal], os valores aparecem em segundos e voltam em milissegundos. */
     private fun fieldsDialog(title: String, msg: String?, labels: List<String>, init: List<Int>, signed: Boolean, decimal: Boolean = false, ok: (List<Int>) -> Unit) {
         val kind = InputType.TYPE_CLASS_NUMBER or (if (signed) InputType.TYPE_NUMBER_FLAG_SIGNED else 0) or (if (decimal) InputType.TYPE_NUMBER_FLAG_DECIMAL else 0)
-        val ets = labels.mapIndexed { i, l -> box(l, if (decimal) (init[i] / 1000.0).toString() else init[i].toString(), kind) }
-        AlertDialog.Builder(this).setTitle(title).setView(column(msg, *ets.toTypedArray()))
+        val fs = labels.mapIndexed { i, l -> mfield(l, if (decimal) (init[i] / 1000.0).toString() else init[i].toString(), kind, if (decimal) "Segundos" else "Pixel") }
+        val dlg = AlertDialog.Builder(this).setTitle(title).setView(column(msg, *fs.map { it.first }.toTypedArray()))
             .setPositiveButton("OK") { _, _ ->
-                val v = ets.map { e -> e.text.toString().replace(',', '.').toDoubleOrNull()?.let { if (decimal) Math.round(it * 1000).toInt() else it.toInt() } }
+                val v = fs.map { e -> e.second.text.toString().replace(',', '.').toDoubleOrNull()?.let { if (decimal) Math.round(it * 1000).toInt() else it.toInt() } }
                 if (v.any { it == null }) toast("Número inválido") else ok(v.map { it!! })
-            }.setNegativeButton("Cancelar", null).show()
+            }.setNegativeButton("Cancelar", null)
+        // Atraso aleatório: botão "Definir para Desativar" (zera mínimo e máximo), como no base.
+        if (decimal && labels.size == 2) dlg.setNeutralButton("Definir para Desativar") { _, _ -> ok(listOf(0, 0)) }
+        dlg.show()
     }
 
     /** Diálogo com vários campos numéricos com sinal; devolve o construtor e os campos para o chamador ligar os botões. */
     private fun fieldsBox(title: String, labels: List<String>, init: List<Int>): Pair<AlertDialog.Builder, List<EditText>> {
-        val ets = labels.mapIndexed { k, l -> box(l, init[k].toString(), InputType.TYPE_CLASS_NUMBER) }
-        return AlertDialog.Builder(this).setTitle(title).setView(column(null, *ets.toTypedArray())) to ets
+        val fs = labels.mapIndexed { k, l -> mfield(l, init[k].toString(), InputType.TYPE_CLASS_NUMBER, null) }
+        return AlertDialog.Builder(this).setTitle(title).setView(column(null, *fs.map { it.first }.toTypedArray())) to fs.map { it.second }
+    }
+
+    // --- som do alerta ("Selecionar Som" do base): lista de sons do sistema com marca e botão de ouvir ----------
+
+    private fun soundTitle(uri: String): String = runCatching { android.media.RingtoneManager.getRingtone(this, android.net.Uri.parse(uri)).getTitle(this) }.getOrDefault("Padrão")
+
+    private fun soundDialog() {
+        val rm = android.media.RingtoneManager(this).apply { setType(android.media.RingtoneManager.TYPE_ALL) }
+        val cur = rm.cursor
+        val names = ArrayList<String>(); val uris = ArrayList<String>()
+        while (cur.moveToNext()) { names.add(cur.getString(android.media.RingtoneManager.TITLE_COLUMN_INDEX)); uris.add(rm.getRingtoneUri(cur.position).toString()) }
+        var playing: android.media.Ringtone? = null
+        var chosen = uris.indexOf(s.snu)
+        val list = android.widget.ListView(this)
+        list.adapter = object : android.widget.BaseAdapter() {
+            override fun getCount() = names.size
+            override fun getItem(i: Int) = names[i]
+            override fun getItemId(i: Int) = i.toLong()
+            override fun getView(i: Int, v: android.view.View?, p: android.view.ViewGroup) = LinearLayout(this@ItemEditorActivity).apply {
+                gravity = android.view.Gravity.CENTER_VERTICAL; setPadding(0, dp(4), 0, dp(4))
+                addView(android.widget.CheckBox(this@ItemEditorActivity).apply { isChecked = i == chosen; isClickable = false; isFocusable = false })
+                addView(TextView(this@ItemEditorActivity).apply { text = names[i]; textSize = 18f; setTextColor(0xFF607D8B.toInt()); setSingleLine() }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+                addView(android.widget.ImageButton(this@ItemEditorActivity).apply {
+                    setImageResource(R.drawable.bp_volume_high); setBackgroundColor(0); contentDescription = "Ouvir"
+                    setOnClickListener { playing?.stop(); playing = android.media.RingtoneManager.getRingtone(this@ItemEditorActivity, android.net.Uri.parse(uris[i])).also { it.play() } }
+                }, LinearLayout.LayoutParams(dp(40), dp(40)))
+            }
+        }
+        list.setOnItemClickListener { _, _, i, _ -> chosen = i; (list.adapter as android.widget.BaseAdapter).notifyDataSetChanged() }
+        AlertDialog.Builder(this).setTitle("Selecionar Som").setView(list)
+            .setPositiveButton("OK") { _, _ -> if (chosen >= 0) { s = s.copy(snu = uris[chosen]); render() } }
+            .setNegativeButton("Cancelar", null).setOnDismissListener { playing?.stop() }.show()
     }
 
     private fun positionDialog() {

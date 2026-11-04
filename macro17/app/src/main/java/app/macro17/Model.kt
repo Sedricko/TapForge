@@ -78,6 +78,8 @@ data class Step(
     val gms: Int = 0, // GROUP de pesquisa de imagem: duração máxima do grupo em ms (0 = sem limite; o relógio começa ao entrar)
     val gfail: Int = 0, // GROUP: passo (1-based) para onde saltar quando [gms] estoura (0 = segue depois do grupo)
     val off: Boolean = false, // item desabilitado ("Alternar Pular" do base): o executor passa direto, sem atraso nem ação
+    val snu: String = "", // STATUS: URI do som escolhido ("Selecionar Som"); vazio = som padrão de notificação
+    val pop: Boolean = false, // STATUS: "Mostrar pop-up" (mensagem em janela); desligado = só aviso curto
 ) {
     /** [size] é o total de passos da macro, para validar os alvos de salto. */
     fun validate(size: Int): String? = when {
@@ -141,7 +143,7 @@ data class Step(
         .put("g", goto).put("c", counter).put("tx", text).put("rt", ret)
         .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact).put("sl", scales).put("cm", cmp).put("lo", lo).put("hi", hi).put("mt", method).put("mo", mono).put("cf", confirm)
         .put("db", dbl).put("ox", ox).put("oy", oy).put("vb", vib).put("sn", snd).put("mc", minConf).put("im", img)
-        .put("ui", useImg).put("sm", sms).put("a1", ax1).put("b1", ay1).put("a2", ax2).put("b2", ay2).put("nm", name).put("of", off).put("fx", fx).put("gp", grp).put("rp", rep).put("gm", gms).put("gf", gfail)
+        .put("ui", useImg).put("sm", sms).put("a1", ax1).put("b1", ay1).put("a2", ax2).put("b2", ay2).put("nm", name).put("of", off).put("fx", fx).put("gp", grp).put("rp", rep).put("gm", gms).put("gf", gfail).put("su", snu).put("pp", pop)
         .put("cs", JSONArray().also { a -> cases.forEach { a.put(JSONObject().put("n", it.n).put("to", it.to)) } })
 
     companion object {
@@ -160,6 +162,7 @@ data class Step(
                 o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"), o.optInt("cm"), o.optInt("lo"), o.optInt("hi"), o.optInt("mt"), o.optBoolean("mo"), o.optInt("cf", 1),
                 o.optBoolean("db"), o.optInt("ox"), o.optInt("oy"), o.optBoolean("vb"), o.optBoolean("sn"), o.optInt("mc"), o.optString("im"),
                 o.optBoolean("ui"), o.optInt("sm", 5000), o.optInt("a1"), o.optInt("b1"), o.optInt("a2"), o.optInt("b2"), o.optString("nm"), o.optBoolean("fx"), o.optInt("gp"), o.optInt("rp", 1), o.optInt("gm"), o.optInt("gf"), o.optBoolean("of"),
+                snu = o.optString("su"), pop = o.optBoolean("pp"),
             )
         }
     }
