@@ -140,17 +140,21 @@ class EditorActivity : Activity() {
             contentDescription = "Mais opções"; layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)); setOnClickListener { overflow(this) }
         }
         fun tool(ic: Ic, desc: String, click: () -> Unit) = ImageView(this).apply {
-            setImageDrawable(Icon(ic, B.TEXT)); setPadding(dp(14), dp(14), dp(14), dp(14)); foreground = ripple(24, 0x1F000000)
-            contentDescription = desc; layoutParams = LinearLayout.LayoutParams(0, dp(56), 1f); setOnClickListener { click() }
+            setImageDrawable(Icon(ic, B.TEXT)); setPadding(dp(12), dp(12), dp(12), dp(12)); foreground = ripple(24, 0x1F000000)
+            contentDescription = desc; layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f); setOnClickListener { click() }
         }
         val tools = LinearLayout(this).apply {
-            setBackgroundColor(Color.WHITE); elevation = dp(2).toFloat()
+            setBackgroundColor(Color.WHITE); elevation = dp(2).toFloat(); setPadding(dp(4), dp(2), dp(4), dp(2))
             addView(tool(Ic.SELECT, "Selecionar tudo") { toggleAll() })
             addView(tool(Ic.UP, "Subir os selecionados") { moveSelected(up = true) })
             addView(tool(Ic.DOWN, "Descer os selecionados") { moveSelected(up = false) })
             addView(tool(Ic.COPY, "Duplicar os selecionados") { duplicateSelected() })
             addView(tool(Ic.TRASH, "Excluir os selecionados") { deleteSelected() })
             addView(tool(Ic.SAVE, "Salvar") { save() })
+            addView(ImageView(this@EditorActivity).apply {
+                setImageResource(R.drawable.bp_ic_ungroup); setPadding(dp(12), dp(12), dp(12), dp(12)); foreground = ripple(24, 0x1F000000)
+                contentDescription = "Desagrupar"; layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f); setOnClickListener { ungroupSelected() }
+            })
         }
         val head = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(Color.WHITE); setPadding(0, dp(4), dp(16), dp(4))
