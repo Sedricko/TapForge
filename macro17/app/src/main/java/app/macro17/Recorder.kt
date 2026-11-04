@@ -139,8 +139,8 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
                     when (e.actionMasked) {
                         MotionEvent.ACTION_DOWN -> { sx = e.rawX; sy = e.rawY; sw = b.lp.width; sh = b.lp.height }
                         MotionEvent.ACTION_MOVE -> {
-                            b.lp.width = (sw + (e.rawX - sx).toInt()).coerceIn(RegionPicker.MIN * 2, screen.width() - b.lp.x - dot)
-                            b.lp.height = (sh + (e.rawY - sy).toInt()).coerceIn(RegionPicker.MIN * 2, screen.height() - b.lp.y - dot)
+                            b.lp.width = (sw + (e.rawX - sx).toInt()).coerceIn(RegionPicker.MIN * 2, maxOf(RegionPicker.MIN * 2, screen.width() - b.lp.x - dot))
+                            b.lp.height = (sh + (e.rawY - sy).toInt()).coerceIn(RegionPicker.MIN * 2, maxOf(RegionPicker.MIN * 2, screen.height() - b.lp.y - dot))
                             runCatching { wm.updateViewLayout(b.view, b.lp) }
                             place()
                         }

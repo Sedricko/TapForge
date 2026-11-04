@@ -15,10 +15,16 @@ interface Shell { fun run(command: String): ByteArray }
 class RootShell : Shell {
     override fun run(command: String): ByteArray {
         val p = ProcessBuilder("su", "-c", command.removePrefix("exec:")).redirectErrorStream(false).start()
-        val out = p.inputStream.readBytes()
-        if (!p.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)) { p.destroyForcibly(); throw java.io.IOException("su sem resposta") }
-        if (p.exitValue() != 0 && out.isEmpty()) throw java.io.IOException("su recusado ou comando falhou (código ${p.exitValue()})")
-        return out
+        // A leitura vai para outra thread: o waitFor é interrompível, então Parar a macro também solta um `su` que não responde.
+        val out = java.io.ByteArrayOutputStream()
+        val reader = Thread { runCatching { p.inputStream.copyTo(out) } }.also { it.isDaemon = true; it.start() }
+        try {
+            if (!p.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)) { p.destroyForcibly(); throw java.io.IOException("su sem resposta") }
+            reader.join(2000)
+        } catch (e: InterruptedException) { p.destroyForcibly(); throw e }
+        val bytes = out.toByteArray()
+        if (p.exitValue() != 0 && bytes.isEmpty()) throw java.io.IOException("su recusado ou comando falhou (código ${p.exitValue()})")
+        return bytes
     }
 }
 

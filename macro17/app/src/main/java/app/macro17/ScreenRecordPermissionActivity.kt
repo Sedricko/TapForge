@@ -27,6 +27,7 @@ class ScreenRecordPermissionActivity : Activity() {
     }
 
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
+        if (ScreenRecordService.running) { finish(); return } // um segundo toque em gravar não pode iniciar outro serviço em primeiro plano
         if (req == 8 && res == RESULT_OK && data != null) {
             startForegroundService(Intent(this, ScreenRecordService::class.java).putExtra("code", res).putExtra("data", data)
                 .putExtra("audio", store.recAudio).putExtra("bitrate", store.recBitrate).putExtra("fps", store.recFps))

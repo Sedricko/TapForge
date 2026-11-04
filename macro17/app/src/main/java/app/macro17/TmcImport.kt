@@ -80,7 +80,7 @@ object TmcImport {
             val goto = target(f(c, 18)); val fail = target(f(c, 17))
             val area = f(c, 36).split(',', '-').mapNotNull { it.trim().toIntOrNull() }.takeIf { it.size == 4 && it[2] > it[0] && it[3] > it[1] }
             val custom = (f(c, 28).toIntOrNull() ?: 1) >= 3 && area != null
-            val searchMs = sec(f(c, 16))
+            val searchMs = sec(f(c, 16)).let { if (it in 1..99) 100 else it } // o Macro17 exige tempo 0 (sem limite) ou ≥ 100 ms
             val cycle = (f(c, 40).toIntOrNull() ?: -1).let { if (it < 0) 200 else it.coerceIn(50, MAX_MS) }
             val thr = (f(c, 19).toIntOrNull() ?: 100).coerceIn(20, 100)
             val devs = f(c, 41).split('|').map { it.trim().toIntOrNull() ?: 0 }
@@ -135,7 +135,7 @@ object TmcImport {
                     val texts = f(c, 33).split('|', ',').map { it.trim() }.filter { it.isNotEmpty() }
                     if (texts.isEmpty() || f(c, 38) == "2") return@map placeholder("reconhecimento de texto numérico ou sem texto não é importado")
                     common.copy(
-                        type = Type.TEXT, text = texts.joinToString(","), ms = searchMs, cycle = cycle, minConf = (f(c, 42).toDoubleOrNull() ?: 0.0).toInt().coerceIn(0, 100),
+                        type = Type.TEXT, text = texts.joinToString(","), ms = searchMs, cycle = maxOf(cycle, 200), minConf = (f(c, 42).toDoubleOrNull() ?: 0.0).toInt().coerceIn(0, 100),
                         x1 = if (custom) area!![0] else 0, y1 = if (custom) area!![1] else 0, x2 = if (custom) area!![2] else 0, y2 = if (custom) area!![3] else 0,
                         goto = if (searchMs > 0) goto else 0, fail = if (searchMs > 0) fail else 0, tap = (f(c, 20).toIntOrNull() ?: 1) == 0, // "Saltar" desliga o toque
                     )

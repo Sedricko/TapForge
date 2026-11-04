@@ -609,7 +609,7 @@ class MacroService : AccessibilityService() {
                         val tid = store.newTemplateId()
                         store.saveTemplate(tid, Bitmap.createBitmap(bmp, x, y, w, h))
                         // Como no base: só busca a imagem, sem tocar (tap = false), com busca de 5 s.
-                        st = Step(Type.IMAGE, ms = 5000, text = tid, thr = 95, tap = false, delay = measuredDelay(pressedAt, 5))
+                        st = Step(Type.IMAGE, ms = 5000, text = tid, thr = 100, cycle = 1000, tap = false, delay = 0) // como no base: sem atraso, limiar 100, ciclo de 1 s
                     }
                 }
             } else {

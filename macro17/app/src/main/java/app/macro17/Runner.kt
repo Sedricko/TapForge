@@ -92,6 +92,8 @@ class Runner(private val p: Ports) {
     } catch (e: RuntimeException) {
         // OpenCV, OCR, índices: qualquer falha inesperada vira motivo de parada em vez de derrubar o processo.
         Outcome.Failed("erro inesperado: ${e.javaClass.simpleName}${e.message?.let { ": $it" } ?: ""}")
+    } finally {
+        p.shareFrames(false) // um grupo de imagem interrompido não pode deixar o quadro compartilhado ligado
     }
 
     private fun loop(root: Macro): Outcome {
@@ -107,7 +109,7 @@ class Runner(private val p: Ports) {
             if (dj != 0) f.pc = (f.pc + dj - 1).coerceIn(0, f.macro.steps.size - 1)
             val s = f.macro.steps[f.pc]
             p.progress(f.lap + 1, f.macro.loops, f.pc + 1, f.macro.steps.size, s.name)
-            if (s.off) { advance(stack, f, f.pc + 1); continue }
+            if (s.off) { advance(stack, f, f.pc + 1 + if (s.type == Type.GROUP) s.grp else 0); continue } // grupo desabilitado pula também os filhos
             val wait = delayOf(s) // uma vez só: delayOf sorteia quando o atraso é aleatório, e o rastro tem de mostrar o valor usado
             p.trace("passo ${f.pc + 1}/${f.macro.steps.size} ${s.type}" + (if (s.skip) " (pular)" else "") + " atraso=${wait}ms")
 
