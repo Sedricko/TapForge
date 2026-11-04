@@ -194,7 +194,7 @@ class EditorActivity : Activity() {
             setOnApplyWindowInsetsListener { v, i -> (v.layoutParams as FrameLayout.LayoutParams).bottomMargin = dp(16) + i.getInsets(WindowInsets.Type.navigationBars()).bottom; v.requestLayout(); i }
         }
         setContentView(FrameLayout(this).apply {
-            setBackgroundColor(B.BG)
+            setBackgroundColor(Color.WHITE)
             addView(LinearLayout(this@EditorActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(appBar("Editor de Macro", Ic.BACK, { onBackPressed() }, more))
@@ -216,7 +216,7 @@ class EditorActivity : Activity() {
     private fun refresh() {
         selected.retainAll(steps.indices.toSet())
         collapsed.retainAll { steps.getOrNull(it)?.type == Type.GROUP }
-        emptyHint.visibility = if (steps.isEmpty()) View.VISIBLE else View.GONE
+        emptyHint.visibility = View.GONE // o base não mostra texto de ajuda com a lista vazia
         syncTools()
         (list.adapter as BaseAdapter).notifyDataSetChanged()
     }
@@ -695,11 +695,11 @@ class EditorActivity : Activity() {
         val m = Macro(id, name.text.toString().trim(), n, steps)
         m.validate()?.let { return toast(it) }
         try {
-            val pd = AlertDialog.Builder(this).setView(android.widget.ProgressBar(this).apply { setPadding(dp(24), dp(24), dp(24), dp(24)) }).setCancelable(false).show()
+            val pd = AlertDialog.Builder(this).setTitle("Aguarde").setView(android.widget.ProgressBar(this).apply { setPadding(dp(24), dp(24), dp(24), dp(24)) }).setCancelable(false).show()
             store.save(m); store.saveHistory(m); saved = snapshot()
             Handler(Looper.getMainLooper()).postDelayed({ pd.dismiss(); toast("Salvo.") }, 400)
         } catch (e: Exception) { toast("Falha ao salvar: ${e.message}") }
     }
 
-    private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
+    private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 }

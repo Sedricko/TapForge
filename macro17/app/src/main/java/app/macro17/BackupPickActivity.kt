@@ -47,7 +47,7 @@ class BackupPickActivity : Activity() {
         }
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE)
-            addView(appBar("Backup de Dados", Ic.BACK, { finish() }, more))
+            addView(appBar("Selecionar Arquivos de Backup", Ic.BACK, { finish() }, more))
             addView(ScrollView(this@BackupPickActivity).apply { addView(col) }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
             addView(footer.also { f -> f.setOnApplyWindowInsetsListener { v, i -> v.setPadding(dp(5), dp(5), dp(5), dp(5) + i.getInsets(WindowInsets.Type.navigationBars()).bottom); i } })
         })

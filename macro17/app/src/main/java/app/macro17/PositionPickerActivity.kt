@@ -104,9 +104,9 @@ class PositionPickerActivity : Activity() {
             this.text = text; isAllCaps = false; setTextColor(Color.WHITE); minWidth = 0; minimumWidth = 0; setPadding(dp(12), 0, dp(12), 0); setOnClickListener { click() }
         })
         div()
-        if (mode != DEV) { btn("Editar") { editNumbers() }; div() }
-        if (mode == AREA) { btn("Imagem") { chooseImage() }; div() }
-        btn("Guardar") { setResult(RESULT_OK, Intent().putExtra("v", result())); finish() }
+        if (mode == AREA) { btn("Editar") { editNumbers() }; div() }
+        if (mode != POS) { btn("Imagem") { chooseImage() }; div() }
+        btn("Salvar") { setResult(RESULT_OK, Intent().putExtra("v", result())); finish() }
     }
 
     private fun marker(icon: Int): View = FrameLayout(this).apply {
@@ -184,7 +184,7 @@ class PositionPickerActivity : Activity() {
         // alça rosa de mover (Mudar Posição) no canto superior esquerdo; marcador redondo no canto inferior direito redimensiona
         handle = FrameLayout(this).apply {
             setBackgroundColor(0xFFD81B60.toInt())
-            addView(ImageView(this@PositionPickerActivity).apply { setImageResource(R.drawable.bp_ic_move_resize_variant); setColorFilter(0xFFFAFAFA.toInt()); contentDescription = "Mudar Posição" }, FrameLayout.LayoutParams(dp(40), dp(40)))
+            addView(ImageView(this@PositionPickerActivity).apply { setImageResource(R.drawable.bp_ic_move_resize_variant); setColorFilter(0xFFFAFAFA.toInt()); contentDescription = "Alterar Posição" }, FrameLayout.LayoutParams(dp(40), dp(40)))
             setOnTouchListener { view, e -> if (e.actionMasked == MotionEvent.ACTION_MOVE) move(view, view.x + e.x, view.y + e.y); true }
         }.also { root.addView(it, FrameLayout.LayoutParams(dp(40), dp(40))) }
         m1 = marker(R.drawable.bp_ic_navigation)

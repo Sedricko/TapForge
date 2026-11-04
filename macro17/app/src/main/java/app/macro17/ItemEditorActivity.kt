@@ -100,11 +100,11 @@ class ItemEditorActivity : Activity() {
                 p.note("Receba notificações sobre o progresso e o status de execução da macro.")
                 p.valueRow("Nome", s.name.ifBlank { "Alerta de status" }) { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
                 p.valueRow("Duração do alerta", secs(s.ms)) { secDialog("Duração do alerta (segundos)", null, s.ms) { v -> s = s.copy(ms = v); render() } }
-                p.category("Som e vibração", iconRes = R.drawable.bp_volume_high)
+                p.category("Som e vibração", iconRes = R.drawable.bp_music_cast_24px)
                 p.switchRow("Vibração", "", s.vib) { v -> s = s.copy(vib = v); render() }
                 p.switchRow("Som", "", s.snd) { v -> s = s.copy(snd = v); render() }
                 p.valueRow("Selecionar Som", if (s.snu.isBlank()) "Padrão" else soundTitle(s.snu), s.snd) { soundDialog() }
-                p.category("Caixa de diálogo", iconRes = R.drawable.bp_ic_menu_edit)
+                p.category("Caixa de diálogo", iconRes = R.drawable.bp_dialogs_24px)
                 p.switchRow("Mostrar pop-up", "", s.pop) { v -> s = s.copy(pop = v); render() }
                 p.valueRow("Texto da mensagem", s.text.ifBlank { "Alerta de status" }) { textDialog("Texto da mensagem", s.text) { v -> s = s.copy(text = v.trim()); render() } }
             }
@@ -358,13 +358,13 @@ class ItemEditorActivity : Activity() {
         p.valueRow("Mover em Caso de Sucesso", gotoLabel(s.goto), jumps) { gotoDialog("Mover em Caso de Sucesso", s.goto) { v -> s = s.copy(goto = v); render() } }
 
         p.category("Ação de Toque", Ic.TAP)
-        p.switchRow("Pular", "Tocar/Deslizar/Pressionar não funcionará. Usado para fins de atraso e comparação de imagens.", s.skip) { v -> s = s.copy(skip = v); render() }
-        p.switchRow("Clique Duplo", "Clica duas vezes no mesmo local.", s.dbl, enabled = !s.skip && s.type == Type.TAP) { v -> s = s.copy(dbl = v); render() }
+        p.switchRow("Pular", "Tocar/Deslizar/Pressionar não funcionará. Usado para atraso e comparação de imagens.", s.skip) { v -> s = s.copy(skip = v); render() }
+        p.switchRow("Clique Duplo", "Clica no mesmo lugar duas vezes.", s.dbl, enabled = !s.skip && s.type == Type.TAP) { v -> s = s.copy(dbl = v); render() }
         p.valueRow("Desvio de Coordenadas", "X${"%+d".format(s.ox)}, Y${"%+d".format(s.oy)} px", on && !s.skip) {
             pick(PositionPickerActivity.DEV, intArrayOf(s.ox, s.oy), s.img.ifBlank { null }) { v -> s = s.copy(ox = v[0], oy = v[1]) }
         }
 
-        p.category("Evasão de Detecção", Ic.EYE_OFF)
+        p.category("Evasão de Detecção", iconRes = R.drawable.bp_icn_hide_source_24px)
         p.valueRow("Coordenadas Aleatórias (Coordenadas ± Valor de Pixel Aleatório)", "${s.jitter} pixels") {
             // pref_pixel_range_slider_dialog: texto + controle deslizante de 0 a 100 px
             val vt = TextView(this).apply { text = "${s.jitter.coerceIn(0, 100)} px"; textSize = 16f; gravity = android.view.Gravity.END }
@@ -382,7 +382,7 @@ class ItemEditorActivity : Activity() {
         p.valueRow("Atraso Aleatório", if (s.rnd > 0) "${secs(s.rndMin)} a ${secs(s.rnd)}" else "Desligado", delayOn) {
             fieldsDialog(
                 "Atraso Aleatório (segundos)",
-                "A ação será executada após o atraso aleatório especificado. O atraso acima será ignorado. Máximo 0 desliga.",
+                "A ação será realizada após o atraso aleatório especificado. O atraso acima será ignorado.",
                 listOf("Atraso Mínimo", "Atraso Máximo"), listOf(s.rndMin, s.rnd), signed = false, decimal = true,
             ) { v -> s = if (v[1] == 0) s.copy(rnd = 0, rndMin = 0) else s.copy(rndMin = v[0], rnd = v[1]); render() }
         }
@@ -443,7 +443,7 @@ class ItemEditorActivity : Activity() {
                 val v = fs.map { e -> e.second.text.toString().replace(',', '.').toDoubleOrNull()?.let { if (decimal) Math.round(it * 1000).toInt() else it.toInt() } }
                 if (v.any { it == null }) toast("Número inválido") else ok(v.map { it!! })
             }.setNegativeButton("Cancelar", null)
-        // Atraso aleatório: botão "Definir para Desativar" (zera mínimo e máximo), como no base.
+        // Atraso aleatório: botão "Definir como Desabilitado" (zera mínimo e máximo), como no base.
         if (decimal && labels.size == 2) dlg.setNeutralButton("Definir para Desativar") { _, _ -> ok(listOf(0, 0)) }
         dlg.show()
     }

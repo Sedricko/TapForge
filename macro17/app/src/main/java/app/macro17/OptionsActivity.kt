@@ -40,18 +40,18 @@ class OptionsActivity : Activity() {
         p.switchRow("Iniciar macro com tecla de volume.", "", store.startVolume) { store.startVolume = it }
         p.switchRow("Mostrar Toques", "Mostrar feedback visual para reproduções", store.showTouches) { store.showTouches = it }
         p.switchRow("Manter Tela Ligada", "A tela permanecerá ligada enquanto o Macro17 estiver em execução.", store.keepOn) { store.keepOn = it }
-        p.switchRow("Depurar", "Exibir informações de depuração na tela: abre o registro ao vivo ao iniciar uma macro.", store.debugOverlay) { store.debugOverlay = it }
+        p.switchRow("Depurar", "Exibir informações de depuração na tela", store.debugOverlay) { store.debugOverlay = it }
         p.switchRow("Alarme", "Um alarme soará quando a macro terminar.", store.endAlarm) { store.endAlarm = it }
         p.switchRow("Monitoramento contínuo da tela", "Mantém a captura de tela em ociosidade para reduzir o atraso de inicialização. (indisponível: o Macro17 captura sob demanda)", false, enabled = false)
         battery = p.switchRow("Desativar otimização de bateria", "Permita o uso em segundo plano sem restrições para uma operação estável.", ignoringBattery()) {
             // Como no base: o toque não alterna; explica e leva às informações do app, onde está "Bateria". O switch reflete o estado real.
             if (resetting) return@switchRow
             resetting = true; battery?.isChecked = ignoringBattery(); resetting = false
-            AlertDialog.Builder(this).setTitle("Gerenciamento de Bateria do Aplicativo")
+            AlertDialog.Builder(this).setTitle("Garantir a operação estável")
                 .setMessage("Para executar macros de forma estável em segundo plano, você precisa alterar as configurações de bateria. Permita o uso em segundo plano sem restrições.\n\n" +
                     if (ignoringBattery()) "Na próxima tela, toque em Bateria e escolha Otimizado ou Restrito." else "Na próxima tela, toque em Bateria e escolha Sem restrições.")
                 .setPositiveButton("Ir para Configurações") { _, _ -> startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
-                .setNegativeButton("Cancelar", null).show()
+                .setNegativeButton("Agora não", null).show()
         }
 
         p.category("Janela Pop-up")
@@ -71,12 +71,12 @@ class OptionsActivity : Activity() {
             AlertDialog.Builder(this).setTitle("Configurações de gravação de áudio").setSingleChoiceItems(audioNames, store.recAudio.coerceIn(0, 2)) { d, w -> store.recAudio = w; if (w == 2) android.widget.Toast.makeText(this, "Devido às políticas do Google, o áudio de alguns apps (como o YouTube) pode não ser gravado.", android.widget.Toast.LENGTH_LONG).show(); audioTxt?.text = audioNames[w]; d.dismiss() }.setNegativeButton("Cancelar", null).show()
         }
         val bits = intArrayOf(2_097_152, 5_242_880, 10_485_760); val bitNames = arrayOf("Baixa 2 Mbps", "Média 5 Mbps", "Alta 10 Mbps")
-        bitTxt = p.valueRow("Taxa de bits de vídeo", bitNames[bits.indexOf(store.recBitrate).coerceAtLeast(1)]) {
-            AlertDialog.Builder(this).setTitle("Taxa de bits de vídeo").setSingleChoiceItems(bitNames, bits.indexOf(store.recBitrate).coerceAtLeast(1)) { d, w -> store.recBitrate = bits[w]; bitTxt?.text = bitNames[w]; d.dismiss() }.setNegativeButton("Cancelar", null).show()
+        bitTxt = p.valueRow("Taxa de bits de vídeo", "Defina a qualidade visual da gravação. Valores mais altos evitam a pixelização, mas aumentam o tamanho do arquivo.\n\n" + bitNames[bits.indexOf(store.recBitrate).coerceAtLeast(1)]) {
+            AlertDialog.Builder(this).setTitle("Taxa de bits de vídeo").setSingleChoiceItems(bitNames, bits.indexOf(store.recBitrate).coerceAtLeast(1)) { d, w -> store.recBitrate = bits[w]; bitTxt?.text = "Defina a qualidade visual da gravação. Valores mais altos evitam a pixelização, mas aumentam o tamanho do arquivo.\n\n" + bitNames[w]; d.dismiss() }.setNegativeButton("Cancelar", null).show()
         }
         val fpsList = intArrayOf(15, 24, 30)
-        fpsTxt = p.valueRow("Taxa de quadros de vídeo", "${store.recFps} FPS") {
-            AlertDialog.Builder(this).setTitle("Taxa de quadros de vídeo").setSingleChoiceItems(fpsList.map { "$it FPS" }.toTypedArray(), fpsList.indexOf(store.recFps).coerceAtLeast(1)) { d, w -> store.recFps = fpsList[w]; fpsTxt?.text = "${fpsList[w]} FPS"; d.dismiss() }.setNegativeButton("Cancelar", null).show()
+        fpsTxt = p.valueRow("Taxa de quadros de vídeo", "Defina os quadros por segundo (FPS). Valores maiores tornam o vídeo mais fluido, mas resultam em arquivos maiores.\n\n${store.recFps} FPS") {
+            AlertDialog.Builder(this).setTitle("Taxa de quadros de vídeo").setSingleChoiceItems(fpsList.map { "$it FPS" }.toTypedArray(), fpsList.indexOf(store.recFps).coerceAtLeast(1)) { d, w -> store.recFps = fpsList[w]; fpsTxt?.text = "Defina os quadros por segundo (FPS). Valores maiores tornam o vídeo mais fluido, mas resultam em arquivos maiores.\n\n${fpsList[w]} FPS"; d.dismiss() }.setNegativeButton("Cancelar", null).show()
         }
 
         p.category("Macro17")

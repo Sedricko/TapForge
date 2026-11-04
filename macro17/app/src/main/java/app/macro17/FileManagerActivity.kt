@@ -60,7 +60,7 @@ class FileManagerActivity : Activity() {
                 layoutDirection = android.view.View.LAYOUT_DIRECTION_RTL // rádio à direita, como no base
                 textAlignment = android.view.View.TEXT_ALIGNMENT_VIEW_END
                 gravity = Gravity.CENTER_VERTICAL
-                buttonTintList = android.content.res.ColorStateList.valueOf(0xFF00574B.toInt())
+                buttonTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFF00574B.toInt(), 0x8A000000.toInt()))
                 setPadding(dp(16), dp(12), dp(16), dp(12))
                 setOnClickListener { marked = m.id; render() }
             }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))

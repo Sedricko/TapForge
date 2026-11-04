@@ -88,7 +88,7 @@ class EditSelectedActivity : Activity() {
             }
             else -> {
                 p.category("Ação de Toque", iconRes = R.drawable.bp_ic_tap)
-                p.switchRow("Pular", "Tocar/Deslizar/Pressionar não funcionará. Usado para fins de atraso e comparação de imagens.", skipOn) { skipOn = it }
+                p.switchRow("Pular", "Tocar/Deslizar/Pressionar não funcionará. Usado para atraso e comparação de imagens.", skipOn) { skipOn = it }
             }
         }
         val page = p.page("Editor de Macro", Ic.BACK, { finish() })
@@ -99,7 +99,7 @@ class EditSelectedActivity : Activity() {
             orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE)
             addView(page, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
             addView(LinearLayout(this@EditSelectedActivity).apply {
-                setPadding(dp(15), dp(15), dp(15), dp(20))
+                setPadding(dp(15), dp(20), dp(15), dp(20))
                 addView(pill("ALTERAR TUDO") { apply() }, LinearLayout.LayoutParams(0, dp(56), 1f).also { it.setMargins(dp(5), 0, dp(5), 0) })
                 addView(pill("CANCELAR") { finish() }, LinearLayout.LayoutParams(0, dp(56), 1f).also { it.setMargins(dp(5), 0, dp(5), 0) })
             }, LinearLayout.LayoutParams(MATCH_PARENT, -2))

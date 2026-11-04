@@ -55,7 +55,7 @@ class DebugFileManagerActivity : Activity() {
             list.addView(RadioButton(this).apply {
                 text = "${f.name}  (${f.length() / 1024} KB)"; textSize = 16f; setTextColor(B.TEXT); isChecked = f == marked
                 layoutDirection = View.LAYOUT_DIRECTION_RTL; textAlignment = View.TEXT_ALIGNMENT_VIEW_END
-                buttonTintList = android.content.res.ColorStateList.valueOf(0xFF00574B.toInt())
+                buttonTintList = android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFF00574B.toInt(), 0x8A000000.toInt()))
                 setPadding(dp(16), dp(12), dp(16), dp(12)); setOnClickListener { marked = f; render() }
             }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
             list.addView(View(this).apply { setBackgroundColor(0x1E000000) }, LinearLayout.LayoutParams(MATCH_PARENT, 1))
