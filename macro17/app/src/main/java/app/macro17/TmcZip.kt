@@ -39,7 +39,9 @@ object TmcZip {
             }
         }
         if (tmc.isEmpty()) return null
-        val ids = tmc.keys.associateWith { UUID.randomUUID().toString() }
+        // Como no base: importar de novo uma macro de mesmo nome a sobrescreve (e os CALL continuam apontando para ela).
+        val existing = store.list().associateBy { it.name.lowercase() }
+        val ids = tmc.keys.associateWith { existing[it.lowercase()]?.id ?: UUID.randomUUID().toString() }
         val notes = ArrayList<String>(); var images = 0; var done = 0
         for ((name, text) in tmc) {
             val imgIds = HashMap<String, String>()

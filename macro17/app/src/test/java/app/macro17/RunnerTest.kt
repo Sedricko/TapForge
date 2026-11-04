@@ -107,6 +107,16 @@ class RunnerTest {
         assertEquals(listOf("1", "2", "1", "2", "1", "2", "3"), xs)
     }
 
+    @Test fun imageGroupTimeoutLeavesTheGroupAndJumpsToTheTarget() {
+        // grupo infinito de 1 toque (300 ms por volta) que só termina quando o relógio do grupo (1 s) estoura; destino = passo 4
+        val (o, f) = run(macro(Step(Type.GROUP, grp = 1, rep = 0, mono = true, gms = 1000, gfail = 4), tap(1, delay = 300), tap(2), tap(3)))
+        assertTrue(o is Outcome.Done)
+        val xs = f.events.filter { it.startsWith("g:") }.map { it.substringAfter("g:").substringBefore(",") }
+        assertTrue(xs.count { it == "1" } in 3..5)      // várias voltas até estourar
+        assertFalse(xs.contains("2"))                     // o passo 3 (toque 2) é pulado pelo destino 4
+        assertEquals("3", xs.last())
+    }
+
     @Test fun jumpingOutOfAGroupAbandonsIt() {
         val (_, f) = run(macro(Step(Type.GROUP, grp = 2, rep = 5), Step(Type.GOTO, goto = 4), tap(2), tap(3)))
         val xs = f.events.filter { it.startsWith("g:") }.map { it.substringAfter("g:").substringBefore(",") }

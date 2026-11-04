@@ -145,7 +145,7 @@ class FileManagerActivity : Activity() {
 
     private fun exportM(m: Macro) {
         store.pendingExport = m.id
-        startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json").putExtra(Intent.EXTRA_TITLE, "${m.name}.json"), EXPORT)
+        startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip").putExtra(Intent.EXTRA_TITLE, "${m.name}.zip"), EXPORT)
     }
 
     private fun importJson() =
@@ -159,8 +159,9 @@ class FileManagerActivity : Activity() {
             when (req) {
                 EXPORT -> {
                     val m = store.pendingExport?.let { store.get(it) } ?: throw IllegalStateException("macro não encontrada")
-                    contentResolver.openOutputStream(uri, "wt")!!.use { it.write(m.toJson().toString(2).toByteArray()) }
-                    toast("Exportada")
+                    // ZIP no formato do Backup (macro + imagens citadas): a tela Backup e Restauração lê de volta com as imagens.
+                    contentResolver.openOutputStream(uri, "wt")!!.use { BackupZip.write(it, filesDir, setOf(m.id), samples = false) }
+                    toast("Exportada com as imagens")
                 }
                 IMPORT -> {
                     val raw = contentResolver.openInputStream(uri)!!.use { Store.readLimited(it) }

@@ -32,6 +32,8 @@ class Engine(
 ) {
     @Volatile private var thread: Thread? = null
     val running get() = thread?.isAlive == true
+    /** Alerta de status: se definido, mostra a mensagem por [ms] em janela própria (como a mensagem instantânea do base) em vez de um toast. */
+    @Volatile var onStatus: ((String, Int) -> Unit)? = null
     /** Pausa entre os passos (o Runner dorme ao menos 1 ms por passo); parar a macro também solta a pausa. */
     @Volatile var paused = false
     /** Anterior/Próximo pedidos pelo painel; o Runner lê no próximo passo. */
@@ -129,7 +131,7 @@ class Engine(
                 if (vib) svc.getSystemService(android.os.VibratorManager::class.java).defaultVibrator.vibrate(android.os.VibrationEffect.createOneShot(500, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
             }.onFailure { Diag.e("alerta", "som ou vibração falhou", it) }
         }
-        override fun status(text: String, ms: Int) { Diag.d("alerta", text); say(text); Thread.sleep(ms.toLong()) }
+        override fun status(text: String, ms: Int) { Diag.d("alerta", text); onStatus?.invoke(text, ms) ?: say(text); sleep(ms.toLong()) }
 
         override fun resolve(id: String) = store.get(id)
         override fun glyphs() = store.glyphs()

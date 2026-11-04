@@ -192,6 +192,10 @@ class ItemEditorActivity : Activity() {
             Type.GROUP -> {
                 p.valueRow("Repetições do grupo", if (s.rep == 0) "Infinito" else "${s.rep}") { numDialog("Repetições do grupo", "0 = infinito.", s.rep) { v -> s = s.copy(rep = v); render() } }
                 p.switchRow("Grupo de Pesquisa de Imagem", "Procura várias imagens ou textos no mesmo quadro capturado (um screenshot por 200 ms).", s.mono) { v -> s = s.copy(mono = v); render() }
+                if (s.mono) {
+                    p.valueRow("Duração do grupo", if (s.gms == 0) "Sem limite" else secs(s.gms)) { secDialog("Duração do grupo (segundos)", "0 = sem limite. Ao estourar, o grupo é abandonado.", s.gms) { v -> s = s.copy(gms = v); render() } }
+                    p.valueRow("Mover ao esgotar o tempo", gotoLabel(s.gfail), s.gms > 0) { gotoDialog("Mover ao esgotar o tempo", s.gfail) { v -> s = s.copy(gfail = v); render() } }
+                }
                 p.valueRow("Itens no grupo", "${s.grp}") { numDialog("Itens no grupo", "Quantos itens depois deste fazem parte do grupo.", s.grp) { v -> s = s.copy(grp = v); render() } }
             }
             Type.GESTURE -> {

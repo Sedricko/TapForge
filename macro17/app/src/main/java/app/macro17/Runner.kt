@@ -76,7 +76,7 @@ class Runner(private val p: Ports) {
         var lap = 0
         var resume = false // voltou de uma chamada: avançar antes de executar
         val counters = IntArray(MAX_COUNTERS + 1) // por executor, como no app de referência
-        class Grp(val start: Int, val end: Int, var left: Int, val shared: Boolean = false) // left = voltas que faltam (0 = infinito)
+        class Grp(val start: Int, val end: Int, var left: Int, val shared: Boolean = false, val gms: Int = 0, val gfail: Int = 0, val t0: Long = 0) // left = voltas que faltam (0 = infinito)
         val groups = ArrayList<Grp>()
     }
 
@@ -106,6 +106,13 @@ class Runner(private val p: Ports) {
             val dj = p.takeJump()
             // O pedido nasce durante o passo pausado, que já avançou o ponteiro: Próximo = seguir (0), Anterior = voltar dois (-2).
             if (dj != 0) f.pc = (f.pc + dj - 1).coerceIn(0, f.macro.steps.size - 1)
+            // Grupo de pesquisa com duração: ao estourar, abandona o grupo e vai para o destino (ou segue depois dele), como no base.
+            val gx = f.groups.lastOrNull { it.gms > 0 && f.pc in it.start + 1..it.end && p.now() - it.t0 >= it.gms }
+            if (gx != null) {
+                f.groups.remove(gx); if (gx.shared) p.shareFrames(false)
+                p.trace("grupo do passo ${gx.start + 1}: tempo esgotado")
+                advance(stack, f, if (gx.gfail > 0) gx.gfail - 1 else gx.end + 1, natural = false); continue
+            }
             val s = f.macro.steps[f.pc]
             p.progress(f.lap + 1, f.macro.loops, f.pc + 1, f.macro.steps.size, s.name)
             if (s.off) { p.sleep(1); advance(stack, f, f.pc + 1 + if (s.type == Type.GROUP) s.grp else 0); continue } // grupo desabilitado pula também os filhos
@@ -157,7 +164,7 @@ class Runner(private val p: Ports) {
                     jump = if (hit != null) s.goto else s.fail
                 }
                 Type.GESTURE -> if (!s.skip) p.path(gesturePoints(s.text), s.ms)
-                Type.GROUP -> if (s.grp > 0 && f.groups.none { it.start == f.pc }) { f.groups.add(Frame.Grp(f.pc, minOf(f.pc + s.grp, f.macro.steps.size - 1), s.rep, s.mono)); if (s.mono) p.shareFrames(true) }
+                Type.GROUP -> if (s.grp > 0 && f.groups.none { it.start == f.pc }) { f.groups.add(Frame.Grp(f.pc, minOf(f.pc + s.grp, f.macro.steps.size - 1), s.rep, s.mono, s.gms, s.gfail, p.now())); if (s.mono) p.shareFrames(true) }
                 Type.STOP -> return Outcome.Done // "Parar Macro" do base: encerra a reprodução aqui
                 Type.RESET -> f.counters[s.counter] = 0
                 Type.COUNTER -> jump = counterJump(f, s)

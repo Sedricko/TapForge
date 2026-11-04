@@ -64,6 +64,7 @@ class MacroService : AccessibilityService() {
             toast(msg); ui.post { awake(false); bubble?.visibility = View.VISIBLE }; logPanel.setThrough(false); setPlayIcon(false)
             if (msg == "Macro concluída" && store.endAlarm) playEndAlarm() // só no fim natural, não em parada manual nem em erro
         }, ::toast, logPanel::captureHide)
+        engine.onStatus = { t, ms -> instant(t, ms) }
         engine.onProgress = { lap, loops, step, total, name ->
             lastInfo = (if (loops == 1) "" else "$lap${if (loops > 0) "/$loops" else ""} · ") + "$step/$total" + (if (name.isNotBlank()) " $name" else "")
             ui.post { tvInfo?.text = lastInfo; highlightStep(step - 1) }
@@ -200,13 +201,37 @@ class MacroService : AccessibilityService() {
         }
     }
 
+    private var instantWin: View? = null
+    /** Mensagem instantânea do base (overlay_instant_message): janela branca arredondada, 80% opaca, embaixo, some após [ms]. */
+    fun instant(text: String, ms: Int) = ui.post {
+        instantWin?.let { runCatching { wm.removeView(it) } }; instantWin = null
+        val v = android.widget.LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)); alpha = 0.8f
+            background = rounded(Color.WHITE, 8, 0xFFBBBBBB.toInt())
+            addView(ImageView(this@MacroService).apply { setImageDrawable(packageManager.getApplicationIcon(packageName)) }, android.widget.LinearLayout.LayoutParams(dp(24), dp(24)).also { it.marginEnd = dp(8) })
+            addView(label(text, 14f, 0xFF111827.toInt()))
+        }
+        val lp = WindowManager.LayoutParams(-2, -2, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE, PixelFormat.TRANSLUCENT)
+            .apply { gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; y = 100 }
+        runCatching { wm.addView(v, lp) }.onSuccess {
+            instantWin = v
+            ui.postDelayed({ if (instantWin === v) { runCatching { wm.removeView(v) }; instantWin = null } }, ms.coerceAtLeast(500).toLong())
+        }
+    }
+
     fun toast(msg: String) { ui.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() } }
 
     /** Alarme: para o que estiver rodando, espera 1 s e roda a macro agendada. Recusa se estiver gravando. */
     fun fireAlarm(id: String) {
         if (recording) return toast("Agendamento ignorado: gravação em andamento")
         if (engine.running) engine.stop()
-        ui.postDelayed({ store.selected = id; runMacro(id) }, 1000)
+        // Espera a macro anterior terminar de verdade (gesto em voo, alerta): tenta a cada 200 ms por até 10 s.
+        var tries = 0
+        val go = object : Runnable { override fun run() {
+            if (!engine.running || tries++ >= 50) { store.selected = id; runMacro(id) } else ui.postDelayed(this, 200)
+        } }
+        ui.postDelayed(go, 500)
     }
 
     /** Chamável de qualquer thread (alarme, app). */
@@ -740,7 +765,9 @@ class MacroService : AccessibilityService() {
         if (!save) return
         if (rec.size == recBaseCount) return toast("Nada gravado")
         val base = recBase
-        val m = base?.copy(steps = rec.toList())
+        // Se a macro foi editada durante a gravação, não sobrescreve: acrescenta só o que foi gravado agora.
+        val fresh = base?.let { store.get(it.id) } ?: base
+        val m = fresh?.copy(steps = if (fresh === base) rec.toList() else fresh.steps + rec.drop(recBaseCount))
             ?: Macro(UUID.randomUUID().toString(), "Gravação " + SimpleDateFormat("dd/MM HH:mm:ss", Locale.getDefault()).format(Date()), 1, rec.toList())
         val err = m.validate()
         if (err != null) return toast("Gravação inválida: $err")
