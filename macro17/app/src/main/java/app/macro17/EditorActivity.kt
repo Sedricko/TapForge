@@ -167,11 +167,20 @@ class EditorActivity : Activity() {
         val head = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE); setPadding(dp(16), dp(6), dp(16), dp(6))
             addView(name.apply { setPadding(0, 0, 0, 0) })
+            val loopsLabel = TextView(this@EditorActivity).apply { textSize = 14f; setTextColor(0xDE000000.toInt()); setPadding(dp(2), 0, 0, 0) }
+            fun showLoops() { loopsLabel.text = if (loops.text.toString() == "0") "Infinito" else loops.text.toString() }
+            loops.addTextChangedListener(object : android.text.TextWatcher {
+                override fun afterTextChanged(e: android.text.Editable?) { showLoops() }
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            })
+            showLoops()
             addView(LinearLayout(this@EditorActivity).apply {
                 gravity = Gravity.CENTER_VERTICAL
                 addView(ImageView(this@EditorActivity).apply { setImageResource(R.drawable.bp_repeat) }, LinearLayout.LayoutParams(dp(18), dp(18)))
-                addView(loops)
+                addView(loopsLabel)
             }, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.topMargin = dp(2) })
+            setOnClickListener { loopsDialog() } // o cabeçalho inteiro abre o diálogo, como o addHeaderView do base
         }
         val fab = ImageView(this).apply {
             setImageDrawable(Icon(Ic.ADD, Color.WHITE)); setPadding(dp(16), dp(16), dp(16), dp(16))
@@ -262,8 +271,13 @@ class EditorActivity : Activity() {
     private fun duplicateSelected() {
         val idx = needSelection() ?: return
         // Como no base: as cópias entram juntas, depois do último marcado, e a seleção continua nos originais.
-        var at = idx.last() + 1
+        val at0 = idx.last() + 1
+        var at = at0
+        val set = idx.toSet()
         for (i in idx) if (steps.size < MAX_STEPS) { steps = steps.afterInsert(at, steps[i].shiftedFrom(at)); at++ }
+        // Como no base: saltos entre itens copiados passam a apontar para as cópias (não para os originais).
+        fun map(t: Int) = if (t > 0 && (t - 1) in set) at0 + idx.indexOf(t - 1) + 1 else t
+        steps = steps.mapIndexed { k, st -> if (k in at0 until at) st.copy(goto = map(st.goto), fail = map(st.fail), cases = st.cases.map { it.copy(to = map(it.to)) }) else st }
         refresh()
     }
 
@@ -442,9 +456,9 @@ class EditorActivity : Activity() {
             ImageView(this).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER; layoutParams = LinearLayout.LayoutParams(dp(32), dp(32)).also { it.setMargins(0, dp(6), 0, dp(6)) } }
         } ?: resIcon(if (s.type == Type.GROUP && s.mono) R.drawable.bp_ic_loop_image else typeRes.getValue(s.type), 32, 0xFF607D8B.toInt()).apply { (layoutParams as LinearLayout.LayoutParams).setMargins(0, dp(6), 0, dp(6)) }
         // Setas de salto só quando existe condição (busca) ou o item é um "Ir para": azul = sucesso, vermelha = falha.
-        val jumps = if (s.type == Type.GOTO) listOfNotNull(s.goto.takeIf { it > 0 }?.let { it to 0xFF2121FF.toInt() })
+        val jumps = if (s.type == Type.GOTO || s.type == Type.COUNTER) listOfNotNull(s.goto.takeIf { it > 0 }?.let { it to 0xFF2121FF.toInt() })
             else if (search) listOfNotNull(s.goto.takeIf { it > 0 }?.let { it to 0xFF2121FF.toInt() }, s.fail.takeIf { it > 0 }?.let { it to 0xFFF44336.toInt() }) else emptyList()
-        val delayText = if (s.rnd > 0) "${secs(s.rndMin)}~${secs(s.rnd)}" else secs(s.delay)
+        val delayText = if (s.rnd > 0) "${secs(s.rnd)}~" else secs(s.delay)
         val infoText = info(s)
         return LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
@@ -466,6 +480,11 @@ class EditorActivity : Activity() {
                     if (search) addView(chip(R.drawable.bp_outline_image_search_24, limit(if (s.type in Step.GESTURES) s.sms else s.ms)))
                     if (s.delay > 0 || s.rnd > 0) addView(chip(R.drawable.bp_ic_timer, delayText))
                     if (gestureLike && s.skip) addView(resIcon(R.drawable.bp_ic_do_not_touch_24px, 14, 0xFF000000.toInt()))
+                    if (s.type == Type.STATUS) {
+                        val mode = if (s.snd && s.vib) R.drawable.bp_volume_vibrate else if (s.snd) R.drawable.bp_volume_high else if (s.vib) R.drawable.bp_vibrate else 0
+                        if (mode != 0) addView(resIcon(mode, 14, 0xFF000000.toInt()))
+                        addView(chip(R.drawable.bp_ic_timer, secs(s.ms)))
+                    }
                     if (infoText.isNotEmpty()) addView(label(infoText, 14f, 0xDE000000.toInt()).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
                 })
             })
@@ -652,7 +671,8 @@ class EditorActivity : Activity() {
 
     private fun loopsDialog() {
         val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER; setText(loops.text); setPadding(dp(24), dp(16), dp(24), dp(8)) }
-        AlertDialog.Builder(this).setTitle("Repetir reprodução").setMessage("0 = infinito").setView(et)
+        et.hint = "Repetir reprodução" // edit_header_dialog do base: só o campo, com a dica
+        AlertDialog.Builder(this).setView(et)
             .setPositiveButton("OK") { _, _ -> et.text.toString().toIntOrNull()?.takeIf { it in 0..MAX_LOOPS }?.let { loops.setText(it.toString()) } ?: toast("Número inválido") }
             .setNegativeButton("Cancelar", null).show()
     }
