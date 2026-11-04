@@ -10,6 +10,7 @@ import android.graphics.drawable.InsetDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.view.ViewGroup
