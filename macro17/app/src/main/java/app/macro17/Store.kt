@@ -189,6 +189,21 @@ class Store(ctx: Context) {
         dir.listFiles().orEmpty().filter { it.extension == "json" }.mapNotNull { get(it.nameWithoutExtension) }.sortedBy { it.name.lowercase() }
 
     /** Escreve em arquivo temporário e renomeia: queda no meio não corrompe a macro anterior. */
+    private val hdir = File(ctx.filesDir, "history")
+    /** Cópia datada a cada Salvar (como no base: até 10, a mais antiga sai). */
+    fun saveHistory(m: Macro) {
+        if (!ID.matches(m.id)) return
+        val d = File(hdir, m.id).apply { mkdirs() }
+        File(d, java.text.SimpleDateFormat("yyyyMMddHHmmss", java.util.Locale.US).format(java.util.Date()) + ".json").writeText(m.toJson().toString())
+        d.listFiles().orEmpty().sortedByDescending { it.name }.drop(10).forEach { it.delete() }
+    }
+    /** Nomes (yyyyMMddHHmmss) das cópias, da mais recente para a mais antiga. */
+    fun history(id: String): List<String> = if (!ID.matches(id)) emptyList() else File(hdir, id).listFiles().orEmpty().map { it.nameWithoutExtension }.sortedDescending()
+    fun loadHistory(id: String, stamp: String): Macro? = runCatching {
+        if (!ID.matches(id) || !Regex("\\d{14}").matches(stamp)) return null
+        Macro.fromJson(JSONObject(File(File(hdir, id), "$stamp.json").readText()), id)
+    }.getOrNull()
+
     fun save(m: Macro) {
         m.validate()?.let { throw IllegalArgumentException(it) }
         val f = file(m.id) ?: throw IllegalArgumentException("id inválido")

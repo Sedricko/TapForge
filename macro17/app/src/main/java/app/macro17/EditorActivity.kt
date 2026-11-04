@@ -10,6 +10,8 @@ import android.graphics.drawable.InsetDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
@@ -271,25 +273,56 @@ class EditorActivity : Activity() {
     }
 
     private fun overflow(anchor: View) {
-        // Menu do base (menu_edit_macro_root): Grupo de Macro, Alternar Pular, Editar Itens Selecionados, Recarregar; "Desagrupar" é extra.
+        // Menu do base (menu_edit_macro_root): Grupos de Macros, Alternar Pular, Editar Itens Selecionados, Recarregar.
         val pm = android.widget.PopupMenu(this, anchor)
         val acts = listOf<Pair<String, () -> Unit>>(
-            "Grupo de Macro" to { groupSelected() }, "Alternar Pular" to { toggleSkip() }, "Editar Itens Selecionados" to { batchEdit() },
-            "Recarregar" to { reload() }, "Desagrupar" to { ungroupSelected() },
+            "Grupo de Macros" to { groupSelected() }, "Alternar Pular" to { toggleSkip() }, "Editar Itens Selecionados" to { batchEdit() },
+            "Recarregar" to { reload() },
         )
         acts.forEachIndexed { k, a -> pm.menu.add(0, k, k, a.first) }
         pm.setOnMenuItemClickListener { acts[it.itemId].second(); true }
         pm.show()
     }
 
-    /** Agrupa os itens marcados (têm de ser seguidos e sem outro grupo): entra um cabeçalho de grupo antes do primeiro. */
+    /**
+     * "Grupo de Macros" do base: os marcados não precisam ser seguidos; grupo marcado = "Grupo selecionado."; o diálogo lista os grupos
+     * existentes e "Criar um novo grupo"; os itens saem de onde estavam e entram no fim do grupo escolhido (o novo entra no fim da lista).
+     */
     private fun groupSelected() {
-        val idx = needSelection()?.sorted() ?: return
-        if (idx.last() - idx.first() + 1 != idx.size) return toast("Marque itens seguidos para agrupar.")
-        if (idx.any { steps[it].type == Type.GROUP }) return toast("Um grupo não pode conter outro grupo.")
-        if (steps.indices.any { k -> steps[k].type == Type.GROUP && idx.any { it > k && it <= k + steps[k].grp } }) return toast("Estes itens já estão em um grupo.")
-        steps = steps.afterInsert(idx.first(), Step(Type.GROUP, grp = idx.size, name = "Grupo"))
-        selected.clear(); refresh()
+        val marked = marked()
+        if (marked.isEmpty()) return toast("Nenhum item selecionado.")
+        if (marked.any { steps[it].type == Type.GROUP }) return toast("Grupo selecionado.")
+        val heads = steps.indices.filter { steps[it].type == Type.GROUP }.filter { it !in marked }
+        val names = (heads.map { "${it + 1}. ${steps[it].name.ifBlank { "Grupo" }}" } + "Criar um novo grupo").toTypedArray()
+        AlertDialog.Builder(this).setTitle("Grupo de Macros").setItems(names) { _, w -> moveToGroup(marked, if (w < heads.size) heads[w] else -1) }
+            .setNegativeButton("Cancelar", null).show()
+    }
+
+    /** Reordena [marked] para o fim do grupo [target] (cabeçalho; -1 = novo grupo no fim) e recalcula os destinos de salto e os tamanhos dos grupos. */
+    private fun moveToGroup(marked: List<Int>, target: Int) {
+        val mk = marked.toSet()
+        if (target == -1 && steps.size + 1 > MAX_STEPS) return toast("Limite de passos atingido.")
+        val order = ArrayList<Int>() // índice antigo de cada posição nova; -1 = cabeçalho novo
+        val kids = HashMap<Int, Int>() // cabeçalho antigo -> filhos que continuam nele
+        for (g in steps.indices) if (steps[g].type == Type.GROUP) kids[g] = (g + 1..minOf(g + steps[g].grp, steps.lastIndex)).count { it !in mk }
+        val lastKeep = if (target >= 0) (listOf(target) + (target + 1..minOf(target + steps[target].grp, steps.lastIndex)).filter { it !in mk }).max() else -1
+        for (i in steps.indices) {
+            if (i in mk) continue
+            order.add(i)
+            if (i == lastKeep) order.addAll(mk.sorted()) // entram no fim do grupo escolhido
+        }
+        if (target == -1) { order.add(-1); order.addAll(mk.sorted()) }
+        val inv = IntArray(steps.size + 1) { -1 }
+        order.forEachIndexed { pos, old -> if (old >= 0) inv[old] = pos }
+        fun map(n: Int) = if (n <= 0) n else inv.getOrElse(n - 1) { -1 }.let { if (it < 0) 0 else it + 1 }
+        val out = order.map { old ->
+            if (old < 0) Step(Type.GROUP, grp = mk.size, name = "Grupo")
+            else steps[old].let { st ->
+                val g = if (st.type == Type.GROUP) st.copy(grp = (kids[old] ?: 0) + if (old == target) mk.size else 0) else st
+                g.copy(goto = map(g.goto), fail = map(g.fail), cases = g.cases.map { it.copy(to = map(it.to)) })
+            }
+        }
+        steps = out; selected.clear(); refresh()
     }
 
     /** Desfaz o grupo marcado: some o cabeçalho e os itens continuam na lista. */
@@ -354,12 +387,14 @@ class EditorActivity : Activity() {
 
     /** Descarta as mudanças e relê a macro salva. */
     private fun reload() {
-        AlertDialog.Builder(this).setMessage("Descartar as alterações e recarregar a macro salva?")
-            .setPositiveButton("Recarregar") { _, _ ->
-                val m = store.get(existingId)
-                steps = m?.steps.orEmpty(); name.setText(m?.name ?: "Nova macro"); loops.setText((m?.loops ?: 1).toString())
-                selected.clear(); refresh()
-            }.setNegativeButton("Cancelar", null).show()
+        val h = store.history(existingId)
+        if (h.isEmpty()) return toast("Nenhuma edição salva no histórico.")
+        val fmt = java.text.SimpleDateFormat("yyyyMMddHHmmss", java.util.Locale.US); val out = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+        val names = h.map { runCatching { out.format(fmt.parse(it)!!) }.getOrDefault(it) }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("Selecionar Histórico de Edições").setItems(names) { _, w ->
+            val m = store.loadHistory(existingId, h[w]) ?: return@setItems toast("Cópia ilegível")
+            steps = m.steps; name.setText(m.name); loops.setText(m.loops.toString()); selected.clear(); refresh()
+        }.setNegativeButton("Cancelar", null).show()
     }
 
     // --- linha da lista ----------------------------------------------------------------------
@@ -620,7 +655,6 @@ class EditorActivity : Activity() {
     private fun snapshot() = Macro(id, name.text.toString().trim(), loops.text.toString().toIntOrNull() ?: 1, steps).toJson().toString()
 
     override fun onBackPressed() {
-        if (saved.isEmpty() || snapshot() == saved) return super.onBackPressed()
         AlertDialog.Builder(this).setMessage("Deseja sair da edição?")
             .setPositiveButton("OK") { _, _ -> finish() }.setNegativeButton("Cancelar", null).show()
     }
@@ -636,7 +670,11 @@ class EditorActivity : Activity() {
         val n = loops.text.toString().toIntOrNull() ?: return toast("Repetições deve ser um número inteiro")
         val m = Macro(id, name.text.toString().trim(), n, steps)
         m.validate()?.let { return toast(it) }
-        try { store.save(m); saved = snapshot(); toast("Salvo.") } catch (e: Exception) { toast("Falha ao salvar: ${e.message}") }
+        try {
+            val pd = AlertDialog.Builder(this).setView(android.widget.ProgressBar(this).apply { setPadding(dp(24), dp(24), dp(24), dp(24)) }).setCancelable(false).show()
+            store.save(m); store.saveHistory(m); saved = snapshot()
+            Handler(Looper.getMainLooper()).postDelayed({ pd.dismiss(); toast("Salvo.") }, 400)
+        } catch (e: Exception) { toast("Falha ao salvar: ${e.message}") }
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
