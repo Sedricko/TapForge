@@ -264,7 +264,7 @@ class MacroService : AccessibilityService() {
                 contentDescription = "Trocar o tipo do item"
                 addView(ImageView(this@MacroService).apply { setImageDrawable(Icon(recorder.mode.ic, teal)); layoutParams = android.widget.LinearLayout.LayoutParams(dp(40), dp(40)); setPadding(dp(8), dp(8), dp(8), dp(8)) })
                 addView(lbl)
-                setOnClickListener { recorder.cycle(); fillRow1() }
+                setOnClickListener { recorder.cycle(); panelToFront(); fillRow1() }
             })
         } else {
             val pb = pbtn(if (playing) Ic.STOP else Ic.PLAY, "Executar ou parar a macro") { togglePlay() }
@@ -332,6 +332,12 @@ class MacroService : AccessibilityService() {
     private var lastInfo = ""
     private var playing = false // estado mostrado no painel (engine.running ainda é true dentro do callback de fim)
     private fun setPlayIcon(running: Boolean) = ui.post { playing = running; if (running) { expanded = false; if (::row2.isInitialized) row2.visibility = View.GONE }; if (::row1.isInitialized && !recording) fillRow1() else playBtn?.setImageResource(if (running) R.drawable.ic_stop else R.drawable.bp_play_arrow) }
+
+    /** A camada do Gesto cobre a tela inteira e é criada depois do painel: recria o painel por cima, senão ele fica sem toque e o modo "não desativa". */
+    private fun panelToFront() {
+        val v = bubble ?: return
+        runCatching { wm.removeView(v); wm.addView(v, bubbleLp) }.onFailure { Diag.e("painel", "não foi possível trazer o painel para frente", it) }
+    }
 
     private fun openPanel(open: Boolean) {
         if (!::panel.isInitialized) return
@@ -558,6 +564,7 @@ class MacroService : AccessibilityService() {
         recLast = SystemClock.elapsedRealtime()
         recording = true
         recorder.show(Recorder.Mode.TAP)
+        panelToFront()
         expanded = false; row2.visibility = View.GONE
         fillRow1()
         toast(if (base != null) "Gravando em “${base.name}”: os itens entram no fim. Arraste o marcador e toque em +." else "Gravando: arraste o marcador e toque em +. Toque no tipo para trocar.")

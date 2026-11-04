@@ -117,6 +117,7 @@ fun Activity.mainDrawer(selected: Int): Drawer {
         Triple(Ic.ALARM, "Agendamento") { if (Store(this).list().isEmpty()) android.widget.Toast.makeText(this, "Nenhum arquivo de macro.", android.widget.Toast.LENGTH_LONG).show() else if (this !is AlarmListActivity) go(AlarmListActivity::class.java) },
         Triple(Ic.ARCHIVE, "Backup e Restauração") { if (this !is BackupActivity) go(BackupActivity::class.java) },
         Triple(Ic.GEAR, "Configurações") { if (this !is OptionsActivity) go(OptionsActivity::class.java) },
+        Triple(Ic.SEARCH, "Monitor e logs") { if (this !is DiagActivity) go(DiagActivity::class.java) },
         Triple(Ic.ARTICLE, "Sobre o Aplicativo") { if (this !is AboutActivity) go(AboutActivity::class.java) },
     ), selected)
 }

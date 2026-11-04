@@ -70,6 +70,7 @@ class DiagActivity : Activity() {
                 addView(pillBtn("Salvar relatório", C.TEAL) { saveReport() })
                 addView(pillBtn("Enviar tudo", C.DARK) { reportMenu() })
                 addView(pillBtn("Limpar", C.RED) { Diag.feed.clear(); Diag.clear() })
+                addView(pillBtn("Autoteste", C.TEAL) { selfTest() })
                 addView(pillBtn("Painel flutuante", C.DARK) { MacroService.instance?.toggleLog() ?: toast("Ative o serviço de acessibilidade primeiro") })
                 addView(pillBtn("Opções", C.DARK) { options() })
             })
@@ -84,6 +85,18 @@ class DiagActivity : Activity() {
             addView(ScrollView(this@DiagActivity).apply { addView(list) }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
             padForSystemBars(dp(12))
         })
+    }
+
+    private fun selfTest() {
+        toast("Executando o autoteste…")
+        Thread({
+            val checks = SelfTest.run(this)
+            runOnUiThread {
+                val text = checks.joinToString("\n") { it.toString() }
+                AlertDialog.Builder(this).setTitle("Autoteste: ${checks.count { it.ok == true }} ok, ${checks.count { it.ok == null }} avisos, ${checks.count { it.ok == false }} falhas")
+                    .setMessage(text).setPositiveButton("Copiar") { _, _ -> copy(text) }.setNeutralButton("Repetir") { _, _ -> selfTest() }.setNegativeButton("Fechar", null).show()
+            }
+        }, "macro17-autoteste").start()
     }
 
     override fun onResume() {
