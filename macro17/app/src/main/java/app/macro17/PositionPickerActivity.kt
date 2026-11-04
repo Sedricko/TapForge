@@ -106,7 +106,11 @@ class PositionPickerActivity : Activity() {
         div()
         if (mode == AREA) { btn("Editar") { editNumbers() }; div() }
         if (mode != POS) { btn("Imagem") { chooseImage() }; div() }
-        btn("Salvar") { setResult(RESULT_OK, Intent().putExtra("v", result())); finish() }
+        btn("Salvar") {
+            setResult(RESULT_OK, Intent().putExtra("v", result()))
+            if (intent.getBooleanExtra("reply", false)) sendBroadcast(Intent("app.macro17.PICKED").setPackage(packageName).putExtra("v", result())) // pedido vindo do serviço
+            finish()
+        }
     }
 
     private fun marker(icon: Int): View = FrameLayout(this).apply {

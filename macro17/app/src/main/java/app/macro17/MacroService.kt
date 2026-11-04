@@ -80,6 +80,9 @@ class MacroService : AccessibilityService() {
         lock = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) { Diag.d("sistema", "tela apagou; parar ao bloquear=${store.stopOnLock}"); if (store.stopOnLock) engine.stop() }
         }
+        pickReceiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, i: Intent) { i.getIntArrayExtra("v")?.let { v -> val cb = pendingPick; pendingPick = null; ui.post { cb?.invoke(v) } } }
+        }.also { registerReceiver(it, IntentFilter("app.macro17.PICKED"), Context.RECEIVER_NOT_EXPORTED) }
         val off = IntentFilter(Intent.ACTION_SCREEN_OFF)
         // A versão com flags só existe na API 33; nas 31 e 32 o registro simples já basta para broadcast do sistema.
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(lock, off, Context.RECEIVER_NOT_EXPORTED) else registerReceiver(lock, off)
@@ -120,6 +123,7 @@ class MacroService : AccessibilityService() {
     override fun onUnbind(intent: Intent?): Boolean {
         Diag.d("serviço", "acessibilidade desconectada")
         hideList()
+        itemOverlay.dismiss(); pickReceiver?.let { runCatching { unregisterReceiver(it) } }; pickReceiver = null
         instantWin?.let { runCatching { wm.removeView(it) } }; instantWin = null
         guideWin?.let { runCatching { wm.removeView(it) } }; guideWin = null
         if (::logPanel.isInitialized) logPanel.hide()
@@ -410,7 +414,17 @@ class MacroService : AccessibilityService() {
 
     private fun toggleList() {
         if (listWin != null) { hideList(); fillRow1(); return }
-        val m = (engine.currentId ?: store.selected)?.let { store.get(it) } ?: return toast("Por favor, selecione um arquivo.") // a macro em execução, ou a selecionada
+        showList()
+    }
+
+    /** Lista da gravação em andamento (itens já adicionados) ou da macro em execução/selecionada. */
+    private fun listSource(): Macro? =
+        if (recording) Macro(recBase?.id ?: "rec", recBase?.name ?: "Gravação", 1, rec.toList())
+        else (engine.currentId ?: store.selected)?.let { store.get(it) }
+
+    private fun showList() {
+        if (listWin != null) return
+        val m = listSource() ?: return toast("Por favor, selecione um arquivo.")
         listMacroId = m.id
         val col = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL }
         val collapsed = HashSet<Int>() // cabeçalhos de grupo recolhidos
@@ -445,14 +459,14 @@ class MacroService : AccessibilityService() {
                     if (st.delay > 0) addView(chip(R.drawable.bp_ic_timer, "${st.delay / 1000f}s"))
                     if (st.skip) addView(chip(R.drawable.bp_ic_do_not_touch_24px, ""))
                 })
-                // Toque curto: abre o editor desse item (grupo: recolhe/expande). Toque longo: testa o item (grupo: abre o editor).
+                // Como no base: toque curto edita o item numa janela por cima do app (só os tipos que o base permite; grupo recolhe/expande);
+                // toque longo testa o item (espera 500 ms, compara a imagem com a tela e mostra a semelhança).
                 setOnClickListener {
                     if (st.type == Type.GROUP) { if (i in collapsed) collapsed.remove(i) else collapsed.add(i); applyCollapse() }
-                    else openItemFromList(m.id, i)
+                    else if (ItemOverlay.editable(st.type)) editFromList(m, i)
                 }
                 setOnLongClickListener {
-                    if (st.type == Type.GROUP) openItemFromList(m.id, i)
-                    else Thread { instant(runCatching { engine.probeItem(st) }.getOrElse { "Falha ao testar o item" }, 3000) }.start()
+                    if (st.type != Type.GROUP) Thread { Thread.sleep(500); instant(runCatching { engine.probeItem(st) }.getOrElse { "Falha ao testar o item" }, 3000) }.start()
                     true
                 }
             })
@@ -493,8 +507,39 @@ class MacroService : AccessibilityService() {
         startActivity(i)
     }
 
-    private fun openItemFromList(macroId: String, index: Int) {
-        openScreen(Intent(this, EditorActivity::class.java).putExtra("id", macroId).putExtra("open", index).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    private val itemOverlay by lazy { ItemOverlay(this, wm) }
+    @Volatile private var pendingPick: ((IntArray) -> Unit)? = null
+    private var pickReceiver: BroadcastReceiver? = null
+
+    /** Abre o seletor em tela cheia; o resultado volta por broadcast interno (uma Activity não devolve resultado a um serviço). */
+    fun requestPick(mode: Int, init: IntArray, tpl: String?, swipe: Boolean, cb: (IntArray) -> Unit) {
+        pendingPick = cb
+        openScreen(Intent(this, PositionPickerActivity::class.java).putExtra("mode", mode).putExtra("v", init).putExtra("tpl", tpl).putExtra("swipe", swipe).putExtra("reply", true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    /** Lista de escolha em overlay (o diálogo comum não abre a partir de um serviço). */
+    fun chooseOverlay(title: String, items: Array<String>, checked: Int, cb: (Int) -> Unit) {
+        val d = android.app.AlertDialog.Builder(android.view.ContextThemeWrapper(this, android.R.style.Theme_Material_Light_Dialog_Alert)).setTitle(title)
+            .setSingleChoiceItems(items, checked) { dlg, w -> dlg.dismiss(); cb(w) }.create()
+        d.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
+        runCatching { d.show() }
+    }
+
+    private fun editFromList(m: Macro, i: Int) {
+        itemOverlay.show(m.steps[i], m.steps.size, onSave = { ns -> applyListEdit(m, i, ns) }, onDelete = { applyListEdit(m, i, null) })
+    }
+
+    /** Grava a edição feita na janela: na macro salva ou, durante a gravação, na lista da gravação (itens já salvos também vão para o arquivo). */
+    private fun applyListEdit(m: Macro, i: Int, ns: Step?) {
+        if (recording && i >= recBaseCount) { if (i in rec.indices) { if (ns == null) rec.removeAt(i) else rec[i] = ns } }
+        else {
+            val steps = if (ns == null) m.steps.afterDelete(i) else m.steps.toMutableList().also { it[i] = ns }
+            val nm = (store.get(m.id) ?: m).copy(steps = steps)
+            nm.validate()?.let { return toast(it) }
+            runCatching { store.save(nm) }.onFailure { return toast("Falha ao salvar: ${it.message}") }
+            if (recording) { if (i in rec.indices) { if (ns == null) { rec.removeAt(i); recBaseCount-- } else rec[i] = ns } }
+        }
+        ui.post { if (listWin != null) { hideList(); showList() } }
     }
 
     private fun hideList() { listWin?.let { runCatching { wm.removeView(it) } }; listWin = null; listCol = null; listSv = null }
@@ -752,7 +797,7 @@ class MacroService : AccessibilityService() {
         recBase = base; recBaseCount = base?.steps?.size ?: 0
         rec.clear(); base?.let { rec.addAll(it.steps) }
         recLast = SystemClock.elapsedRealtime()
-        recording = true; ui.post { awake(true) } // gravando: a tela não apaga (como no base)
+        recording = true; ui.post { awake(true); showList() } // gravando: a tela não apaga e a lista dos itens abre sozinha (como no base)
         recorder.show(Recorder.Mode.TAP)
         panelToFront()
         expanded = false; row2.visibility = View.GONE
@@ -826,6 +871,7 @@ class MacroService : AccessibilityService() {
             }
             if (st != null) {
                 rec += st; recLast = pressedAt
+                ui.post { if (listWin != null) { hideList(); showList() } } // a lista acompanha cada item adicionado
                 Diag.d("gravação", "item ${rec.size}: ${st.type} ${st.x1},${st.y1}" + (if (st.type == Type.SWIPE) ">${st.x2},${st.y2}" else "") + " ms=${st.ms} atraso=${st.delay}ms" + (if (st.img.isNotEmpty()) " miniatura" else ""))
                 toast("Item ${rec.size - recBaseCount} adicionado: ${recorder.mode.label}")
             }
@@ -850,7 +896,7 @@ class MacroService : AccessibilityService() {
         Diag.d("gravação", "fim (salvar=$save, itens=${rec.size - recBaseCount})")
         if (!recording) return
         recording = false; adding = false
-        ui.post { awake(false) }
+        ui.post { awake(false); hideList(); itemOverlay.dismiss() }
         runCatching { recorder.hide() }
         if (::panel.isInitialized) fillRow1()
         if (!save) return
