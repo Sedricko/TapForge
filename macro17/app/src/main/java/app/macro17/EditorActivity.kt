@@ -129,7 +129,7 @@ class EditorActivity : Activity() {
             // Como no base: tocar em "Parar macro" não abre nada; toque longo só no "Arquivo de macro" (abre o arquivo alvo).
             setOnItemClickListener { _, _, i, _ -> if (steps[i].type != Type.STOP) openItem(steps[i].type, steps[i], i) }
             setOnItemLongClickListener { _, _, i, _ -> val t = steps[i]; if (t.type == Type.CALL && store.get(t.text) != null) { startActivity(android.content.Intent(this@EditorActivity, EditorActivity::class.java).putExtra("id", t.text)); true } else false }
-            clipToPadding = false; setPadding(0, 0, 0, dp(96))
+            clipToPadding = false; setPadding(0, 0, 0, dp(80))
             adapter = object : BaseAdapter() {
                 override fun getCount() = steps.size
                 override fun getItem(i: Int) = steps[i]
@@ -230,7 +230,10 @@ class EditorActivity : Activity() {
 
     private fun marked(): List<Int> = selected.filter { it in steps.indices }.sorted()
 
-    private fun needSelection(): List<Int>? = marked().takeIf { it.isNotEmpty() } ?: run { toast("Nenhum item selecionado."); null }
+    /** Marcados, com os filhos de cada cabeçalho de grupo marcado (o grupo é um bloco, como no base). */
+    private fun needSelection(): List<Int>? = marked().takeIf { it.isNotEmpty() }?.let { m ->
+        m.flatMap { i -> if (steps[i].type == Type.GROUP) (i..minOf(i + steps[i].grp, steps.lastIndex)).toList() else listOf(i) }.distinct().sorted()
+    } ?: run { toast("Nenhum item selecionado."); null }
 
     private fun toggleAll() {
         if (selected.size == steps.size) selected.clear() else { selected.clear(); selected.addAll(steps.indices) }
@@ -361,8 +364,7 @@ class EditorActivity : Activity() {
 
     /** Formato do base: "5.0s", "1m 5.0s" (ponto decimal em qualquer idioma). */
     private fun secs(ms: Int): String {
-        val t = ms / 1000.0
-        return if (t >= 60) "%dm %.1fs".format(java.util.Locale.US, (t / 60).toInt(), t % 60) else "%.1fs".format(java.util.Locale.US, t)
+        return if (ms >= 60000) "${ms / 60000}m ${((ms % 60000) / 1000f)}s" else "${ms / 1000f}s" // Float.toString, como o base
     }
 
     /** Vetores do próprio base para cada tipo (list_icon / lista de itens). */
@@ -596,7 +598,7 @@ class EditorActivity : Activity() {
                 if (type == Type.STATUS || (type == Type.NODE || type == Type.TEXT)) textEdit!!.text.toString().trim() else if (type == Type.CALL || type == Type.IMAGE) text else "", retSw?.isChecked ?: true,
                 nv[THR], nv[CYC], nv[FAIL], tapSw?.isChecked ?: true, exactSw?.isChecked ?: false, scalesSw?.isChecked ?: false, nv[CMP], nv[LO], nv[HI], nv[METH], monoSw?.isChecked ?: false, nv[CONF],
                 dbl = dblSw?.isChecked ?: false, ox = nv[OX], oy = nv[OY], vib = vibSw?.isChecked ?: false, snd = sndSw?.isChecked ?: false, minConf = nv[MINC],
-                name = s.name, img = s.img, useImg = s.useImg, sms = s.sms, ax1 = s.ax1, ay1 = s.ay1, ax2 = s.ax2, ay2 = s.ay2, // o bloco de imagem não tem campos neste diálogo: preserva
+                name = s.name, img = s.img, useImg = s.useImg, sms = s.sms, ax1 = s.ax1, ay1 = s.ay1, ax2 = s.ax2, ay2 = s.ay2, fx = s.fx, grp = s.grp, rep = s.rep, off = s.off, // o bloco de imagem não tem campos neste diálogo: preserva
             )
             val err = ns.validate(total)
             if (err != null) { toast(err); return@setOnClickListener }
