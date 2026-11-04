@@ -33,6 +33,12 @@ class AccessibilityAgreementActivity : Activity() {
                 }
             }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(20) })
             addView(Button(this@AccessibilityAgreementActivity).apply { text = "Cancelar"; setOnClickListener { finish() } }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            // Apps instalados por APK ficam acinzentados em Acessibilidade (configurações restritas do Android): o ⋮ das informações do app libera.
+            addView(label("Se o Macro17 estiver acinzentado em Acessibilidade: Informações do app › ⋮ › Permitir configurações restritas.", 13f, 0xFF616161.toInt()).apply { setPadding(0, dp(12), 0, 0) })
+            addView(Button(this@AccessibilityAgreementActivity).apply {
+                text = "Abrir informações do app"
+                setOnClickListener { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))) }
+            }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         })
     }
 }
