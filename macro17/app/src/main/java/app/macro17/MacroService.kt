@@ -342,15 +342,15 @@ class MacroService : AccessibilityService() {
         } else {
             val pb = pbtn(if (playing) Ic.STOP else Ic.PLAY, "Executar ou parar a macro") { togglePlay() }
             playBtn = pb
-            row1.addView(pb)
+            if (!(playing && engine.paused)) row1.addView(pb) // pausado: sem o Parar (só Retomar, olho, Anterior e Próximo), como no base
             if (playing && (store.simpleView || store.playMode)) return // visão simples / modo de reprodução: só o Parar, como no base
             if (playing) { // reproduzindo: Parar + Pausar; pausado: Retomar + Anterior + Próximo (como no base), mais o feedback do passo
                 if (engine.paused) {
                     row1.addView(pbtn(Ic.PLAY, "Retomar", 42, 35) { ui.postDelayed({ engine.paused = false; fillRow1() }, 500) })
+                    row1.addView(pbtn(if (listWin != null) Ic.EYE else Ic.EYE_OFF, "Lista da macro", 38, 38, 2, tint = if (listWin != null) 0xFF002626.toInt() else teal) { toggleList() })
                     row1.addView(pres(R.drawable.bp_ic_media_previous, null, "Anterior", 42, 42, 1) { engine.jump = -1 })
                     row1.addView(pres(R.drawable.bp_ic_media_next, null, "Próximo", 42, 42, 1) { engine.jump = 1 })
                 } else row1.addView(pbtn(Ic.PAUSE, "Pausar") { engine.paused = true; fillRow1() })
-                if (engine.paused) row1.addView(pbtn(if (listWin != null) Ic.EYE else Ic.EYE_OFF, "Lista da macro", 38, 38, 2, tint = if (listWin != null) 0xFF002626.toInt() else teal) { toggleList() })
                 row1.addView(android.view.View(this).apply { setBackgroundColor(0x1E000000) }, android.widget.LinearLayout.LayoutParams(dp(1), -1).also { it.setMargins(dp(4), dp(6), dp(4), dp(6)) })
                 // ciclo (volta) e, ao lado, título (tempo restante ou %) e nome do item, como ll_control_cycle / ll_top do base
                 tvCycle = label(lastCycle, 12f, 0xFF607D8B.toInt()).apply { gravity = Gravity.CENTER }
@@ -732,7 +732,7 @@ class MacroService : AccessibilityService() {
         recBase = base; recBaseCount = base?.steps?.size ?: 0
         rec.clear(); base?.let { rec.addAll(it.steps) }
         recLast = SystemClock.elapsedRealtime()
-        recording = true
+        recording = true; ui.post { awake(true) } // gravando: a tela não apaga (como no base)
         recorder.show(Recorder.Mode.TAP)
         panelToFront()
         expanded = false; row2.visibility = View.GONE
@@ -830,6 +830,7 @@ class MacroService : AccessibilityService() {
         Diag.d("gravação", "fim (salvar=$save, itens=${rec.size - recBaseCount})")
         if (!recording) return
         recording = false; adding = false
+        ui.post { awake(false) }
         runCatching { recorder.hide() }
         if (::panel.isInitialized) fillRow1()
         if (!save) return
