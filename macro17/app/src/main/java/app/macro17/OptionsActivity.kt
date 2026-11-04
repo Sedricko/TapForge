@@ -88,7 +88,7 @@ class OptionsActivity : Activity() {
 
     private var transparencyText: TextView? = null
 
-    override fun onResume() { super.onResume(); battery?.isChecked = ignoringBattery() }
+    override fun onResume() { super.onResume(); resetting = true; battery?.isChecked = ignoringBattery(); resetting = false }
 
     private fun ignoringBattery() = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
 

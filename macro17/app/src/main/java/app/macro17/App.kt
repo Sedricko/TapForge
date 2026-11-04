@@ -61,7 +61,7 @@ class App : Application() {
             } ?: break
             v = child
         }
-        val txt = (v as? android.widget.TextView)?.text?.toString()?.take(40)
+        val txt = (v as? android.widget.TextView)?.takeIf { v !is android.widget.EditText }?.text?.toString()?.take(40)
         val id = runCatching { if (v.id != android.view.View.NO_ID) v.resources.getResourceEntryName(v.id) else null }.getOrNull()
         return v.javaClass.simpleName + listOfNotNull(txt?.let { "“$it”" }, v.contentDescription?.let { "[$it]" }, id?.let { "#$it" }).joinToString("")
     }

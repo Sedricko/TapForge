@@ -27,7 +27,7 @@
 
     <queries><intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent></queries>
 
-    <application
+    <application android:enableOnBackInvokedCallback="false"
         android:name=".App"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"

@@ -113,7 +113,7 @@ class BackupActivity : Activity() {
                         "Restaurados ${r.restored} arquivos" + if (r.skipped.isEmpty()) "" else "; ${r.skipped.size} ignorados (veja Monitor e logs)"
                     }
                 }
-            } catch (e: Exception) { Diag.e("backup", "falhou", e); "Falhou: ${e.message ?: e.javaClass.simpleName}" }
+            } catch (e: Throwable) { Diag.e("backup", "falhou", e); "Falhou: ${e.message ?: e.javaClass.simpleName}" }
             runOnUiThread { Toast.makeText(this, msg, Toast.LENGTH_LONG).show() }
         }, "macro17-backup").start()
     }

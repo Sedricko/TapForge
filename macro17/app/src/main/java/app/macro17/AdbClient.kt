@@ -24,7 +24,7 @@ import java.util.Base64
 object AdbProtocol {
     const val CNXN = 0x4e584e43; const val AUTH = 0x48545541; const val OPEN = 0x4e45504f
     const val OKAY = 0x59414b4f; const val CLSE = 0x45534c43; const val WRTE = 0x45545257
-    const val VERSION = 0x01000000; const val MAXDATA = 256 * 1024
+    const val VERSION = 0x01000001; const val MAXDATA = 256 * 1024
     const val AUTH_TOKEN = 1; const val AUTH_SIGNATURE = 2; const val AUTH_RSAPUBLICKEY = 3
 
     class Msg(val cmd: Int, val arg0: Int, val arg1: Int, val data: ByteArray)

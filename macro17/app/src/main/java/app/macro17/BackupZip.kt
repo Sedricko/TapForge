@@ -106,7 +106,8 @@ object BackupZip {
             val r = z.read(chunk)
             if (r < 0) break
             size += r
-            if (size > max) { over = true; continue } // continua lendo para avançar no ZIP, sem guardar
+            if (size > max + (64L shl 20)) throw java.io.IOException("entrada maior que o limite") // não gasta minutos lendo um zip-bomb
+            if (size > max) { over = true; continue } // continua lendo (até o teto acima) para avançar no ZIP, sem guardar
             if (!over) buf.write(chunk, 0, r)
         }
         return if (over) null else buf.toByteArray()

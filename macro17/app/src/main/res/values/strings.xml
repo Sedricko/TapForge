@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Macro17</string>
-    <string name="service_desc">Executa toques, deslizes e teclas globais gravados ou montados por você, captura a tela e lê o texto dos elementos para achar botões. Mostra um controle flutuante com iniciar, parar, gravar e capturar. Nada sai do aparelho: o app não tem acesso à internet.</string>
+    <string name="service_desc">Executa toques, deslizes e teclas globais gravados ou montados por você, captura a tela e lê o texto dos elementos para achar botões. Mostra um controle flutuante com iniciar, parar, gravar e capturar. Nada sai do aparelho: o app não envia dados para a internet (a permissão de rede existe só para o modo ADB local).</string>
 </resources>

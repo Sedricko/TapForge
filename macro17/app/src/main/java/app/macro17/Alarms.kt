@@ -60,7 +60,7 @@ object Alarms {
         val am = c.getSystemService(AlarmManager::class.java)
         val p = pi(c, id, stop)
         if (canExact(c)) {
-            try { am.setAlarmClock(AlarmManager.AlarmClockInfo(at, p), p); return } catch (_: SecurityException) { /* permissão revogada na corrida */ }
+            try { am.setAlarmClock(AlarmManager.AlarmClockInfo(at, p), p); return } catch (e: SecurityException) { /* permissão revogada na corrida */ }
         }
         am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, p)
     }

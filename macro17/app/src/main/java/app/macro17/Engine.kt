@@ -177,8 +177,8 @@ class Engine(
         /** Captura a tela como Bitmap ARGB_8888 (o chamador faz recycle); null só no intervalo mínimo entre capturas. */
         private fun capture(): Bitmap? {
             val hid = hideOverlay?.invoke(true) == true
-            if (hid) Thread.sleep(90) // dá um quadro para o painel sumir antes de a captura ser tirada
-            try { return captureRaw() } finally { if (hid) hideOverlay?.invoke(false) }
+            try { if (hid) Thread.sleep(90); return captureRaw() } // 90 ms: um quadro para o painel sumir; dentro do try para Parar não deixá-lo invisível
+             finally { if (hid) hideOverlay?.invoke(false) }
         }
 
         private fun captureRaw(): Bitmap? {
