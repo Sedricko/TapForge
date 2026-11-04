@@ -78,7 +78,6 @@ class Runner(private val p: Ports) {
         val counters = IntArray(MAX_COUNTERS + 1) // por executor, como no app de referência
         class Grp(val start: Int, val end: Int, var left: Int, val shared: Boolean = false) // left = voltas que faltam (0 = infinito)
         val groups = ArrayList<Grp>()
-        val baselines = HashMap<Int, Gray>() // Detecção de Mudança: imagem de referência de cada passo, capturada na primeira execução
     }
 
     fun run(root: Macro): Outcome = try {
@@ -144,20 +143,18 @@ class Runner(private val p: Ports) {
                 Type.STATUS -> if (!s.skip) { if (s.vib || s.snd) p.alert(s.vib, s.snd); p.status(s.text, s.ms) }
                 Type.GOTO -> jump = s.goto
                 Type.CHANGE -> {
-                    // Primeira execução: guarda a área como referência e segue; depois espera a área mudar (semelhança abaixo da exigida).
+                    // Como no base: a referência é o 1º quadro válido DESTA visita; o item espera (até o prazo) a área mudar e só então segue.
                     val area = { fr: Gray -> if (s.x2 > s.x1) fr.crop(s.x1, s.y1, s.x2 - s.x1, s.y2 - s.y1) else fr }
-                    val base = f.baselines[f.pc]
-                    if (base == null) {
-                        val fr = p.screen()
-                        if (fr != null) f.baselines[f.pc] = area(fr)
-                        p.trace("passo ${f.pc + 1} mudança: referência capturada")
-                        jump = s.goto
-                    } else {
-                        val hit = poll(s) { p.screen()?.let { fr -> area(fr).takeIf { c -> sameSize(c, base) && similarity(c, base) < s.thr / 100f } } }
-                        p.trace("passo ${f.pc + 1} mudança: ${if (hit != null) "mudou" else "sem mudança no prazo"}")
-                        if (hit != null) { f.baselines[f.pc] = hit; p.sleep(maxOf(1, wait).toLong()) }
-                        jump = if (hit != null) s.goto else s.fail
+                    var ref: Gray? = null
+                    val hit = poll(s) {
+                        val c = area(p.screen() ?: return@poll null)
+                        val r = ref
+                        if (r == null) { ref = c; null }
+                        else if (sameSize(c, r) && similarity(c, r) < s.thr / 100f) c else null
                     }
+                    p.trace("passo ${f.pc + 1} mudança: ${if (hit != null) "mudou" else "sem mudança no prazo"}")
+                    if (hit != null) p.sleep(maxOf(1, wait).toLong())
+                    jump = if (hit != null) s.goto else s.fail
                 }
                 Type.GESTURE -> if (!s.skip) p.path(gesturePoints(s.text), s.ms)
                 Type.GROUP -> if (s.grp > 0 && f.groups.none { it.start == f.pc }) { f.groups.add(Frame.Grp(f.pc, minOf(f.pc + s.grp, f.macro.steps.size - 1), s.rep, s.mono)); if (s.mono) p.shareFrames(true) }

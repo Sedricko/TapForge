@@ -81,14 +81,15 @@ class RunnerTest {
         assertEquals("1/1 1/4", f.progressSeen.first())
     }
 
-    @Test fun changeDetectionCapturesReferenceThenWaitsForADifference() {
-        val f = Fake(); f.queue.addAll(listOf(noise(60, 40, 1), noise(60, 40, 1), noise(60, 40, 2))) // referência, igual (sem mudança), diferente
+    @Test fun changeDetectionTakesAFreshReferenceOnEveryVisit() {
+        val f = Fake()
+        f.queue.addAll(listOf(noise(60, 40, 1), noise(60, 40, 1), noise(60, 40, 2), noise(60, 40, 2), noise(60, 40, 2), noise(60, 40, 3))) // visita 1: ref, igual, muda; visita 2: ref, igual, muda
         val m = macro(Step(Type.CHANGE, ms = 2000, cycle = 100, thr = 95), tap(1), loops = 2)
         val (o, fk) = run(m, f)
         assertTrue(o is Outcome.Done)
-        assertEquals(2, fk.events.size)                                   // 1ª volta: guarda a referência; 2ª: espera a mudança e toca
-        assertTrue(fk.traces.any { it.contains("referência capturada") })
-        assertTrue(fk.traces.any { it.contains("mudou") })
+        assertEquals(2, fk.events.size)                                   // cada volta espera a sua mudança e toca
+        assertEquals(2, fk.traces.count { it.contains("mudou") })
+        assertTrue(fk.traces.none { it.contains("referência capturada") })
     }
 
     @Test fun freeGestureGoesThroughThePathOnce() {
