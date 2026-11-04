@@ -88,9 +88,9 @@ object TouchEvents {
     fun parse(text: String): Dev? {
         for (block in text.split(Regex("(?m)^add device ")).drop(1)) {
             val path = Regex("/dev/input/event\\d+").find(block)?.value ?: continue
-            fun max(code: String) = Regex("(?m)^\\s*$code\\s*:.*?max (\\d+)").find(block)?.groupValues?.get(1)?.toIntOrNull()
+            fun max(code: String) = Regex("(?m)^\\s*(?:ABS \\(0003\\):\\s*)?$code\\s*:.*?max (\\d+)").find(block)?.groupValues?.get(1)?.toIntOrNull()
             val mx = max("0035"); val my = max("0036")
-            if (mx != null && my != null && Regex("(?m)^\\s*002f\\s*:").containsMatchIn(block)) return Dev(path, mx, my)
+            if (mx != null && my != null && Regex("(?m)^\\s*(?:ABS \\(0003\\):\\s*)?002f\\s*:").containsMatchIn(block)) return Dev(path, mx, my)
         }
         return null
     }
