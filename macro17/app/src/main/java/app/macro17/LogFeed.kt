@@ -3,17 +3,19 @@ package app.macro17
 /** Registro ao vivo: entradas em memória (últimas [LogFeed] cap), classificadas por categoria, nível e cor. Java/Kotlin puro. */
 enum class Level { INFO, WARN, ERROR }
 enum class Tone { PLAIN, WARN, ERROR, VALUE, SYSTEM }
-enum class Cat(val label: String) { ALL("Tudo"), STEPS("Passos"), SEARCH("Busca"), GESTURES("Gestos"), SYSTEM("Sistema"), WARNINGS("Avisos"), ERRORS("Erros") }
+enum class Cat(val label: String) { ALL("Tudo"), STEPS("Passos"), SEARCH("Busca"), GESTURES("Gestos"), SYSTEM("Sistema"), SCREENS("Telas"), WARNINGS("Avisos"), ERRORS("Erros") }
 
 data class Entry(val time: Long, val tag: String, val text: String, val level: Level)
 
 object LogRules {
-    private val systemTags = setOf("serviço", "sistema", "tela", "memória", "alarme", "app", "gravação")
+    private val systemTags = setOf("serviço", "sistema", "memória", "alarme", "app", "gravação", "dados", "vídeo", "início automático", "autoteste", "travamento")
+    private val screenTags = setOf("tela", "toque", "tecla", "janela", "painel")
+    private val warnWords = listOf("não achou", "não achada", "não satisfeita", "recusad", "cancelad", "sem resposta", "lento", "esgotado", "indisponível", "não foi possível", "falhou")
     private val resultWords = listOf(" imagem:", " texto:", " elemento:", " número:")
 
     fun level(tag: String, text: String): Level = when {
         text.startsWith("ERRO") || tag == "FATAL" -> Level.ERROR
-        text.contains("não achou") || text.contains("não achada") || text.contains("não satisfeita") -> Level.WARN
+        warnWords.any { text.contains(it) } -> Level.WARN
         else -> Level.INFO
     }
 
@@ -23,6 +25,7 @@ object LogRules {
         Cat.SEARCH -> e.tag == "visão" || e.tag == "captura" || e.tag == "aviso" || (e.tag == "passo" && resultWords.any { e.text.contains(it) })
         Cat.GESTURES -> e.tag == "gesto"
         Cat.SYSTEM -> e.tag in systemTags
+        Cat.SCREENS -> e.tag in screenTags
         Cat.WARNINGS -> e.level == Level.WARN
         Cat.ERRORS -> e.level == Level.ERROR
     }

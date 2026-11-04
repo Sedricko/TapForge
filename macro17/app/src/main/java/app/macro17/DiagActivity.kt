@@ -30,6 +30,7 @@ class DiagActivity : Activity() {
     private lateinit var list: LinearLayout
     private lateinit var chipRow: LinearLayout
     private lateinit var stats: Map<String, TextView>
+    private lateinit var health: TextView
     private val ui = Handler(Looper.getMainLooper())
     private var cat = Cat.ALL
     private var scheduled = false
@@ -61,6 +62,10 @@ class DiagActivity : Activity() {
                 })
             }
         }
+        health = label("", 13f, bold = true).apply {
+            setPadding(dp(10), dp(8), dp(10), dp(8)); background = tileBg()
+            setOnClickListener { cat = Cat.ERRORS; chips(); render() } // toque leva direto aos erros
+        }
         val actions = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(LinearLayout(this@DiagActivity).apply {
@@ -71,6 +76,7 @@ class DiagActivity : Activity() {
                 addView(pillBtn("Enviar tudo", C.DARK) { reportMenu() })
                 addView(pillBtn("Limpar", C.RED) { Diag.feed.clear(); Diag.clear() })
                 addView(pillBtn("Autoteste", C.TEAL) { selfTest() })
+                addView(pillBtn("Arquivo do log", C.BLUE) { showFileLog() })
                 addView(pillBtn("Painel flutuante", C.DARK) { MacroService.instance?.toggleLog() ?: toast("Ative o serviço de acessibilidade primeiro") })
                 addView(pillBtn("Opções", C.DARK) { options() })
             })
@@ -80,11 +86,24 @@ class DiagActivity : Activity() {
         chips()
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(bar); addView(statRow); addView(actions)
+            addView(bar); addView(statRow); addView(health, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(2), dp(4), dp(2), dp(4)) }); addView(actions)
             addView(HorizontalScrollView(this@DiagActivity).apply { isHorizontalScrollBarEnabled = false; addView(chipRow) })
             addView(ScrollView(this@DiagActivity).apply { addView(list) }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
             padForSystemBars(dp(12))
         })
+    }
+
+    /** Últimas linhas do arquivo de log (sobrevive a reinício do app, ao contrário do registro ao vivo). */
+    private fun showFileLog() {
+        Thread({
+            val text = Diag.tail(80_000).ifEmpty { "Arquivo vazio (o diagnóstico estava desligado?)" }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val tv = TextView(this).apply { this.text = text; textSize = 11f; typeface = android.graphics.Typeface.MONOSPACE; setPadding(dp(12), dp(8), dp(12), dp(8)); setTextIsSelectable(true) }
+                AlertDialog.Builder(this).setTitle("Arquivo do log").setView(ScrollView(this).apply { addView(tv) })
+                    .setPositiveButton("Copiar") { _, _ -> copy(text) }.setNegativeButton("Fechar", null).show()
+            }
+        }, "macro17-arquivo-log").start()
     }
 
     private fun selfTest() {
@@ -147,6 +166,13 @@ class DiagActivity : Activity() {
         set("Memória", "${(rt.totalMemory() - rt.freeMemory()) shr 20} MB", C.TEXT)
         set("Erros", err.toString(), if (err > 0) 0xFFEF5350.toInt() else C.TEXT2)
         set("Avisos", warn.toString(), if (warn > 0) 0xFFFFB74D.toInt() else C.TEXT2)
+        val last = Diag.feed.snapshot(Cat.ERRORS, 1).firstOrNull()
+        when {
+            svc == null -> { health.text = "Atenção: o serviço de acessibilidade está desligado"; health.setTextColor(0xFFFFB74D.toInt()) }
+            err > 0 -> { health.text = "Problema: $err erro(s). Último: ${last?.text.orEmpty().replace("ERRO ", "").lineSequence().firstOrNull().orEmpty().take(90)} (toque para ver)"; health.setTextColor(0xFFEF5350.toInt()) }
+            warn > 0 -> { health.text = "Atenção: $warn aviso(s) neste uso"; health.setTextColor(0xFFFFB74D.toInt()) }
+            else -> { health.text = "Tudo certo: nenhum erro ou aviso neste uso"; health.setTextColor(0xFF81C784.toInt()) }
+        }
         // Os chips de Erros e Avisos mostram a contagem: atualiza o texto sem refazer a lista.
         for (n in 0 until chipRow.childCount) (chipRow.getChildAt(n) as? TextView)?.let { v ->
             val c = Cat.values()[n]

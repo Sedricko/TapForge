@@ -244,6 +244,17 @@ class MacroService : AccessibilityService() {
         ui.postDelayed(go, 500)
     }
 
+    /** A cada 30 s de execução: heap e memória livre no monitor; heap acima de 80% do limite vira ERRO (vazamento ou macro grande demais). */
+    private val heartbeat = object : Runnable {
+        override fun run() {
+            if (!engine.running) return
+            val rt = Runtime.getRuntime(); val used = (rt.totalMemory() - rt.freeMemory()) shr 20; val max = rt.maxMemory() shr 20
+            val mi = android.app.ActivityManager.MemoryInfo().also { getSystemService(android.app.ActivityManager::class.java).getMemoryInfo(it) }
+            if (used * 100 / maxOf(1, max) > 80) Diag.e("memória", "heap em ${used} MB de $max MB (acima de 80%)") else Diag.d("memória", "execução: heap $used MB de $max MB · sistema livre ${mi.availMem shr 20} MB")
+            ui.postDelayed(this, 30_000)
+        }
+    }
+
     /** Chamável de qualquer thread (alarme, app). */
     fun runMacro(id: String) {
         val m = store.get(id)
@@ -256,6 +267,7 @@ class MacroService : AccessibilityService() {
                 // awake(true) entra na fila antes de a thread da macro poder postar o awake(false) do fim.
                 ui.post { awake(true) }
                 setPlayIcon(true) // antes do start: uma macro que termina na hora posta o ▶ depois deste ■
+                ui.postDelayed(heartbeat, 30_000)
                 if (engine.start(m)) {
                     toast("Executando: ${m.name}"); logPanel.setThrough(true)
                     // Ocultar: o painel some durante a reprodução (a tecla de volume para a macro, ver onKeyEvent). Depurar: abre o registro.

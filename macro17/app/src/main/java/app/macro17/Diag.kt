@@ -108,7 +108,7 @@ object Diag {
         return sb.toString()
     }
 
-    private fun reason(r: Int) = when (r) {
+    fun reason(r: Int) = when (r) {
         ApplicationExitInfo.REASON_CRASH -> "QUEDA (exceção)"
         ApplicationExitInfo.REASON_CRASH_NATIVE -> "QUEDA NATIVA"
         ApplicationExitInfo.REASON_ANR -> "ANR (app travado)"

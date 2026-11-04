@@ -14,6 +14,12 @@ class App : Application() {
         IconRes.ctx = applicationContext
         Diag.init(this)
         Diag.d("app", "processo iniciado pid=${Process.myPid()}")
+        watchdog()
+        previousExit()
+        if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) { // só em build de depuração: avisa leituras/escritas na thread principal e vazamentos
+            android.os.StrictMode.setThreadPolicy(android.os.StrictMode.ThreadPolicy.Builder().detectAll().penaltyLog().build())
+            android.os.StrictMode.setVmPolicy(android.os.StrictMode.VmPolicy.Builder().detectLeakedClosableObjects().detectActivityLeaks().penaltyLog().build())
+        }
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { t, e ->
             Diag.fatal(t, e)
@@ -34,6 +40,38 @@ class App : Application() {
             override fun onConfigurationChanged(c: Configuration) = Diag.d("sistema", "configuração mudou (rotação/idioma/tema) orientação=${c.orientation}")
             @Deprecated("Deprecated in Java") override fun onLowMemory() = Diag.d("memória", "onLowMemory")
         })
+    }
+
+    /** Thread principal sem responder por mais de 2 s vira ERRO no monitor, com a pilha dela (o que o ANR do sistema só mostraria depois). */
+    private fun watchdog() {
+        val main = android.os.Looper.getMainLooper(); val h = android.os.Handler(main)
+        Thread({
+            while (true) {
+                val beat = java.util.concurrent.atomic.AtomicBoolean(false)
+                h.post { beat.set(true) }
+                Thread.sleep(2000)
+                if (!beat.get()) {
+                    Diag.e("travamento", "thread principal sem responder há mais de 2 s\n" + main.thread.stackTrace.take(25).joinToString("\n") { "  at $it" })
+                    var waited = 0
+                    while (!beat.get() && waited < 60) { Thread.sleep(1000); waited++ }
+                    Diag.d("travamento", "thread principal voltou a responder após ~${2 + waited} s")
+                }
+            }
+        }, "macro17-vigia").apply { isDaemon = true; start() }
+    }
+
+    /** Queda, ANR ou morte por memória na execução anterior: registra como erro uma única vez. */
+    private fun previousExit() {
+        Thread({
+            runCatching {
+                val st = Store(this); val seen = st.lastExitSeen
+                val infos = getSystemService(android.app.ActivityManager::class.java).getHistoricalProcessExitReasons(packageName, 0, 5)
+                val bad = setOf(android.app.ApplicationExitInfo.REASON_CRASH, android.app.ApplicationExitInfo.REASON_CRASH_NATIVE, android.app.ApplicationExitInfo.REASON_ANR,
+                    android.app.ApplicationExitInfo.REASON_LOW_MEMORY, android.app.ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE, android.app.ApplicationExitInfo.REASON_INITIALIZATION_FAILURE)
+                infos.filter { it.timestamp > seen && it.reason in bad }.forEach { Diag.e("app", "encerramento anterior anormal: ${Diag.reason(it.reason)} · ${it.description.orEmpty()}") }
+                infos.maxOfOrNull { it.timestamp }?.let { st.lastExitSeen = maxOf(seen, it) }
+            }
+        }, "macro17-saidas").start()
     }
 
     /** Registra cada toque e tecla que chega a uma tela do app, com o que foi tocado (texto, descrição ou id da vista). */

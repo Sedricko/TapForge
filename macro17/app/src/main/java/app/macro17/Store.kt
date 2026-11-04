@@ -28,6 +28,9 @@ class Store(ctx: Context) {
     /** Botão Agendar do painel ligado ("agendado"): painel reduzido com o próximo horário e a tela acesa. */
     var scheduleOn: Boolean get() = prefs.getBoolean("scheduleOn", false); set(v) = prefs.edit().putBoolean("scheduleOn", v).apply()
 
+    /** Timestamp da última saída de processo já registrada no monitor (para avisar uma queda só uma vez). */
+    var lastExitSeen: Long get() = prefs.getLong("lastExitSeen", 0L); set(v) = prefs.edit().putLong("lastExitSeen", v).apply()
+
     var selected: String?
         get() = prefs.getString("selected", null)
         set(v) = prefs.edit().putString("selected", v).apply()
