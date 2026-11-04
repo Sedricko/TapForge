@@ -78,7 +78,7 @@ class AlarmListActivity : Activity() {
             gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12))
             background = rounded(0xFFFFF3C8.toInt(), 12); elevation = dp(2).toFloat()
             addView(glyph(Ic.WARN, 0xFFFFB300.toInt(), 32))
-            addView(label("O serviço de acessibilidade precisa estar ativo, e a macro roda mesmo com a tela apagada. Horários que se sobrepõem não disparam.", 14f, B.TEXT).apply { setPadding(dp(12), 0, 0, 0) })
+            addView(label("O serviço de agendamento precisa ser executado em segundo plano quando a tela estiver desligada. Permita que o aplicativo use mais energia em segundo plano.", 14f, B.TEXT).apply { setPadding(dp(12), 0, 0, 0) })
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.bottomMargin = dp(8) }
         })
         for (a in all) {

@@ -35,7 +35,7 @@ fun Activity.appBar(title: String, nav: Ic, onNav: () -> Unit, vararg actions: V
         setBackgroundColor(B.PRIMARY)
         elevation = dp(4).toFloat()
         addView(glyph(nav, Color.WHITE, 56).apply {
-            setPadding(dp(14), dp(14), dp(14), dp(14)); foreground = ripple(24, 0x33FFFFFF)
+            setPadding(dp(16), dp(16), dp(16), dp(16)); foreground = ripple(24, 0x33FFFFFF)
             contentDescription = if (nav == Ic.BACK) "Voltar" else "Menu"; setOnClickListener { onNav() }
             layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
         })
@@ -70,26 +70,27 @@ class Drawer(private val a: Activity, private val items: List<Triple<Ic, String,
     private val scrim = View(a).apply { setBackgroundColor(0x99000000.toInt()); visibility = View.GONE; setOnClickListener { close() } }
     private val panel = LinearLayout(a).apply {
         orientation = LinearLayout.VERTICAL
-        setBackgroundColor(Color.WHITE); elevation = a.dp(16).toFloat(); visibility = View.GONE
+        setBackgroundColor(Color.WHITE); elevation = a.dp(10).toFloat(); visibility = View.GONE
         addView(LinearLayout(a).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.BOTTOM
             background = GradientDrawable(GradientDrawable.Orientation.BR_TL, intArrayOf(0xFF4DB6AC.toInt(), 0xFF009688.toInt(), 0xFF00695C.toInt()))
             setPadding(a.dp(16), a.dp(16), a.dp(16), a.dp(16))
             setOnApplyWindowInsetsListener { v, i -> v.setPadding(a.dp(16), a.dp(16) + i.getInsets(WindowInsets.Type.statusBars()).top, a.dp(16), a.dp(16)); i }
-            addView(android.widget.ImageView(a).apply { setImageDrawable(a.packageManager.getApplicationIcon(a.packageName)) }, LinearLayout.LayoutParams(a.dp(56), a.dp(56)))
-            addView(a.label("Macro17", 16f, Color.WHITE).apply { setPadding(0, a.dp(12), 0, 0) })
+            addView(android.widget.ImageView(a).apply { setImageDrawable(a.packageManager.getApplicationIcon(a.packageName)) }, LinearLayout.LayoutParams(a.dp(72), a.dp(72)))
+            addView(a.label("Macro17", 14f, Color.WHITE).apply { setPadding(0, a.dp(8), 0, 0) })
         }, LinearLayout.LayoutParams(MATCH_PARENT, a.dp(176)))
         items.forEachIndexed { n, (ic, text, go) ->
             addView(LinearLayout(a).apply {
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(a.dp(16), 0, a.dp(16), 0)
-                if (n == selected) background = a.rounded(0x1F00897B, 4)
-                foreground = a.ripple(4, 0x1F00897B)
-                addView(a.glyph(ic, B.TEXT2, 24))
-                addView(a.label(text, 15f, 0xFF616161.toInt(), medium = true).apply { setPadding(a.dp(24), 0, 0, 0) })
+                setPadding(a.dp(22), 0, a.dp(22), 0)
+                // Fundo e ripple com recuo (8,4,8,4), como o NavigationView do base; ícone e texto sempre #616161.
+                if (n == selected) background = android.graphics.drawable.InsetDrawable(a.rounded(0x1F008577, 4), a.dp(8), a.dp(4), a.dp(8), a.dp(4))
+                foreground = android.graphics.drawable.InsetDrawable(a.ripple(4, 0x1F000000), a.dp(8), a.dp(4), a.dp(8), a.dp(4))
+                addView(a.glyph(ic, 0xFF616161.toInt(), 24))
+                addView(a.label(text, 14f, 0xFF616161.toInt(), medium = true).apply { setPadding(a.dp(14), 0, 0, 0) })
                 setOnClickListener { close(); go() }
-                layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, a.dp(48)).also { it.setMargins(a.dp(8), if (n == 0) a.dp(8) else a.dp(4), a.dp(8), 0) }
+                layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, a.dp(48))
             })
         }
     }

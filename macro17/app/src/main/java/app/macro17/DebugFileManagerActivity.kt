@@ -26,8 +26,8 @@ class DebugFileManagerActivity : Activity() {
         super.onCreate(b)
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(10), 0, 0) }
         val more = glyph(Ic.MORE, Color.WHITE, 40).apply {
-            setPadding(dp(8), dp(8), dp(8), dp(8)); foreground = ripple(24, 0x33FFFFFF); contentDescription = "Mais opções"
-            setOnClickListener { menu() }; layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+            setPadding(dp(12), dp(12), dp(12), dp(12)); foreground = ripple(24, 0x33FFFFFF); contentDescription = "Mais opções"
+            setOnClickListener { menu(this) }; layoutParams = LinearLayout.LayoutParams(dp(48), dp(56))
         }
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(Color.WHITE)
@@ -62,9 +62,12 @@ class DebugFileManagerActivity : Activity() {
         }
     }
 
-    private fun menu() {
-        val acts = listOf<Pair<String, () -> Unit>>("Abrir" to { needMark { open(it) } }, "Compartilhar" to { needMark { share(it) } }, "Eliminar" to { needMark { delete(it) } }, "Monitor ao vivo" to { startActivity(Intent(this, DiagActivity::class.java)) })
-        AlertDialog.Builder(this).setItems(acts.map { it.first }.toTypedArray()) { _, w -> acts[w].second() }.show()
+    private fun menu(anchor: View) {
+        val acts = listOf<Pair<String, () -> Unit>>("Abrir" to { needMark { open(it) } }, "Compartilhar" to { needMark { share(it) } }, "Excluir" to { needMark { delete(it) } }, "Monitor ao vivo" to { startActivity(Intent(this, DiagActivity::class.java)) })
+        val pm = android.widget.PopupMenu(this, anchor)
+        acts.forEachIndexed { k, a -> pm.menu.add(0, k, k, a.first) }
+        pm.setOnMenuItemClickListener { acts[it.itemId].second(); true }
+        pm.show()
     }
 
     private fun needMark(go: (File) -> Unit) { val f = marked; if (f == null) AlertDialog.Builder(this).setMessage("Por favor, selecione um arquivo.").setPositiveButton("OK", null).show() else go(f) }

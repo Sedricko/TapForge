@@ -31,9 +31,9 @@ class FileManagerActivity : Activity() {
         store = Store(this)
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, dp(10), 0, 0) }
         val more = glyph(Ic.MORE, Color.WHITE, 40).apply {
-            setPadding(dp(8), dp(8), dp(8), dp(8)); foreground = ripple(24, 0x33FFFFFF); contentDescription = "Mais opções"
-            setOnClickListener { menu() }
-            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
+            setPadding(dp(12), dp(12), dp(12), dp(12)); foreground = ripple(24, 0x33FFFFFF); contentDescription = "Mais opções"
+            setOnClickListener { menu(this) }
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(56))
         }
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(Color.WHITE)
@@ -68,14 +68,18 @@ class FileManagerActivity : Activity() {
         }
     }
 
-    private fun menu() {
+    private fun menu(anchor: android.view.View) {
+        // Menu do base (menu_file_manager): 7 itens, sem "Importar" (importar é Copiar (Mesclar) no base).
         val acts = listOf<Pair<String, () -> Unit>>(
             "Criar" to { createDlg() }, "Excluir" to { needMark { deleteDlg(it) } }, "Copiar para" to { needMark { copyDlg(it) } },
             "Copiar (Mesclar)" to { needMark { mergeDlg(it) } }, "Renomear" to { needMark { renameDlg(it) } },
             "Editar" to { needMark { startActivity(Intent(this, EditorActivity::class.java).putExtra("id", it.id)) } },
-            "Exportar" to { needMark { exportM(it) } }, "Importar JSON" to { importJson() },
+            "Exportar" to { needMark { exportM(it) } },
         )
-        AlertDialog.Builder(this).setItems(acts.map { it.first }.toTypedArray()) { _, w -> acts[w].second() }.show()
+        val pm = android.widget.PopupMenu(this, anchor)
+        acts.forEachIndexed { k, a -> pm.menu.add(0, k, k, a.first) }
+        pm.setOnMenuItemClickListener { acts[it.itemId].second(); true }
+        pm.show()
     }
 
     private fun needMark(go: (Macro) -> Unit) {

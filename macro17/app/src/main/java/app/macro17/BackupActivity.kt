@@ -55,28 +55,16 @@ class BackupActivity : Activity() {
     private var chosen: Set<String>? = null
     private var withSamples = true
 
-    /** Seleção de macros (todas marcadas), como no base; depois pergunta pelas capturas de tela. */
+    /** A seleção de macros é uma tela própria (BackupPickActivity); depois vem a pergunta sobre as capturas de tela. */
     private fun chooseMacros() {
-        val ms = Store(this).list()
-        if (ms.isEmpty()) return Toast.makeText(this, "Por favor, selecione um arquivo.", Toast.LENGTH_SHORT).show()
-        val on = BooleanArray(ms.size) { true }
-        val dlg = AlertDialog.Builder(this).setTitle("Backup de Dados")
-            .setMultiChoiceItems(ms.map { it.name }.toTypedArray(), on) { _, i, v -> on[i] = v }
-            .setPositiveButton("Backup", null).setNeutralButton("Selecionar/Desmarcar tudo", null).setNegativeButton("Cancelar", null).create()
-        dlg.show()
-        dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-            val all = on.all { it }
-            for (i in on.indices) { on[i] = !all; dlg.listView.setItemChecked(i, !all) }
-        }
-        dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            if (on.none { it }) return@setOnClickListener Toast.makeText(this, "Por favor, selecione um arquivo.", Toast.LENGTH_SHORT).show()
-            chosen = ms.filterIndexed { i, _ -> on[i] }.map { it.id }.toSet(); dlg.dismiss()
-            AlertDialog.Builder(this).setTitle("Backup da Captura de Tela")
-                .setMessage("Você quer incluir os dados da captura de tela no backup? As capturas de tela podem conter informações pessoais sensíveis.")
-                .setPositiveButton("Sim") { _, _ -> withSamples = true; pickTarget() }
-                .setNegativeButton("Não") { _, _ -> withSamples = false; pickTarget() }.show()
-        }
+        if (Store(this).list().isEmpty()) return Toast.makeText(this, "Por favor, selecione um arquivo.", Toast.LENGTH_SHORT).show()
+        startActivityForResult(Intent(this, BackupPickActivity::class.java), PICK)
     }
+
+    private fun askSamples() = AlertDialog.Builder(this).setTitle("Backup da Captura de Tela")
+        .setMessage("Você quer incluir os dados da captura de tela no backup? As capturas de tela podem conter informações pessoais sensíveis.")
+        .setPositiveButton("Sim") { _, _ -> withSamples = true; pickTarget() }
+        .setNegativeButton("Não") { _, _ -> withSamples = false; pickTarget() }.show()
 
     private fun pickTarget() = startActivityForResult(
         Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
@@ -93,6 +81,7 @@ class BackupActivity : Activity() {
 
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
         super.onActivityResult(req, res, data)
+        if (req == PICK) { if (res == RESULT_OK) { chosen = data?.getStringArrayExtra("ids")?.toSet(); askSamples() }; return }
         val uri = data?.data ?: return
         if (res != RESULT_OK) return
         if (req == LOAD) {
@@ -129,5 +118,5 @@ class BackupActivity : Activity() {
         }, "macro17-backup").start()
     }
 
-    private companion object { const val SAVE = 11; const val LOAD = 12 }
+    private companion object { const val SAVE = 11; const val LOAD = 12; const val PICK = 13 }
 }
