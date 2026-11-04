@@ -114,6 +114,7 @@ class MacroService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         Diag.d("serviço", "acessibilidade desconectada")
+        hideList()
         logPanel.hide()
         engine.stop()
         stopRecording(save = false)
@@ -164,6 +165,13 @@ class MacroService : AccessibilityService() {
     /** Autoteste: gesto, captura e uma macro real de 2 passos. Chamar fora da thread principal. */
     fun selfTest(): List<SelfTest.Check> {
         val out = ArrayList<SelfTest.Check>()
+        val shown = bubble?.visibility == View.VISIBLE
+        if (shown) ui.post { bubble?.visibility = View.INVISIBLE } // o toque de teste em (1,1) não pode cair num botão do painel
+        try { runSelfTest(out) } finally { if (shown) ui.post { bubble?.visibility = View.VISIBLE } }
+        return out
+    }
+
+    private fun runSelfTest(out: MutableList<SelfTest.Check>) {
         val l1 = java.util.concurrent.CountDownLatch(1); var gok = false
         val path = Path().apply { moveTo(1f, 1f) }
         val sent = dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, 10)).build(),
@@ -190,7 +198,6 @@ class MacroService : AccessibilityService() {
             while (ok && engine.running && t++ < 50) Thread.sleep(100)
             out += SelfTest.Check("Macro de 2 passos", ok && !engine.running, if (!ok) "não iniciou" else if (engine.running) "não terminou em 5 s" else "executada")
         }
-        return out
     }
 
     fun toast(msg: String) { ui.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() } }
@@ -266,15 +273,17 @@ class MacroService : AccessibilityService() {
     private val baseIcons = mapOf(
         Ic.REC to R.drawable.bp_ic_menu_record, Ic.ADDLIST to R.drawable.bp_playlist_add, Ic.ALARM to R.drawable.bp_schedule_fill,
         Ic.EDIT to R.drawable.bp_ic_menu_edit, Ic.GEAR to R.drawable.bp_ic_settings, Ic.CANCEL to R.drawable.bp_ic_cancel_circle_fill_24,
-        Ic.FRAME to R.drawable.bp_ic_crop_free_24px, Ic.EYE to R.drawable.bp_ic_visibility_on, Ic.EYE_OFF to R.drawable.bp_ic_visibility_off, Ic.STOP to R.drawable.ic_stop, Ic.PLAY to R.drawable.bp_play_arrow, Ic.PAUSE to R.drawable.bp_ic_media_pause,
+        Ic.FRAME to R.drawable.bp_ic_crop_free_24px, Ic.EYE to R.drawable.bp_ic_visibility_on, Ic.EYE_OFF to R.drawable.bp_ic_visibility_off, Ic.STOP to R.drawable.bp_play_stop, Ic.PLAY to R.drawable.bp_play_arrow, Ic.PAUSE to R.drawable.bp_ic_media_pause,
     )
 
-    private fun pbtn(ic: Ic, desc: String, click: () -> Unit) = ImageView(this).apply {
-        val res = baseIcons[ic]
+    /** Tamanhos do base (PN1): Play/Rec/Stop/Pause/Prev/Next 42 m1, Retomar 42x35, Olho 38 m2, Gravar tela 36 m4, Expandir 40 m2. */
+    private fun pbtn(ic: Ic, desc: String, w: Int = 42, h: Int = w, m: Int = 1, click: () -> Unit) = pres(baseIcons[ic], ic, desc, w, h, m, click)
+
+    private fun pres(res: Int?, ic: Ic?, desc: String, w: Int, h: Int, m: Int, click: () -> Unit) = ImageView(this).apply {
         if (res != null) { setImageResource(res); scaleType = ImageView.ScaleType.FIT_XY; setColorFilter(teal) }
-        else { setImageDrawable(Icon(ic, teal)); setPadding(dp(5), dp(5), dp(5), dp(5)) }
+        else { setImageDrawable(Icon(ic ?: Ic.PLAY, teal)); setPadding(dp(5), dp(5), dp(5), dp(5)) }
         contentDescription = desc
-        layoutParams = android.widget.LinearLayout.LayoutParams(dp(42), dp(42)).also { it.setMargins(dp(1), dp(1), dp(1), dp(1)) }
+        layoutParams = android.widget.LinearLayout.LayoutParams(dp(w), dp(h)).also { it.setMargins(dp(m), dp(m), dp(m), dp(m)) }
         setOnClickListener { Diag.d("painel", "botão: $desc"); click() }
         dragger(this) // como no base, qualquer botão arrasta o painel
     }
@@ -308,13 +317,14 @@ class MacroService : AccessibilityService() {
             val pb = pbtn(if (playing) Ic.STOP else Ic.PLAY, "Executar ou parar a macro") { togglePlay() }
             playBtn = pb
             row1.addView(pb)
+            if (playing && (store.simpleView || store.playMode)) return // visão simples / modo de reprodução: só o Parar, como no base
             if (playing) { // reproduzindo: Parar + Pausar; pausado: Retomar + Anterior + Próximo (como no base), mais o feedback do passo
                 if (engine.paused) {
-                    row1.addView(pbtn(Ic.PLAY, "Retomar") { ui.postDelayed({ engine.paused = false; fillRow1() }, 500) })
-                    row1.addView(pbtn(Ic.UP, "Anterior") { engine.jump = -1 }.also { it.rotation = -90f })
-                    row1.addView(pbtn(Ic.UP, "Próximo") { engine.jump = 1 }.also { it.rotation = 90f })
+                    row1.addView(pbtn(Ic.PLAY, "Retomar", 42, 35) { ui.postDelayed({ engine.paused = false; fillRow1() }, 500) })
+                    row1.addView(pres(R.drawable.bp_ic_media_previous, null, "Anterior", 42, 42, 1) { engine.jump = -1 })
+                    row1.addView(pres(R.drawable.bp_ic_media_next, null, "Próximo", 42, 42, 1) { engine.jump = 1 })
                 } else row1.addView(pbtn(Ic.PAUSE, "Pausar") { engine.paused = true; fillRow1() })
-                if (engine.paused) row1.addView(pbtn(if (listWin != null) Ic.EYE else Ic.EYE_OFF, "Lista da macro") { toggleList() })
+                if (engine.paused) row1.addView(pbtn(if (listWin != null) Ic.EYE else Ic.EYE_OFF, "Lista da macro", 38, 38, 2) { toggleList() })
                 row1.addView(android.view.View(this).apply { setBackgroundColor(0xFFE0E0E0.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(1), dp(30)).also { it.setMargins(dp(4), 0, dp(4), 0) })
                 tvInfo = label(lastInfo, 13f, teal).apply { maxLines = 1; maxWidth = dp(110); ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, 0, dp(6), 0) }
                 row1.addView(tvInfo)
@@ -322,9 +332,9 @@ class MacroService : AccessibilityService() {
             }
             // "Modo de Reprodução": só o ▶. "Visualização Simples": sem enquadrar e sem a segunda linha.
             if (!store.playMode) row1.addView(pbtn(Ic.REC, "Gravar") { startRecording() })
-            if (!store.playMode && !store.simpleView) row1.addView(pbtn(if (listWin != null) Ic.EYE else Ic.EYE_OFF, "Lista da macro") { toggleList() })
-            if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.FRAME, if (ScreenRecordService.running) "Parar a gravação de tela" else "Gravar a tela") { toggleVideo() })
-            if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.CHEVRON, if (expanded) "Recolher" else "Mais opções") { expanded = !expanded; row2.visibility = if (expanded) View.VISIBLE else View.GONE; fillRow1() }.also { it.rotation = if (expanded) -90f else 90f })
+            if (!store.playMode && !store.simpleView) row1.addView(pbtn(if (listWin != null) Ic.EYE else Ic.EYE_OFF, "Lista da macro", 38, 38, 2) { toggleList() })
+            if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.FRAME, if (ScreenRecordService.running) "Parar a gravação de tela" else "Gravar a tela", 36, 36, 4) { toggleVideo() })
+            if (!store.playMode && !store.simpleView) row1.addView(pres(if (expanded) R.drawable.bp_expand_less_24 else R.drawable.bp_expand_more_24, null, if (expanded) "Recolher" else "Mais opções", 40, 40, 2) { expanded = !expanded; row2.visibility = if (expanded) View.VISIBLE else View.GONE; fillRow1() })
         }
     }
 
@@ -447,13 +457,13 @@ class MacroService : AccessibilityService() {
             gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE
             addView(pbtn(Ic.IMAGE, "Capturar imagem para a macro") { captureImage() })
-            addView(pbtn(Ic.ALARM, "Agendamento") { startActivity(Intent(this@MacroService, AlarmListActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
-            addView(pbtn(Ic.EDIT, "Abrir o editor da macro") {
+            addView(pbtn(Ic.ALARM, "Agendamento", 38, 38, 2) { startActivity(Intent(this@MacroService, AlarmListActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
+            addView(pbtn(Ic.EDIT, "Abrir o editor da macro", 38, 38, 2) {
                 startActivity(Intent(this@MacroService, EditorActivity::class.java).putExtra("id", store.selected ?: "new").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             })
-            addView(pbtn(Ic.GEAR, "Configurações") { startActivity(Intent(this@MacroService, PanelSettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
+            addView(pbtn(Ic.GEAR, "Configurações", 38, 38, 2) { startActivity(Intent(this@MacroService, PanelSettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
             addView(pbtn(Ic.INFO, "Registro ao vivo") { toggleLog() })
-            addView(pbtn(Ic.CANCEL, "Fechar o painel") { hideControls() })
+            addView(pbtn(Ic.CANCEL, "Fechar o painel", 38, 38, 2) { hideControls() })
         }
         panel = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL

@@ -92,6 +92,7 @@ class DiagActivity : Activity() {
         Thread({
             val checks = SelfTest.run(this)
             runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread // a tela pode ter sido fechada ou girada durante o teste
                 val text = checks.joinToString("\n") { it.toString() }
                 AlertDialog.Builder(this).setTitle("Autoteste: ${checks.count { it.ok == true }} ok, ${checks.count { it.ok == null }} avisos, ${checks.count { it.ok == false }} falhas")
                     .setMessage(text).setPositiveButton("Copiar") { _, _ -> copy(text) }.setNeutralButton("Repetir") { _, _ -> selfTest() }.setNegativeButton("Fechar", null).show()
