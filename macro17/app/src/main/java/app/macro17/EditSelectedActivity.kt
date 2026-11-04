@@ -20,7 +20,7 @@ class EditSelectedActivity : Activity() {
         val OPTIONS = arrayOf("Tempo de atraso", "Pesquisa de imagem", "Pesquisa de imagem/Área de pesquisa", "Pesquisa de imagem/Taxa de correspondência",
             "Pesquisa de imagem/Velocidade de pesquisa", "Pesquisa de imagem/Duração da pesquisa", "Pesquisa de imagem/Mover", "Ação")
         val SPEEDS = listOf("Muito rápido" to 50, "Rápido" to 200, "1 Seg" to 1000, "2 Seg" to 2000, "3 Seg" to 3000)
-        val AREAS = arrayOf("Posição fixa", "Tela inteira", "Tela inteira (cinza)", "Área personalizada", "Área personalizada (cinza)")
+        val AREAS = arrayOf("Posição Fixa", "Tela Cheia", "Tela Cheia (Escala de Cinza)", "Área Personalizada", "Área Personalizada (Escala de Cinza)")
     }
 
     private var opt = 0

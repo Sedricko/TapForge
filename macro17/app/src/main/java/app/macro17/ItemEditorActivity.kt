@@ -24,6 +24,7 @@ class ItemEditorActivity : Activity() {
     private lateinit var s: Step
     private var total = 1
     private var index = -1
+    private var names: Array<String> = emptyArray() // nomes dos passos para "N. nome" nas listas de destino
     private var scrollY = 0
     private lateinit var store: Store
     private var scroller: android.widget.ScrollView? = null
@@ -33,6 +34,7 @@ class ItemEditorActivity : Activity() {
         store = Store(this)
         s = Step.fromJson(JSONObject(intent.getStringExtra("step") ?: "{}"))
         total = intent.getIntExtra("total", 1); index = intent.getIntExtra("index", -1)
+        names = intent.getStringArrayExtra("names") ?: emptyArray()
         render()
     }
 
@@ -60,7 +62,7 @@ class ItemEditorActivity : Activity() {
     // --- formatação --------------------------------------------------------------------------
 
     private fun secs(ms: Int) = "%.1f Sec".format(java.util.Locale.US, ms / 1000.0)
-    private fun gotoLabel(n: Int) = if (n == 0) "Seguir para o próximo" else "Passo $n"
+    private fun gotoLabel(n: Int) = if (n == 0) "0. Próximo" else "$n. ${names.getOrNull(n - 1).orEmpty()}".trim()
     private val speeds = listOf("Muito rápido" to 50, "Rápido" to 200, "1 Seg" to 1000, "2 Seg" to 2000, "3 Seg" to 3000)
 
     private fun kind() = when { s.type == Type.SWIPE -> "Deslizar"; s.ms >= 500 -> "Pressionar"; else -> "Toque" }
@@ -68,25 +70,30 @@ class ItemEditorActivity : Activity() {
     // --- tela --------------------------------------------------------------------------------
 
     private val simple = setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE, Type.IMAGE, Type.NUMBER, Type.CHANGE, Type.GESTURE, Type.GROUP)
-    private val keyNames = mapOf(1 to "Voltar", 2 to "Início", 3 to "Recentes", 4 to "Notificações", KEY_SCREENSHOT to "Captura de tela")
+    private val keyNames = mapOf(1 to "Tecla Voltar", 2 to "Tecla Home", 3 to "Tecla Recentes", 4 to "Tecla Voltar", KEY_SCREENSHOT to "Tecla de Captura de Tela")
+    private val keyChoices = listOf(1, 2, 3, KEY_SCREENSHOT) // base: 4 opções (a 4 de macros antigas aparece como Voltar)
     private val titleOf = mapOf(
-        Type.WAIT to "Esperar", Type.KEY to "Evento de Teclado", Type.STATUS to "Alertas de status", Type.GOTO to "Ir Para",
-        Type.RESET to "Reiniciar Contador de Execuções", Type.CALL to "Arquivo de Macro", Type.STOP to "Parar Macro",
+        Type.WAIT to "Esperar", Type.KEY to "Evento de Teclado", Type.STATUS to "Alertas de status", Type.GOTO to "Ir para",
+        Type.RESET to "Redefinir Contador de Execuções", Type.CALL to "Arquivo de Macro", Type.STOP to "Parar Macro",
         Type.COUNTER to "Contador de Execuções", Type.TEXT to "Reconhecimento de Texto", Type.NODE to "Achar por texto", Type.IMAGE to "Pesquisa de Imagem", Type.CHANGE to "Detecção de Mudança de Imagem", Type.GESTURE to "Gesto", Type.GROUP to "Grupo", Type.NUMBER to "Ler número",
     )
 
     /** Itens que não são toque: mesma estrutura (nome, categoria do tipo, valores, atraso), só com as linhas de cada tipo. */
     private fun buildSimple(p: Prefs) {
         val title = titleOf.getValue(s.type)
+        val catIcon = mapOf(Type.GOTO to R.drawable.bp_action_goto, Type.COUNTER to R.drawable.bp_action_repeat_count, Type.RESET to R.drawable.bp_action_repeat_counter_zero, Type.CALL to R.drawable.bp_file_replace_outline)[s.type]
+        val catNote = mapOf(Type.COUNTER to "Conta as execuções da macro e aciona ações específicas quando a contagem de execuções excede um número definido.",
+            Type.RESET to "Selecione o contador de execuções para redefinir.", Type.CALL to "Abrir e reproduzir novo arquivo")[s.type]
+        if (catIcon != null) { p.category(title, iconRes = catIcon); catNote?.let { p.note(it) } }
         if (s.type != Type.STATUS) p.valueRow("Nome", s.name.ifBlank { title }) { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
-        if (s.type != Type.STATUS) p.category(title, Ic.GEAR)
+        // Atraso no começo nos tipos em que o base o põe antes do conteúdo (Gesto, Reconhecimento de Texto).
+        if (s.type == Type.GESTURE || s.type == Type.TEXT) delayBlock(p)
         when (s.type) {
             Type.WAIT -> p.valueRow("Tempo de Espera", secs(s.ms)) { secDialog("Tempo de Espera (segundos)", null, s.ms) { v -> s = s.copy(ms = v); render() } }
-            Type.KEY -> p.valueRow("Tecla", keyNames[s.x1] ?: "Voltar") {
-                val codes = keyNames.keys.toList()
-                AlertDialog.Builder(this).setTitle("Tecla").setSingleChoiceItems(codes.map { keyNames.getValue(it) }.toTypedArray(), codes.indexOf(s.x1)) { d, w ->
-                    s = s.copy(x1 = codes[w]); d.dismiss(); render()
-                }.setNegativeButton("Cancelar", null).show()
+            Type.KEY -> p.valueRow("Evento de Teclado", keyNames[s.x1] ?: "Tecla Voltar") {
+                AlertDialog.Builder(this).setTitle("Evento de Teclado").setSingleChoiceItems(keyChoices.map { keyNames.getValue(it) }.toTypedArray(), keyChoices.indexOf(if (s.x1 == 4) 1 else s.x1)) { d, w ->
+                    s = s.copy(x1 = keyChoices[w]); d.dismiss(); render()
+                }.show()
             }
             Type.STATUS -> {
                 p.category("Alertas de status", iconRes = R.drawable.bp_outline_notifications_active)
@@ -101,55 +108,66 @@ class ItemEditorActivity : Activity() {
                 p.switchRow("Mostrar pop-up", "", s.pop) { v -> s = s.copy(pop = v); render() }
                 p.valueRow("Texto da mensagem", s.text.ifBlank { "Alerta de status" }) { textDialog("Texto da mensagem", s.text) { v -> s = s.copy(text = v.trim()); render() } }
             }
-            Type.GOTO -> p.valueRow("Ir para o passo", if (s.goto == 0) "Seguir para o próximo" else "Passo ${s.goto}") { gotoDialog("Ir para o passo", s.goto) { v -> s = s.copy(goto = v); render() } }
-            Type.RESET -> p.valueRow("Contador", "Contador ${s.counter}") {
-                AlertDialog.Builder(this).setTitle("Contador").setSingleChoiceItems(Array(MAX_COUNTERS) { "Contador ${it + 1}" }, (s.counter - 1).coerceIn(0, MAX_COUNTERS - 1)) { d, w ->
+            Type.GOTO -> p.valueRow("Ir para o item selecionado", gotoLabel(s.goto)) { gotoDialog("Ir para o item selecionado", s.goto) { v -> s = s.copy(goto = v); render() } }
+            Type.RESET -> p.valueRow("Contador de Execuções", "Contador ${s.counter}") {
+                AlertDialog.Builder(this).setTitle("Contador de Execuções").setSingleChoiceItems(Array(MAX_COUNTERS) { "Contador ${it + 1}" }, (s.counter - 1).coerceIn(0, MAX_COUNTERS - 1)) { d, w ->
                     s = s.copy(counter = w + 1); d.dismiss(); render()
-                }.setNegativeButton("Cancelar", null).show()
+                }.show()
             }
             Type.COUNTER -> {
-                p.valueRow("Contador", "Contador ${s.counter}") {
-                    AlertDialog.Builder(this).setTitle("Contador").setSingleChoiceItems(Array(MAX_COUNTERS) { "Contador ${it + 1}" }, (s.counter - 1).coerceIn(0, MAX_COUNTERS - 1)) { d, w ->
-                        s = s.copy(counter = w + 1); d.dismiss(); render()
-                    }.setNegativeButton("Cancelar", null).show()
-                }
+                // Um bloco por caso (ícone de rota), "Adicionar" e "Outro Caso", como no base; o contador usado fica numa linha no fim.
                 s.cases.forEachIndexed { k, c ->
-                    p.valueRow("Caso ${k + 1}", "≥ ${c.n} execuções → ${if (c.to == 0) "seguir" else "passo ${c.to}"}") {
-                        val d = fieldsBox("Caso ${k + 1}", listOf("Execuções (limiar)", "Ir para o passo (0 = seguir)"), listOf(c.n, c.to))
-                        d.first.setNeutralButton("Remover") { _, _ -> s = s.copy(cases = s.cases.filterIndexed { j, _ -> j != k }); render() }
-                            .setPositiveButton("OK") { _, _ ->
-                                val v = d.second.map { it.text.toString().toIntOrNull() }
-                                if (v.any { it == null }) toast("Número inválido")
-                                else { s = s.copy(cases = s.cases.mapIndexed { j, x -> if (j == k) Case(v[0]!!, v[1]!!) else x }); render() }
-                            }.setNegativeButton("Cancelar", null).show()
-                    }
+                    p.category("Caso ${k + 1}", iconRes = if (k < 2) R.drawable.bp_ic_route_24dp_case else R.drawable.bp_ic_delete_24px)
+                    p.valueRow("Contador de Execuções", "N ≥ ${c.n}") { numDialog("Contador de Execuções", null, c.n) { v -> s = s.copy(cases = s.cases.mapIndexed { j, x -> if (j == k) x.copy(n = v) else x }); render() } }
+                    p.valueRow("Ir para o item selecionado", gotoLabel(c.to)) { gotoDialog("Ir para o item selecionado", c.to) { v -> s = s.copy(cases = s.cases.mapIndexed { j, x -> if (j == k) x.copy(to = v) else x }); render() } }
+                    if (k >= 2) p.valueRow("Remover caso", "Excluir o caso ${k + 1}") { s = s.copy(cases = s.cases.filterIndexed { j, _ -> j != k }); render() }
                 }
-                if (s.cases.size < MAX_CASES) p.valueRow("Adicionar", "Novo caso (até $MAX_CASES)") {
-                    val d = fieldsBox("Novo caso", listOf("Execuções (limiar)", "Ir para o passo (0 = seguir)"), listOf((s.cases.maxOfOrNull { it.n } ?: 0) + 1, 0))
-                    d.first.setPositiveButton("OK") { _, _ ->
-                        val v = d.second.map { it.text.toString().toIntOrNull() }
-                        if (v.any { it == null }) toast("Número inválido") else { s = s.copy(cases = s.cases + Case(v[0]!!, v[1]!!)); render() }
-                    }.setNegativeButton("Cancelar", null).show()
+                if (s.cases.size < MAX_CASES) p.valueRow("Adicionar", "Novo caso (até $MAX_CASES)") { s = s.copy(cases = s.cases + Case((s.cases.maxOfOrNull { it.n } ?: 0) + 1, 0)); render() }
+                p.category("Outro Caso", iconRes = R.drawable.bp_ic_route_24dp_default)
+                p.valueRow("Ir para o item selecionado", gotoLabel(s.goto)) { gotoDialog("Ir para o item selecionado", s.goto) { v -> s = s.copy(goto = v); render() } }
+                p.valueRow("Contador usado", "Contador ${s.counter}") {
+                    AlertDialog.Builder(this).setTitle("Contador usado").setSingleChoiceItems(Array(MAX_COUNTERS) { "Contador ${it + 1}" }, (s.counter - 1).coerceIn(0, MAX_COUNTERS - 1)) { d, w ->
+                        s = s.copy(counter = w + 1); d.dismiss(); render()
+                    }.show()
                 }
-                p.valueRow("Outro Caso", gotoLabel(s.goto)) { gotoDialog("Outro Caso", s.goto) { v -> s = s.copy(goto = v); render() } }
             }
-            Type.TEXT, Type.NODE -> {
+            Type.TEXT -> {
+                // Ordem do base (pref_text_recognition_config): Nome, Atraso, Reconhecimento de Texto, Opção de Pesquisa, Ação de Toque.
+                p.category("Reconhecimento de Texto", iconRes = R.drawable.bp_format_text)
+                p.valueRow("Texto", s.text.ifBlank { "(vazio)" }) { textDialog("Texto (vários separados por vírgula)", s.text) { v -> s = s.copy(text = v.trim()); render() } }
+                p.switchRow("Texto exato", "Só vale se o texto for igual, e não apenas contido.", s.exact) { v -> s = s.copy(exact = v); render() }
+                p.category("Opção de Pesquisa", iconRes = R.drawable.bp_outline_image_search_24)
+                val ocrSpeeds = speeds.filter { it.second >= 200 } // o reconhecimento exige ciclo de pelo menos 200 ms
+                p.valueRow("Velocidade de Pesquisa", ocrSpeeds.firstOrNull { it.second == s.cycle }?.first ?: "${s.cycle} ms") {
+                    AlertDialog.Builder(this).setTitle("Velocidade de Pesquisa").setSingleChoiceItems(ocrSpeeds.map { it.first }.toTypedArray(), ocrSpeeds.indexOfFirst { it.second == s.cycle }) { d, w -> s = s.copy(cycle = ocrSpeeds[w].second); d.dismiss(); render() }.show()
+                }
+                p.valueRow("Tempo de Pesquisa", if (s.ms == 0) "Infinito" else secs(s.ms)) {
+                    secDialog("Tempo de Pesquisa (segundos)", "0 significa infinito (sem 'se achar / se não achar').", s.ms) { v -> s = if (v == 0) s.copy(ms = 0, goto = 0, fail = 0) else s.copy(ms = v); render() }
+                }
+                val jumps = s.ms > 0
+                p.valueRow("Mover em Caso de Falha", gotoLabel(s.fail), jumps) { gotoDialog("Mover em Caso de Falha", s.fail) { v -> s = s.copy(fail = v); render() } }
+                p.valueRow("Mover em Caso de Sucesso", gotoLabel(s.goto), jumps) { gotoDialog("Mover em Caso de Sucesso", s.goto) { v -> s = s.copy(goto = v); render() } }
+                val whole = s.x2 <= s.x1
+                p.valueRow("Área de Pesquisa", if (whole) "Tela Cheia\nProcura o texto na tela cheia." else "Área Personalizada\nPesquisa de texto em área personalizada.") {
+                    AlertDialog.Builder(this).setTitle("Área de Pesquisa").setSingleChoiceItems(arrayOf("Tela Cheia", "Área Personalizada"), if (whole) 0 else 1) { d, w ->
+                        s = if (w == 0) s.copy(x1 = 0, y1 = 0, x2 = 0, y2 = 0) else if (whole) s.copy(x1 = 0, y1 = 0, x2 = 500, y2 = 500) else s
+                        d.dismiss(); render()
+                    }.show()
+                }
+                p.valueRow("Área Personalizada", "${s.x1},${s.y1},${s.x2},${s.y2}", !whole) {
+                    pick(PositionPickerActivity.AREA, intArrayOf(s.x1, s.y1, s.x2, s.y2)) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]) }
+                }
+                p.valueRow("Limite de Pontuação de Confiança", "${s.minConf}") { numDialog("Limite de Pontuação de Confiança", "Caracteres com pontuações de confiança abaixo do limite serão excluídos. De 0 a 90.", s.minConf) { v -> s = s.copy(minConf = v.coerceIn(0, 90)); render() } }
+                p.category("Ação de Toque", iconRes = R.drawable.bp_ic_tap)
+                p.switchRow("Saltar", "Não toca no texto achado. Usado só para comparar.", !s.tap) { v -> s = s.copy(tap = !v); render() }
+                p.valueRow("Desvio de Coordenadas", "X${"%+d".format(s.ox)}, Y${"%+d".format(s.oy)} px", s.tap) {
+                    pick(PositionPickerActivity.DEV, intArrayOf(s.ox, s.oy), null) { v -> s = s.copy(ox = v[0], oy = v[1]) }
+                }
+            }
+            Type.NODE -> {
                 val ocr = s.type == Type.TEXT
                 p.valueRow(if (ocr) "Texto" else "Texto ou id", s.text.ifBlank { "(vazio)" }) { textDialog(if (ocr) "Texto (vários separados por vírgula)" else "Texto ou id:recurso", s.text) { v -> s = s.copy(text = v.trim()); render() } }
                 p.switchRow("Texto exato", "Só vale se o texto for igual, e não apenas contido.", s.exact) { v -> s = s.copy(exact = v); render() }
-                if (ocr) {
-                    val whole = s.x2 <= s.x1
-                    p.valueRow("Área de Pesquisa", if (whole) "Procura o texto em toda a tela." else "Procura na área ${s.x1},${s.y1},${s.x2},${s.y2}.") {
-                        AlertDialog.Builder(this).setTitle("Área de Pesquisa").setSingleChoiceItems(arrayOf("Tela inteira", "Área personalizada"), if (whole) 0 else 1) { d, w ->
-                            s = if (w == 0) s.copy(x1 = 0, y1 = 0, x2 = 0, y2 = 0) else if (whole) s.copy(x1 = 0, y1 = 0, x2 = 500, y2 = 500) else s
-                            d.dismiss(); render()
-                        }.setNegativeButton("Cancelar", null).show()
-                    }
-                    p.valueRow("Área Personalizada", "${s.x1},${s.y1},${s.x2},${s.y2}", !whole) {
-                        pick(PositionPickerActivity.AREA, intArrayOf(s.x1, s.y1, s.x2, s.y2)) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]) }
-                    }
-                    p.valueRow("Confiança mínima (%)", "${s.minConf}%") { numDialog("Confiança mínima (%)", "De 0 a 100. Leituras abaixo disso são descartadas.", s.minConf) { v -> s = s.copy(minConf = v); render() } }
-                }
                 p.valueRow("Tempo de Pesquisa", if (s.ms == 0) "Infinito" else secs(s.ms)) {
                     secDialog("Tempo de Pesquisa (segundos)", "0 = pesquisa infinita (sem 'se achar / se não achar').", s.ms) { v -> s = if (v == 0) s.copy(ms = 0, goto = 0, fail = 0) else s.copy(ms = v); render() }
                 }
@@ -211,18 +229,13 @@ class ItemEditorActivity : Activity() {
                 p.note("O traço é desenhado com o dedo na gravação (tipo Gesto no painel).")
             }
             Type.CHANGE -> {
-                p.note("Captura uma imagem na primeira execução e verifica continuamente se ela mudou da imagem capturada antes.")
+                // pref_image_change_detection_config: Nome, Área Personalizada, Diferença de Imagens, Velocidade, Tempo, Falha, Sucesso.
                 val whole = s.x2 <= s.x1
-                p.valueRow("Área de Pesquisa", if (whole) "Compara a tela inteira." else "Compara a área ${s.x1},${s.y1},${s.x2},${s.y2}.") {
-                    AlertDialog.Builder(this).setTitle("Área de Pesquisa").setSingleChoiceItems(arrayOf("Tela inteira", "Área personalizada"), if (whole) 0 else 1) { d, w ->
-                        s = if (w == 0) s.copy(x1 = 0, y1 = 0, x2 = 0, y2 = 0) else if (whole) s.copy(x1 = 0, y1 = 0, x2 = 500, y2 = 500) else s
-                        d.dismiss(); render()
-                    }.setNegativeButton("Cancelar", null).show()
-                }
-                p.valueRow("Área Personalizada", "${s.x1},${s.y1},${s.x2},${s.y2}", !whole) {
+                p.valueRow("Área Personalizada", if (whole) "X:0 Y:0 W:0 H:0 (tela cheia)" else "X:${s.x1} Y:${s.y1} W:${s.x2 - s.x1} H:${s.y2 - s.y1}") {
                     pick(PositionPickerActivity.AREA, intArrayOf(s.x1, s.y1, s.x2, s.y2)) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]) }
                 }
-                p.valueRow("Semelhança para considerar igual (%)", "${s.thr}%") { numDialog("Semelhança (%)", "Abaixo disso a imagem é considerada mudada. De 1 a 100.", s.thr) { v -> s = s.copy(thr = v); render() } }
+                // o base guarda a diferença; o modelo guarda a semelhança exigida (100 - diferença)
+                p.valueRow("Diferença de Imagens", "${100 - s.thr}%") { numDialog("Diferença de Imagens (%)", "A imagem é considerada mudada quando a diferença passa deste valor. De 0 a 99.", 100 - s.thr) { v -> s = s.copy(thr = (100 - v).coerceIn(1, 100)); render() } }
                 p.valueRow("Velocidade de Pesquisa", speeds.firstOrNull { it.second == s.cycle }?.first ?: "${s.cycle} ms") {
                     AlertDialog.Builder(this).setTitle("Velocidade de Pesquisa").setSingleChoiceItems(speeds.map { it.first }.toTypedArray(), speeds.indexOfFirst { it.second == s.cycle }) { d, w -> s = s.copy(cycle = speeds[w].second); d.dismiss(); render() }
                         .setNegativeButton("Cancelar", null).show()
@@ -256,24 +269,27 @@ class ItemEditorActivity : Activity() {
                 p.valueRow("Mover em Caso de Sucesso", gotoLabel(s.goto), jumps) { gotoDialog("Mover em Caso de Sucesso", s.goto) { v -> s = s.copy(goto = v); render() } }
             }
             Type.STOP -> p.note("Encerra a reprodução da macro neste ponto.")
-            else -> { // CALL
+            else -> { // CALL: ordem do base (Nome, voltar ao arquivo anterior, arquivo)
                 val target = store.get(s.text)
+                p.switchRow("Voltar ao arquivo anterior", "Retorna ao arquivo anterior quando esta macro estiver completa.", s.ret) { v -> s = s.copy(ret = v); render() }
                 p.valueRow("Arquivo de Macro", target?.name ?: "Nenhum arquivo alocado.") {
                     val others = store.list().filter { it.id != intent.getStringExtra("self") }
                     if (others.isEmpty()) toast("Nenhum arquivo de macro")
-                    else AlertDialog.Builder(this).setTitle("Arquivos de Macro").setItems(others.map { it.name }.toTypedArray()) { _, w -> s = s.copy(text = others[w].id); render() }
-                        .setNegativeButton("Cancelar", null).show()
+                    else AlertDialog.Builder(this).setTitle("Arquivo de Macro").setItems(others.map { it.name }.toTypedArray()) { _, w -> s = s.copy(text = others[w].id); render() }.show()
                 }
-                p.switchRow("Voltar ao terminar", "Desligado: o arquivo escolhido substitui esta macro.", s.ret) { v -> s = s.copy(ret = v); render() }
             }
         }
-        if (s.type != Type.WAIT) {
-            p.category("Atraso", Ic.WAIT)
-            val delayOn = s.delay > 0
-            p.switchRow("Atraso", "O item será processado após o tempo de atraso.", delayOn) { on -> s = s.copy(delay = if (on) 1000 else 0, rnd = 0, rndMin = 0); render() }
-            p.valueRow("Tempo de Atraso", secs(s.delay), delayOn) { secDialog("Tempo de Atraso (segundos)", null, s.delay) { v -> s = s.copy(delay = v); render() } }
-        }
+        if (s.type == Type.GOTO || s.type == Type.KEY) delayBlock(p)
     }
+
+    /** "Atraso" do base: só em Toque/Deslizar, Ir para, Tecla, Gesto e Reconhecimento de Texto; em Tecla é só o tempo, sem o interruptor. */
+    private fun delayBlock(p: Prefs) {
+        val delayOn = s.delay > 0
+        p.category("Atraso", iconRes = R.drawable.bp_alarm)
+        if (s.type != Type.KEY) p.switchRow(if (s.type == Type.GOTO) "Realizar ação após o tempo de atraso." else "Atraso", if (s.type == Type.GOTO) "" else "O item será processado após o tempo de atraso.", delayOn) { on -> s = s.copy(delay = if (on) 1000 else 0, rnd = 0, rndMin = 0); render() }
+        p.valueRow("Tempo de Atraso", secs(s.delay), s.type == Type.KEY || delayOn) { secDialog("Tempo de Atraso (segundos)", null, s.delay) { v -> s = s.copy(delay = v); render() } }
+    }
+
 
     private fun build(p: Prefs) {
         if (s.type in simple) return buildSimple(p)
@@ -302,11 +318,11 @@ class ItemEditorActivity : Activity() {
             else { s = s.copy(useImg = v); render() }
         }
         val whole = listOf(s.ax1, s.ay1, s.ax2, s.ay2).all { it == 0 }
-        val areaNames = arrayOf("Posição fixa", "Tela inteira", "Tela inteira (cinza)", "Área personalizada", "Área personalizada (cinza)")
+        val areaNames = arrayOf("Posição Fixa", "Tela Cheia", "Tela Cheia (Escala de Cinza)", "Área Personalizada", "Área Personalizada (Escala de Cinza)")
+        val areaDesc = arrayOf("Compara imagens em uma posição fixa.", "Procura imagens na tela cheia.", "Procura imagens na tela cheia. A velocidade de pesquisa de imagem é mais rápida.", "Pesquisa de imagem em área personalizada.", "Pesquisa de imagem em área personalizada. A velocidade de pesquisa de imagem é mais rápida.")
         val areaIdx = if (s.fx) 0 else if (whole) (if (s.mono) 2 else 1) else (if (s.mono) 4 else 3)
-        p.valueRow("Área de Pesquisa", areaNames[areaIdx], on) {
+        p.valueRow("Área de Pesquisa", areaNames[areaIdx] + "\n" + areaDesc[areaIdx], on) {
             AlertDialog.Builder(this).setTitle("Área de Pesquisa")
-                .setMessage("Posição fixa procura só em volta do ponto gravado. Em cinza, a cor é ignorada (a correlação já compara em cinza).")
                 .setSingleChoiceItems(areaNames, areaIdx) { d, w ->
                     s = when (w) {
                         0 -> s.copy(fx = true, ax1 = 0, ay1 = 0, ax2 = 0, ay2 = 0)
@@ -314,7 +330,7 @@ class ItemEditorActivity : Activity() {
                         else -> s.copy(fx = false, mono = w == 4, ax1 = if (whole) 0 else s.ax1, ay1 = if (whole) 0 else s.ay1, ax2 = if (whole) 500 else s.ax2, ay2 = if (whole) 500 else s.ay2)
                     }
                     d.dismiss(); render()
-                }.setNegativeButton("Cancelar", null).show()
+                }.show()
         }
         p.valueRow("Área Personalizada", "${s.ax1},${s.ay1},${s.ax2},${s.ay2}", on && !whole && !s.fx) {
             pick(PositionPickerActivity.AREA, intArrayOf(s.ax1, s.ay1, s.ax2, s.ay2)) { v -> s = s.copy(ax1 = v[0], ay1 = v[1], ax2 = v[2], ay2 = v[3]) }
@@ -490,8 +506,8 @@ class ItemEditorActivity : Activity() {
 
     /** 0 = seguir para o próximo; 1..total = ir para esse passo. */
     private fun gotoDialog(title: String, current: Int, ok: (Int) -> Unit) {
-        val items = Array(total + 1) { if (it == 0) "Seguir para o próximo" else "Passo $it" }
-        AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(items, current.coerceIn(0, total)) { d, w -> ok(w); d.dismiss() }.setNegativeButton("Cancelar", null).show()
+        val items = Array(total + 1) { gotoLabel(it) }
+        AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(items, current.coerceIn(0, total)) { d, w -> ok(w); d.dismiss() }.show()
     }
 
     private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()

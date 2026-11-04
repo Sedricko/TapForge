@@ -87,7 +87,7 @@ class EditorActivity : Activity() {
     private val titles = mapOf(
         Type.TAP to "Tap", Type.SWIPE to "Swipe", Type.PINCH_IN to "Pinça para dentro", Type.PINCH_OUT to "Pinça para fora",
         Type.WAIT to "Esperar", Type.KEY to "Evento de Teclado", Type.STATUS to "Alertas de status", Type.GOTO to "GOTO",
-        Type.COUNTER to "Contador de Execuções", Type.RESET to "Reiniciar Contador de Execuções", Type.CALL to "Arquivo de Macro", Type.IMAGE to "Image",
+        Type.COUNTER to "Contador de Execuções", Type.RESET to "Redefinir Contador de Execuções", Type.CALL to "Arquivo de Macro", Type.IMAGE to "Image",
         Type.NODE to "Achar por texto", Type.TEXT to "Reconhecimento de Texto", Type.NUMBER to "Ler número", Type.STOP to "Parar Macro",
         Type.CHANGE to "Detecção de Mudança de Imagem", Type.GESTURE to "Gesture", Type.GROUP to "Grupo",
     )
@@ -226,7 +226,7 @@ class EditorActivity : Activity() {
         if (type == Type.TAP || type == Type.SWIPE || type in setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE, Type.IMAGE, Type.NUMBER, Type.CHANGE, Type.GESTURE, Type.GROUP)) {
             startActivityForResult(
                 android.content.Intent(this, ItemEditorActivity::class.java)
-                    .putExtra("step", step.toJson().toString()).putExtra("total", if (index >= 0) steps.size else steps.size + 1).putExtra("index", index).putExtra("self", id), REQ_ITEM,
+                    .putExtra("step", step.toJson().toString()).putExtra("total", if (index >= 0) steps.size else steps.size + 1).putExtra("index", index).putExtra("self", id).putExtra("names", steps.mapIndexed { i, st -> st.name.ifBlank { titles.getValue(st.type) } }.toTypedArray()), REQ_ITEM,
             )
         } else if (index >= 0) editStep(type, step, steps.size) { replace(index, it) }
         else editStep(type, step, steps.size + 1) { steps = steps.afterInsert(steps.size, it); refresh() }
