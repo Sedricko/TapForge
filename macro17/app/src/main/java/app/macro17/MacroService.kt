@@ -50,7 +50,7 @@ class MacroService : AccessibilityService() {
     private lateinit var engine: Engine
     private lateinit var logPanel: LogPanel
     private var bubble: View? = null
-    private var recording = false
+    @Volatile private var recording = false
     private val rec = ArrayList<Step>()
     private lateinit var recorder: Recorder
     private var lock: BroadcastReceiver? = null
@@ -68,7 +68,7 @@ class MacroService : AccessibilityService() {
         engine.onTick = { t -> lastTitle = t; ui.post { tvTitle?.text = t } }
         engine.onProgress = { lap, loops, step, total, name ->
             lastInfo = name.ifBlank { "$step/$total" }; lastCycle = "$lap"; lastTitle = "-"
-            ui.post { tvInfo?.text = lastInfo; tvCycle?.text = lastCycle; tvTitle?.text = lastTitle; highlightStep(step - 1) }
+            if (!testing) ui.post { tvInfo?.text = lastInfo; tvCycle?.text = lastCycle; tvTitle?.text = lastTitle; highlightStep(step - 1) }
         }
         instance = this
         Alarms.rearm(this)
@@ -117,6 +117,8 @@ class MacroService : AccessibilityService() {
     override fun onUnbind(intent: Intent?): Boolean {
         Diag.d("serviço", "acessibilidade desconectada")
         hideList()
+        instantWin?.let { runCatching { wm.removeView(it) } }; instantWin = null
+        guideWin?.let { runCatching { wm.removeView(it) } }; guideWin = null
         if (::logPanel.isInitialized) logPanel.hide()
         if (::engine.isInitialized) engine.stop()
         stopRecording(save = false)
@@ -284,7 +286,7 @@ class MacroService : AccessibilityService() {
         val lp = v.layoutParams as WindowManager.LayoutParams
         val keep = on || (store.keepOn && panelOpen()) // como no base: ligada ao reproduzir/gravar; ociosa só com a opção
         lp.flags = if (keep) lp.flags or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON else lp.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON.inv()
-        wm.updateViewLayout(v, lp)
+        runCatching { wm.updateViewLayout(v, lp) }
     }
 
     // --- bolha e painel --------------------------------------------------------------------
@@ -440,7 +442,7 @@ class MacroService : AccessibilityService() {
                 }
                 setOnLongClickListener {
                     if (st.type == Type.GROUP) openItemFromList(m.id, i)
-                    else Thread { instant(engine.probeItem(st), 3000) }.start()
+                    else Thread { instant(runCatching { engine.probeItem(st) }.getOrElse { "Falha ao testar o item" }, 3000) }.start()
                     true
                 }
             })
@@ -501,7 +503,7 @@ class MacroService : AccessibilityService() {
     private var lastInfo = ""
     private var lastTitle = "-"
     private var lastCycle = "1"
-    private var playing = false // estado mostrado no painel (engine.running ainda é true dentro do callback de fim)
+    @Volatile private var playing = false // estado mostrado no painel (engine.running ainda é true dentro do callback de fim)
     private fun setPlayIcon(running: Boolean) = ui.post { playing = running; listWin?.alpha = if (running) 0.5f else 1f; if (running) { expanded = false; if (::row2.isInitialized) row2.visibility = View.GONE }; if (::row1.isInitialized && !recording) fillRow1() else playBtn?.setImageResource(if (running) R.drawable.ic_stop else R.drawable.bp_play_arrow) }
 
     /** A camada do Gesto cobre a tela inteira e é criada depois do painel: recria o painel por cima, senão ele fica sem toque e o modo "não desativa". */
@@ -528,9 +530,10 @@ class MacroService : AccessibilityService() {
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { dx = e.rawX; dy = e.rawY; sx = bubbleLp.x; sy = bubbleLp.y; drag = false; false }
                 MotionEvent.ACTION_MOVE -> {
-                    if (!drag && (kotlin.math.abs(e.rawX - dx) > slop || kotlin.math.abs(e.rawY - dy) > slop)) drag = true
+                    if (!drag && (kotlin.math.abs(e.rawX - dx) > slop || kotlin.math.abs(e.rawY - dy) > slop)) { drag = true; view.cancelLongPress() } // arrastar não pode virar toque longo (descartaria a gravação)
                     if (drag) {
-                        bubbleLp.x = sx + (e.rawX - dx).toInt(); bubbleLp.y = sy + (e.rawY - dy).toInt()
+                        val dm = resources.displayMetrics; val bw = bubble?.width ?: dp(42); val bh = bubble?.height ?: dp(42)
+                        bubbleLp.x = (sx + (e.rawX - dx).toInt()).coerceIn(0, maxOf(0, dm.widthPixels - bw)); bubbleLp.y = (sy + (e.rawY - dy).toInt()).coerceIn(0, maxOf(0, dm.heightPixels - bh)) // o painel não se perde fora da tela
                         bubble?.let { wm.updateViewLayout(it, bubbleLp) }
                     }
                     drag
@@ -584,7 +587,7 @@ class MacroService : AccessibilityService() {
 
     /** Orbe → Capturar: congela a tela, deixa recortar e acrescenta um passo IMAGE ao fim da macro selecionada. */
     // Uma captura de cada vez: um segundo toque no enquadrar durante a contagem abria dois seletores empilhados (visto no log: "iniciada ×2").
-    private var capturing = false
+    @Volatile private var capturing = false
 
     private fun captureImage() {
         if (capturing) return toast("Captura em andamento")

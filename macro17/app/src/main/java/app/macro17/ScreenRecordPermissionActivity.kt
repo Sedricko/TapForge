@@ -20,17 +20,19 @@ class ScreenRecordPermissionActivity : Activity() {
         } else ask()
     }
 
+    private var noAudio = false
+
     private fun ask() = startActivityForResult(getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent(), 8)
 
     override fun onRequestPermissionsResult(req: Int, p: Array<out String>, r: IntArray) {
-        if (req == 7) { if (r.firstOrNull() != PackageManager.PERMISSION_GRANTED) store.recAudio = 0; ask() }
+        if (req == 7) { if (r.firstOrNull() != PackageManager.PERMISSION_GRANTED) noAudio = true; ask() } // vale só nesta gravação: a opção salva não muda
     }
 
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
         if (ScreenRecordService.running) { finish(); return } // um segundo toque em gravar não pode iniciar outro serviço em primeiro plano
         if (req == 8 && res == RESULT_OK && data != null) {
             startForegroundService(Intent(this, ScreenRecordService::class.java).putExtra("code", res).putExtra("data", data)
-                .putExtra("audio", store.recAudio).putExtra("bitrate", store.recBitrate).putExtra("fps", store.recFps))
+                .putExtra("audio", if (noAudio) 0 else store.recAudio).putExtra("bitrate", store.recBitrate).putExtra("fps", store.recFps))
         } else Diag.d("vídeo", "compartilhamento de tela não permitido")
         finish()
     }

@@ -116,6 +116,7 @@ class ScreenRecordService : Service() {
         val af = File(cacheDir, "rec_audio_${System.currentTimeMillis()}.m4a"); audioFile = af
         audioStop = false
         audioThread = Thread({
+            try {
             val codec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
             codec.configure(MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 44100, 2).apply {
                 setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC); setInteger(MediaFormat.KEY_BIT_RATE, 128_000); setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 16384)
@@ -153,25 +154,32 @@ class ScreenRecordService : Service() {
                 runCatching { rec.stop() }; rec.release(); runCatching { codec.stop() }; codec.release()
                 if (started) runCatching { mux.stop() }; mux.release()
             }
+            } catch (t: Throwable) { Diag.e("vídeo", "falha na gravação do áudio interno", t) } // uma falha aqui não pode derrubar o app
         }, "macro17-audio-interno").also { it.start() }
     }
 
     /** Junta o vídeo (sem áudio) com o .m4a num MP4 só; false se algo falhar (então fica só o vídeo). */
-    private fun mergeAv(video: File, audio: File, out: File): Boolean = runCatching {
-        val mux = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-        val exs = listOf(video to "video/", audio to "audio/").map { (f, pre) -> MediaExtractor().apply { setDataSource(f.path) } to pre }
-        val tracks = exs.map { (ex, pre) ->
-            val i = (0 until ex.trackCount).first { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)!!.startsWith(pre) }
-            ex.selectTrack(i); mux.addTrack(ex.getTrackFormat(i))
-        }
-        mux.start()
-        val bb = ByteBuffer.allocate(1 shl 20); val bi = MediaCodec.BufferInfo()
-        exs.forEachIndexed { k, (ex, _) ->
-            while (true) { val n = ex.readSampleData(bb, 0); if (n < 0) break; bi.set(0, n, ex.sampleTime, ex.sampleFlags); mux.writeSampleData(tracks[k], bb, bi); ex.advance() }
-            ex.release()
-        }
-        mux.stop(); mux.release(); true
-    }.getOrDefault(false)
+    private fun mergeAv(video: File, audio: File, out: File): Boolean {
+        var mux: MediaMuxer? = null
+        val exs = ArrayList<MediaExtractor>()
+        var started = false
+        return try {
+            val m = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).also { mux = it }
+            val tracks = listOf(video to "video/", audio to "audio/").map { (f, pre) ->
+                val ex = MediaExtractor().apply { setDataSource(f.path) }.also { exs.add(it) }
+                val i = (0 until ex.trackCount).first { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)!!.startsWith(pre) }
+                ex.selectTrack(i); m.addTrack(ex.getTrackFormat(i))
+            }
+            m.start(); started = true
+            val bb = ByteBuffer.allocate(1 shl 20); val bi = MediaCodec.BufferInfo()
+            exs.forEachIndexed { k, ex ->
+                while (true) { val n = ex.readSampleData(bb, 0); if (n < 0) break; bi.set(0, n, ex.sampleTime, ex.sampleFlags); m.writeSampleData(tracks[k], bb, bi); ex.advance() }
+            }
+            m.stop(); started = false
+            true
+        } catch (t: Throwable) { Diag.e("vídeo", "junção de áudio e vídeo falhou", t); out.delete(); false }
+        finally { exs.forEach { runCatching { it.release() } }; runCatching { if (started) mux?.stop() }; runCatching { mux?.release() } }
+    }
 
     private fun finish() {
         if (finishing) return // o onStop da projeção volta a chamar depois do release
