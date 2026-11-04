@@ -15,7 +15,10 @@ import java.util.zip.ZipOutputStream
 
 class BackupZipTest {
     private fun dir() = Files.createTempDirectory("bkp").toFile().also { it.deleteOnExit() }
-    private val png = byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 1, 2, 3, 4)
+    // PNG mínimo (assinatura + IHDR 16x16): o restaurador agora confere as dimensões antes de aceitar.
+    private fun pngOf(w: Int, h: Int) = byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 'I'.code.toByte(), 'H'.code.toByte(), 'D'.code.toByte(), 'R'.code.toByte(),
+        (w shr 24).toByte(), (w shr 16).toByte(), (w shr 8).toByte(), w.toByte(), (h shr 24).toByte(), (h shr 16).toByte(), (h shr 8).toByte(), h.toByte())
+    private val png = pngOf(16, 16)
     private fun macroJson() = Macro("x", "Teste", 1, listOf(Step(Type.WAIT, ms = 100))).toJson().toString().toByteArray()
     private fun zip(vararg e: Pair<String, ByteArray>): ByteArray {
         val b = ByteArrayOutputStream()
@@ -40,6 +43,14 @@ class BackupZipTest {
         assertArrayEquals(png, File(dst, "templates/$t.png").readBytes())
         assertArrayEquals(macroJson(), File(dst, "macros/$m.json").readBytes())
         assertEquals("{}", File(dst, "glyphs.json").readText())
+    }
+
+    @Test fun hugePngIsSkipped() {
+        val dst = dir(); val big = id(); val good = id()
+        val r = BackupZip.read(ByteArrayInputStream(zip("templates/$big.png" to pngOf(30000, 30000), "macros/$good.json" to macroJson())), dst)
+        assertEquals(1, r.restored)
+        assertTrue(r.skipped.single().contains("grande demais"))
+        assertFalse(File(dst, "templates/$big.png").exists())
     }
 
     @Test fun selectionKeepsOnlyChosenMacroAndItsImages() {
