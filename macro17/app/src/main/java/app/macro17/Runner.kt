@@ -105,9 +105,6 @@ class Runner(private val p: Ports) {
             if (Thread.interrupted()) throw InterruptedException()
             val f = stack[stack.lastIndex]
             if (f.resume) { f.resume = false; advance(stack, f, f.pc + 1); continue }
-            val dj = p.takeJump()
-            // O pedido nasce durante o passo pausado, que já avançou o ponteiro: Próximo = seguir (0), Anterior = voltar dois (-2).
-            if (dj != 0) f.pc = (f.pc + dj - 1).coerceIn(0, f.macro.steps.size - 1)
             // Grupo de pesquisa com duração: ao estourar, abandona o grupo e vai para o destino (ou segue depois dele), como no base.
             val gx = f.groups.lastOrNull { it.gms > 0 && f.pc in it.start + 1..it.end && p.now() - it.t0 >= it.gms }
             if (gx != null) {
@@ -133,6 +130,9 @@ class Runner(private val p: Ports) {
             // IMAGE/NODE/TEXT/NUMBER: como no base, o atraso vem depois de achar (abaixo), não antes da busca.
             val searchFirst = s.type in Step.SEARCHES
             p.sleep(if (imgMiss || searchFirst) 1L else maxOf(1, wait).toLong())
+            // Anterior/Próximo pedidos durante a pausa deste passo: abandona o passo sem executá-lo e vai para o vizinho (k±1).
+            val dj = p.takeJump()
+            if (dj != 0) { f.pc = (f.pc + dj).coerceIn(0, f.macro.steps.size - 1); continue }
 
             var jump = 0
             when (s.type) {

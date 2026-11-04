@@ -74,7 +74,7 @@ class RunnerTest {
     }
 
     @Test fun previousAndNextMoveThePointerAndProgressIsReported() {
-        val f = Fake(); f.jumpsToGive.addAll(listOf(0, 2)) // 1º passo normal; antes do 2º, um salto de +2 (Próximo, Próximo) pula para o 3º
+        val f = Fake(); f.jumpsToGive.addAll(listOf(0, 1)) // 1º passo normal; pausado no 2º, "Próximo" abandona o passo e vai para o 3º
         val (o, _) = run(macro(tap(1), tap(2), tap(3), tap(4)), f)
         assertTrue(o is Outcome.Done)
         assertEquals(listOf("g:1,100>1,100@10", "g:3,100>3,100@10", "g:4,100>4,100@10"), f.events)

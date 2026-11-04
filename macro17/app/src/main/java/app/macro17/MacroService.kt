@@ -506,7 +506,9 @@ class MacroService : AccessibilityService() {
     /** A camada do Gesto cobre a tela inteira e é criada depois do painel: recria o painel por cima, senão ele fica sem toque e o modo "não desativa". */
     private fun panelToFront() {
         val v = bubble ?: return
-        runCatching { wm.removeView(v); wm.addView(v, bubbleLp) }.onFailure { Diag.e("painel", "não foi possível trazer o painel para frente", it) }
+        runCatching { wm.removeView(v) }
+        // Se o addView falhar, tenta de novo uma vez: sem isso o painel sumiria e o usuário ficaria sem como parar a gravação.
+        if (runCatching { wm.addView(v, bubbleLp) }.onFailure { Diag.e("painel", "não foi possível trazer o painel para frente", it) }.isFailure) runCatching { wm.addView(v, bubbleLp) }
     }
 
     private fun openPanel(open: Boolean) {
