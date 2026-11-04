@@ -138,7 +138,9 @@ class EditorActivity : Activity() {
                 override fun getCount() = steps.size
                 override fun getItem(i: Int) = steps[i]
                 override fun getItemId(i: Int) = i.toLong()
-                override fun getView(i: Int, v: View?, p: ViewGroup) = stepRow(i, steps[i])
+                override fun getView(i: Int, v: View?, p: ViewGroup): View =
+                    if (hiddenByGroup(i)) View(this@EditorActivity).apply { layoutParams = android.widget.AbsListView.LayoutParams(MATCH_PARENT, 1) } // filho de grupo recolhido
+                    else stepRow(i, steps[i])
             }
         }
         val more = ImageView(this).apply {
@@ -212,6 +214,7 @@ class EditorActivity : Activity() {
 
     private fun refresh() {
         selected.retainAll(steps.indices.toSet())
+        collapsed.retainAll { steps.getOrNull(it)?.type == Type.GROUP }
         emptyHint.visibility = if (steps.isEmpty()) View.VISIBLE else View.GONE
         syncTools()
         (list.adapter as BaseAdapter).notifyDataSetChanged()
@@ -348,6 +351,10 @@ class EditorActivity : Activity() {
         for (h in heads) steps = steps.afterDelete(h)
         selected.clear(); refresh()
     }
+
+    /** Cabeçalhos de grupo recolhidos (botão expandir/recolher do base, expander_ic_*). */
+    private val collapsed = HashSet<Int>()
+    private fun hiddenByGroup(i: Int) = steps.indices.any { k -> k in collapsed && steps[k].type == Type.GROUP && i > k && i <= k + steps[k].grp }
 
     private fun inGroup(i: Int) = steps.indices.any { k -> k < i && steps[k].type == Type.GROUP && i <= k + steps[k].grp }
 
@@ -487,6 +494,11 @@ class EditorActivity : Activity() {
                     }
                     if (infoText.isNotEmpty()) addView(label(infoText, 14f, 0xDE000000.toInt()).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
                 })
+            })
+            if (s.type == Type.GROUP) addView(ImageView(this@EditorActivity).apply {
+                setImageResource(if (i in collapsed) R.drawable.bp_expander_ic_minimized else R.drawable.bp_expander_ic_maximized); setColorFilter(0xFF607D8B.toInt()); contentDescription = "Expandir ou recolher o grupo"
+                layoutParams = LinearLayout.LayoutParams(dp(40), dp(36)); setPadding(dp(8), dp(6), dp(8), dp(6))
+                setOnClickListener { if (i in collapsed) collapsed.remove(i) else collapsed.add(i); refresh() }
             })
             if (s.off) addView(resIcon(R.drawable.bp_remove_circle, 24, 0xFFD81B60.toInt()).apply { (layoutParams as LinearLayout.LayoutParams).setMargins(dp(3), 0, dp(3), 0) })
             jumps.forEach { (to, color) ->
