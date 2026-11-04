@@ -25,6 +25,9 @@ class Store(ctx: Context) {
     /** Posição vertical da lista flutuante (o título arrasta; o base guarda x,y). */
     var listY: Int get() = prefs.getInt("listY", 0); set(v) = prefs.edit().putInt("listY", v).apply()
 
+    /** Botão Agendar do painel ligado ("agendado"): painel reduzido com o próximo horário e a tela acesa. */
+    var scheduleOn: Boolean get() = prefs.getBoolean("scheduleOn", false); set(v) = prefs.edit().putBoolean("scheduleOn", v).apply()
+
     var selected: String?
         get() = prefs.getString("selected", null)
         set(v) = prefs.edit().putString("selected", v).apply()

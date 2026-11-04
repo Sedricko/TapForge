@@ -332,6 +332,12 @@ class MacroService : AccessibilityService() {
 
     private fun fillRow1() {
         row1.removeAllViews()
+        if (store.scheduleOn && !recording && !playing) { // estado "agendado" do base: só o Agendar ligado e o próximo horário; linha 2 aberta
+            row1.addView(pbtn(Ic.ALARM, "Agendar", 38, 38, 2, tint = 0xFF002626.toInt()) { toggleSchedule() })
+            row1.addView(label(scheduleText(), 12f, 0xFF607D8B.toInt()).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; maxWidth = dp(150); setPadding(dp(4), 0, dp(8), 0) })
+            expanded = true; if (::row2.isInitialized) row2.visibility = View.VISIBLE
+            return
+        }
         if (recording) {
             row1.addView(pbtn(Ic.STOP, "Encerrar a gravação (segure para descartar)") { stopRecording(save = true) }.also {
                 it.setOnLongClickListener { stopRecording(save = false); toast("Gravação descartada"); true }
@@ -558,7 +564,7 @@ class MacroService : AccessibilityService() {
             gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE
             addView(pbtn(Ic.IMAGE, "Capturar imagem para a macro") { captureImage() })
-            addView(pbtn(Ic.ALARM, "Agendamento", 38, 38, 2) { openScreen(Intent(this@MacroService, AlarmListActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
+            addView(pbtn(Ic.ALARM, "Agendar", 38, 38, 2, tint = if (store.scheduleOn) 0xFF002626.toInt() else teal) { toggleSchedule() })
             addView(pbtn(Ic.EDIT, "Abrir o editor da macro", 38, 38, 2) {
                 openScreen(Intent(this@MacroService, EditorActivity::class.java).putExtra("id", store.selected ?: "new").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             })
@@ -856,6 +862,31 @@ class MacroService : AccessibilityService() {
         runCatching { store.save(m) }
             .onSuccess { store.selected = m.id; askEditor(m) }
             .onFailure { toast("Falha ao salvar: ${it.message}") }
+    }
+
+    /** "<nome> • MMM dd(E) HH:mm" do próximo agendamento ativo (llSchedule do base). */
+    private fun scheduleText(): String {
+        val next = store.alarms().filter { it.enabled }.minByOrNull { Alarms.nextStart(it.start) } ?: return "Nenhum agendamento"
+        return "${store.get(next.macroId)?.name ?: "Macro"} • " + SimpleDateFormat("MMM dd(E) HH:mm", Locale.getDefault()).format(Date(Alarms.nextStart(next.start)))
+    }
+
+    private fun askOverlay(title: String, msg: String, ok: () -> Unit) {
+        val d = android.app.AlertDialog.Builder(android.view.ContextThemeWrapper(this, android.R.style.Theme_Material_Light_Dialog_Alert))
+            .setTitle(title).setMessage(msg).setPositiveButton("OK") { _, _ -> ok() }.setNegativeButton("Cancelar", null).create()
+        d.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
+        runCatching { d.show() }
+    }
+
+    /** Botão Agendar do painel (AU3): sem agenda pergunta se cria; com agenda confirma e entra no estado "agendado"; ligado, desliga e para. */
+    private fun toggleSchedule() {
+        if (store.scheduleOn) {
+            store.scheduleOn = false; stopMacro(); ui.post { awake(false); fillRow1() }
+            return
+        }
+        if (!Alarms.canExact(this)) { openScreen(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:$packageName")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return }
+        val on = store.alarms().filter { it.enabled }
+        if (on.isEmpty()) askOverlay("Nenhum agendamento.", "Criar um novo agendamento?") { openScreen(Intent(this, AlarmListActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        else askOverlay("Iniciar o agendamento?", scheduleText()) { store.scheduleOn = true; Alarms.rearm(this); ui.post { awake(true); fillRow1() } }
     }
 
     /** Fim da gravação de tela: diálogo Reproduzir/Fechar como no base; Reproduzir abre a pré-visualização. */
