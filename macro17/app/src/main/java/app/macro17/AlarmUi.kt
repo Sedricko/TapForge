@@ -80,6 +80,7 @@ class AlarmListActivity : Activity() {
             addView(glyph(Ic.WARN, 0xFFFFB300.toInt(), 32))
             addView(label("O serviço de agendamento precisa ser executado em segundo plano quando a tela estiver desligada. Permita que o aplicativo use mais energia em segundo plano.", 14f, B.TEXT).apply { setPadding(dp(12), 0, 0, 0) })
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.bottomMargin = dp(8) }
+            setOnClickListener { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } // o aviso abre as configurações do app (bateria)
         })
         for (a in all) {
             val macro = store.get(a.macroId)

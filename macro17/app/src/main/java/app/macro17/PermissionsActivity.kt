@@ -54,7 +54,7 @@ class PermissionsActivity : Activity() {
         setPadding(dp(16), dp(15), dp(16), dp(15))
         layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(5), dp(4), dp(5), dp(4)) }
         addView(label(title, 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(0, 0, 0, dp(10)) })
-        addView(label(body, 14f, 0xFF212121.toInt()).apply { gravity = Gravity.CENTER; setPadding(0, dp(10), 0, 0) })
+        addView(label(body, 14f, 0xFF212121.toInt()).apply { gravity = Gravity.CENTER })
         setOnClickListener { click() }
     }
 
@@ -64,8 +64,8 @@ class PermissionsActivity : Activity() {
         content.addView(card().apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
             setPadding(dp(12), dp(18), dp(12), dp(18))
-            addView(glyph(Ic.INFO, B.RED, 24))
-            addView(label("Por favor, selecione uma permissão.", 14f, B.RED, bold = true).apply { setPadding(dp(10), 0, 0, 0) })
+            addView(glyph(Ic.INFO, 0xFFF44336.toInt(), 25))
+            addView(label("Por favor, selecione uma permissão.", 14f, 0xDE000000.toInt(), bold = true).apply { setPadding(dp(6), dp(6), dp(6), dp(6)); minWidth = dp(225); gravity = Gravity.CENTER })
         })
         content.addView(option("Acessibilidade", "A permissão de acessibilidade deve ser concedida.") {
             // Como no base: escolhe o modo de controle (só existe o de acessibilidade) e volta à Home; sem a permissão, abre o Acordo.

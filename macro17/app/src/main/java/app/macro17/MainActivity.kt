@@ -91,24 +91,24 @@ class MainActivity : Activity() {
             val adbOn = Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0) == 1
             val ok = when (mode) { MODE_ADB -> adbOn; MODE_ROOT -> true; else -> MacroService.instance != null }
             val text = when (mode) {
-                MODE_ADB -> if (adbOn) "Modo ADB selecionado." else "ADB não ativado."
+                MODE_ADB -> if (adbOn) "Não desligue. Você precisará configurá-lo novamente." else "ADB não ativado."
                 MODE_ROOT -> "Modo Root selecionado."
                 else -> if (ok) "Permissão de Acessibilidade Concedida" else "A permissão de acessibilidade deve ser concedida."
             }
             addView(glyph(Ic.INFO, if (ok) 0xFF00574B.toInt() else B.RED, 24))
-            addView(label(text, 14f, if (ok) 0xFF00574B.toInt() else B.RED, bold = true).apply { setPadding(dp(8), 0, 0, 0) })
+            addView(label(text, 14f, 0xDE000000.toInt(), bold = true).apply { gravity = Gravity.CENTER; minWidth = dp(225); maxWidth = dp(300) }) // texto escuro; só o ícone muda de cor, como no base
             setOnClickListener { startActivity(Intent(this@MainActivity, if (mode == MODE_ACCESS && !ok) AccessibilityAgreementActivity::class.java else PermissionsActivity::class.java)) }
         })
 
         content.addView(card().apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setPadding(dp(12), dp(12), dp(12), dp(7))
             foreground = ripple(2, 0x1F000000)
             setOnClickListener { fileDialog() }
             if (cur == null) {
                 addView(label("Por favor, selecione um arquivo.", 14f, 0xFF212121.toInt(), bold = true))
             } else {
-                addView(label(cur.name, 14f, 0xFF212121.toInt(), bold = true).apply { maxLines = 2; ellipsize = TextUtils.TruncateAt.END })
+                addView(label(cur.name, 14f, 0xFF212121.toInt(), bold = true).apply { maxLines = 1; minWidth = dp(225); gravity = Gravity.CENTER; ellipsize = TextUtils.TruncateAt.END })
                 addView(label("Repetir reprodução:" + if (cur.loops == 0) "Infinito" else cur.loops.toString(), 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(0, dp(4), 0, 0) })
             }
         })
