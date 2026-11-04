@@ -43,7 +43,7 @@ class Store(ctx: Context) {
         set(v) = prefs.edit().putBoolean("recGuide", v).apply()
     /** Gravação de tela: 0 sem áudio, 1 microfone; bitrate em bps; quadros por segundo. */
     var recAudio: Int get() = prefs.getInt("recAudio", 0); set(v) = prefs.edit().putInt("recAudio", v).apply()
-    var recBitrate: Int get() = prefs.getInt("recBitrate", 5_000_000); set(v) = prefs.edit().putInt("recBitrate", v).apply()
+    var recBitrate: Int get() = prefs.getInt("recBitrate", 5_242_880); set(v) = prefs.edit().putInt("recBitrate", v).apply()
     var recFps: Int get() = prefs.getInt("recFps", 24); set(v) = prefs.edit().putInt("recFps", v).apply()
     var askedNotif: Boolean get() = prefs.getBoolean("askedNotif", false); set(v) = prefs.edit().putBoolean("askedNotif", v).apply()
     /** Modo de controle escolhido em Permissões (1 acessibilidade, 2 ADB, 3 root) e porta do adbd local. */

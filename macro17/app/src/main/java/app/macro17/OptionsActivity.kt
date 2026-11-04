@@ -65,15 +65,15 @@ class OptionsActivity : Activity() {
 
         p.category("Gravação de tela", iconRes = R.drawable.bp_new_icon)
         var audioTxt: TextView? = null; var bitTxt: TextView? = null; var fpsTxt: TextView? = null
-        val audioNames = arrayOf("Sem áudio", "Microfone")
-        audioTxt = p.valueRow("Configurações de gravação de áudio", audioNames[store.recAudio.coerceIn(0, 1)]) {
-            AlertDialog.Builder(this).setTitle("Configurações de gravação de áudio").setSingleChoiceItems(audioNames, store.recAudio.coerceIn(0, 1)) { d, w -> store.recAudio = w; audioTxt?.text = audioNames[w]; d.dismiss() }.setNegativeButton("Cancelar", null).show()
+        val audioNames = arrayOf("Sem áudio", "Microfone", "Áudio interno")
+        audioTxt = p.valueRow("Configurações de gravação de áudio", audioNames[store.recAudio.coerceIn(0, 2)]) {
+            AlertDialog.Builder(this).setTitle("Configurações de gravação de áudio").setSingleChoiceItems(audioNames, store.recAudio.coerceIn(0, 2)) { d, w -> store.recAudio = w; if (w == 2) android.widget.Toast.makeText(this, "Devido às políticas do Google, o áudio de alguns apps (como o YouTube) pode não ser gravado.", android.widget.Toast.LENGTH_LONG).show(); audioTxt?.text = audioNames[w]; d.dismiss() }.setNegativeButton("Cancelar", null).show()
         }
-        val bits = intArrayOf(2_000_000, 5_000_000, 10_000_000); val bitNames = arrayOf("Baixa 2 Mbps", "Média 5 Mbps", "Alta 10 Mbps")
+        val bits = intArrayOf(2_097_152, 5_242_880, 10_485_760); val bitNames = arrayOf("Baixa 2 Mbps", "Média 5 Mbps", "Alta 10 Mbps")
         bitTxt = p.valueRow("Taxa de bits de vídeo", bitNames[bits.indexOf(store.recBitrate).coerceAtLeast(1)]) {
             AlertDialog.Builder(this).setTitle("Taxa de bits de vídeo").setSingleChoiceItems(bitNames, bits.indexOf(store.recBitrate).coerceAtLeast(1)) { d, w -> store.recBitrate = bits[w]; bitTxt?.text = bitNames[w]; d.dismiss() }.setNegativeButton("Cancelar", null).show()
         }
-        val fpsList = intArrayOf(15, 24, 30, 60)
+        val fpsList = intArrayOf(15, 24, 30)
         fpsTxt = p.valueRow("Taxa de quadros de vídeo", "${store.recFps} FPS") {
             AlertDialog.Builder(this).setTitle("Taxa de quadros de vídeo").setSingleChoiceItems(fpsList.map { "$it FPS" }.toTypedArray(), fpsList.indexOf(store.recFps).coerceAtLeast(1)) { d, w -> store.recFps = fpsList[w]; fpsTxt?.text = "${fpsList[w]} FPS"; d.dismiss() }.setNegativeButton("Cancelar", null).show()
         }

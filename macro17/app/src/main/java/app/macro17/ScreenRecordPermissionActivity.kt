@@ -15,7 +15,7 @@ class ScreenRecordPermissionActivity : Activity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         store = Store(this)
-        if (store.recAudio == 1 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (store.recAudio in 1..2 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 7)
         } else ask()
     }
