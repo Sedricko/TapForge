@@ -102,6 +102,7 @@ class ScreenRecordService : Service() {
                 contentResolver.openOutputStream(uri)!!.use { o -> f.inputStream().use { it.copyTo(o) } }
                 Toast.makeText(this, "Gravação salva em Filmes/Macro17", Toast.LENGTH_LONG).show()
                 Diag.d("vídeo", "gravação salva: $uri")
+                runCatching { startActivity(android.content.Intent(this, VideoPlayerActivity::class.java).setData(uri).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } // pode ser barrado em segundo plano: o aviso acima continua
             }.onFailure { Diag.e("vídeo", "falha ao salvar o vídeo", it); Toast.makeText(this, "Falha ao salvar o vídeo", Toast.LENGTH_LONG).show() }
             f.delete()
         }

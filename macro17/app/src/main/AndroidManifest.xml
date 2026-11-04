@@ -25,6 +25,8 @@
          libere o logcat do sistema inteiro no relatório de diagnóstico. -->
     <uses-permission android:name="android.permission.READ_LOGS" tools:ignore="ProtectedPermissions" />
 
+    <queries><intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent></queries>
+
     <application
         android:name=".App"
         android:icon="@mipmap/ic_launcher"
@@ -66,6 +68,8 @@
         <activity android:name=".FullScreenActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleInstance" android:showWhenLocked="true" android:turnScreenOn="true" />
         <activity android:name=".ItemEditorActivity" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|fontScale|density|layoutDirection|locale" android:exported="false" />
         <activity android:name=".DiagActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
+        <activity android:name=".VideoPlayerActivity" android:exported="false" android:theme="@android:style/Theme.Material.Light.Dialog" />
+        <activity android:name=".AutoOpenActivity" android:exported="false" />
         <activity android:name=".ReaderActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
 
         <service

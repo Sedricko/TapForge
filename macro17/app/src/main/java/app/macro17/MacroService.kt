@@ -97,11 +97,17 @@ class MacroService : AccessibilityService() {
     }
 
     private var lastWindow = ""
+    private var lastPkg: String? = null
     override fun onAccessibilityEvent(e: AccessibilityEvent?) {
         // Janela em primeiro plano mudou (qual app/tela está embaixo da macro); só pacote e classe, nunca o conteúdo.
         if (e?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val w = "${e.packageName}/${e.className}"
             if (w != lastWindow) { lastWindow = w; Diag.d("janela", w) }
+            val pkg = e.packageName?.toString()
+            if (pkg != null && pkg != packageName && pkg != lastPkg) {
+                lastPkg = pkg
+                store.autoOpen[pkg]?.let { id -> Diag.d("início automático", "$pkg -> $id"); runMacro(id) }
+            }
         }
     }
     override fun onInterrupt() { Diag.d("serviço", "onInterrupt (sistema interrompeu o feedback de acessibilidade)"); engine.stop() }

@@ -16,6 +16,11 @@ class Store(ctx: Context) {
     private val gfile = File(ctx.filesDir, "glyphs.json")
     private val prefs = ctx.getSharedPreferences("macro17", Context.MODE_PRIVATE)
 
+    /** "Início Automático": pacote do app -> id da macro que roda ao abrir o app (como no base). */
+    var autoOpen: Map<String, String>
+        get() = runCatching { org.json.JSONObject(prefs.getString("autoOpen", "{}")!!).let { j -> j.keys().asSequence().associateWith { j.getString(it) } } }.getOrDefault(emptyMap())
+        set(v) = prefs.edit().putString("autoOpen", org.json.JSONObject(v).toString()).apply()
+
     var selected: String?
         get() = prefs.getString("selected", null)
         set(v) = prefs.edit().putString("selected", v).apply()
