@@ -63,7 +63,7 @@ object TmcImport {
         val counterSlot = HashMap<Int, Int>()
         fun slot(itemId: Int): Int = counterSlot.getOrPut(itemId) { (counterSlot.size % MAX_COUNTERS) + 1 }
 
-        fun sec(s: String) = ((s.trim().toDoubleOrNull() ?: 0.0) * 1000).toInt().coerceIn(0, MAX_MS)
+        fun sec(s: String, max: Int = MAX_DELAY_MS) = ((s.trim().toDoubleOrNull() ?: 0.0) * 1000).toInt().coerceIn(0, max)
         fun f(c: List<String>, n: Int) = c[n].trim()
         val steps = flat.map { (c, pos, depth, grp) ->
             if (depth == -1) return@map Step(Type.GROUP, grp = childCount[pos], rep = (f(c, 14).toIntOrNull() ?: 1).coerceIn(0, MAX_LOOPS), mono = grp == 2, name = f(c, 0).trim('\t').take(60), off = (f(c, 15).toIntOrNull() ?: 0) > 0)
@@ -80,7 +80,7 @@ object TmcImport {
             val goto = target(f(c, 18)); val fail = target(f(c, 17))
             val area = f(c, 36).split(',', '-').mapNotNull { it.trim().toIntOrNull() }.takeIf { it.size == 4 && it[2] > it[0] && it[3] > it[1] }
             val custom = (f(c, 28).toIntOrNull() ?: 1) >= 3 && area != null
-            val searchMs = sec(f(c, 16)).let { if (it in 1..99) 100 else it } // o Macro17 exige tempo 0 (sem limite) ou ≥ 100 ms
+            val searchMs = sec(f(c, 16), MAX_MS).let { if (it in 1..99) 100 else it } // o Macro17 exige tempo 0 (sem limite) ou ≥ 100 ms
             val cycle = (f(c, 40).toIntOrNull() ?: -1).let { if (it < 0) 200 else it.coerceIn(50, MAX_MS) }
             val thr = (f(c, 19).toIntOrNull() ?: 100).coerceIn(20, 100)
             val devs = f(c, 41).split('|').map { it.trim().toIntOrNull() ?: 0 }

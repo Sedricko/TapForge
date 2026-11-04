@@ -15,6 +15,7 @@ fun gesturePoints(text: String): List<Pair<Int, Int>> = text.split(';').mapNotNu
 }
 const val KEY_SCREENSHOT = 9   // GLOBAL_ACTION_TAKE_SCREENSHOT
 const val MAX_MS = 60_000      // getMaxGestureDuration() do sistema é 60 s
+const val MAX_DELAY_MS = 300_000 // atraso, espera e pesquisa: o base aceita até 300 s
 const val MAX_COORD = 20_000
 const val MAX_LOOPS = 1_000_000
 const val MAX_CASES = 10       // como no app de referência
@@ -79,7 +80,7 @@ data class Step(
     /** [size] é o total de passos da macro, para validar os alvos de salto. */
     fun validate(size: Int): String? = when {
         listOf(x1, y1, x2, y2).any { it !in 0..MAX_COORD } -> "coordenada fora de 0..$MAX_COORD"
-        listOf(ms, delay, rnd, rndMin).any { it !in 0..MAX_MS } -> "tempo fora de 0..$MAX_MS ms"
+        listOf(delay, rnd, rndMin).any { it !in 0..MAX_DELAY_MS } || ms !in 0..(if (type in GESTURES || type == Type.GESTURE) MAX_MS else MAX_DELAY_MS) -> "tempo fora do limite (atraso até $MAX_DELAY_MS ms; duração de gesto até $MAX_MS ms)"
         rnd > 0 && rndMin > rnd -> "faixa aleatória: mínimo maior que o máximo"
         jitter !in 0..500 -> "jitter fora de 0..500 px"
         type == Type.KEY && x1 !in 1..4 && x1 != KEY_SCREENSHOT -> "tecla deve ser 1 a 4 ou $KEY_SCREENSHOT (captura de tela)"

@@ -41,7 +41,7 @@ class Engine(
 
     @Synchronized fun start(m: Macro): Boolean {
         if (running) return false
-        paused = false
+        paused = false; jump = 0
         thread = Thread({ run(m) }, "macro17-engine").also { it.start() }
         return true
     }

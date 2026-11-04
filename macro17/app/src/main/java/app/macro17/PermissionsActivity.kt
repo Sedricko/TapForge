@@ -82,12 +82,12 @@ class PermissionsActivity : Activity() {
         val port = android.widget.EditText(this).apply { inputType = android.text.InputType.TYPE_CLASS_NUMBER; setText(st.adbPort.toString()); hint = "Porta" }
         val col = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(8), dp(24), 0)
-            addView(label("1. Ative as opções do desenvolvedor e a Depuração USB.\n2. Conecte o aparelho ao computador e rode:\n    adb tcpip 5555\n3. Toque em Conectar e permita a depuração neste aparelho.\n\nOs toques e a captura passam a sair pelo ADB; o painel continua usando a acessibilidade.", 14f, android.graphics.Color.BLACK))
+            addView(label("1. Ative as opções do desenvolvedor e a Depuração USB.\n2. Conecte o aparelho ao computador e rode:\n    adb tcpip 7777\n3. Toque em Conectar e permita a depuração neste aparelho.\n\nOs toques e a captura passam a sair pelo ADB; o painel continua usando a acessibilidade.", 14f, android.graphics.Color.BLACK))
             addView(port)
         }
         AlertDialog.Builder(this).setTitle("Android Debug Bridge (ADB)").setView(col)
             .setPositiveButton("Conectar") { _, _ ->
-                st.adbPort = port.text.toString().toIntOrNull() ?: 5555
+                st.adbPort = port.text.toString().toIntOrNull() ?: 7777
                 testShell(MODE_ADB, "ADB")
             }.setNegativeButton("Cancelar", null).show()
     }

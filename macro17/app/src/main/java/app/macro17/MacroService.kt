@@ -104,9 +104,9 @@ class MacroService : AccessibilityService() {
             val w = "${e.packageName}/${e.className}"
             if (w != lastWindow) { lastWindow = w; Diag.d("janela", w) }
             val pkg = e.packageName?.toString()
-            if (pkg != null && pkg != packageName && pkg != lastPkg) {
+            if (pkg != null && pkg != packageName && !pkg.contains("systemui") && !pkg.contains("inputmethod") && !pkg.contains("honeyboard") && pkg != lastPkg) {
                 lastPkg = pkg
-                store.autoOpen[pkg]?.let { id -> Diag.d("início automático", "$pkg -> $id"); runMacro(id) }
+                if (!engine.running && !recording) store.autoOpen[pkg]?.let { id -> Diag.d("início automático", "$pkg -> $id"); runMacro(id) }
             }
         }
     }

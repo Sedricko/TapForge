@@ -45,7 +45,7 @@ class Store(ctx: Context) {
     var askedNotif: Boolean get() = prefs.getBoolean("askedNotif", false); set(v) = prefs.edit().putBoolean("askedNotif", v).apply()
     /** Modo de controle escolhido em Permissões (1 acessibilidade, 2 ADB, 3 root) e porta do adbd local. */
     var controlMode: Int get() = prefs.getInt("controlMode", 1); set(v) = prefs.edit().putInt("controlMode", v).apply()
-    var adbPort: Int get() = prefs.getInt("adbPort", 5555); set(v) = prefs.edit().putInt("adbPort", v).apply()
+    var adbPort: Int get() = prefs.getInt("adbPort", 7777); set(v) = prefs.edit().putInt("adbPort", v).apply()
     var adbKey: String? get() = prefs.getString("adbKey", null); set(v) = prefs.edit().putString("adbKey", v).apply()
     /** Shell do modo escolhido; null no modo acessibilidade. */
     fun shell(): Shell? = when (controlMode) {

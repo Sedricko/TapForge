@@ -37,7 +37,7 @@ class ModelTest {
         assertNotNull(Step(Type.TAP, -1, 0, ms = 50).validate(1))              // coordenada negativa
         assertNotNull(Step(Type.TAP, MAX_COORD + 1, 0, ms = 50).validate(1))
         assertNotNull(Step(Type.TAP, 1, 1, ms = 0).validate(1))                // gesto sem duração
-        assertNotNull(Step(Type.WAIT, ms = MAX_MS + 1).validate(1))
+        assertNotNull(Step(Type.WAIT, ms = MAX_DELAY_MS + 1).validate(1))
         assertNotNull(Step(Type.KEY, x1 = 0).validate(1))                      // tecla inexistente
         assertNotNull(tap.copy(jitter = 501).validate(1))
         assertNotNull(tap.copy(rnd = 100, rndMin = 200).validate(1))           // mínimo > máximo
