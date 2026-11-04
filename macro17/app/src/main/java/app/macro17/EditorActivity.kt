@@ -143,8 +143,8 @@ class EditorActivity : Activity() {
         }
         // Vetores originais do base (content_touch_macro): 48dp, sem tint próprio, ✓ vira rosa quando tudo está marcado.
         fun tool(res: Int, desc: String, click: () -> Unit) = ImageView(this).apply {
-            setImageResource(res); setPadding(dp(12), dp(12), dp(12), dp(12)); foreground = ripple(24, 0x1F000000)
-            contentDescription = desc; layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f); setOnClickListener { click() }
+            setBackgroundResource(R.drawable.bp_round_button_selector); scaleType = ImageView.ScaleType.CENTER // fundo do base: círculo rosa ao pressionar
+            setImageResource(res); contentDescription = desc; layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f); setOnClickListener { click() }
         }
         selAll = tool(R.drawable.bp_icn_check_circle, "Selecionar tudo") { toggleAll() }
         val tools = LinearLayout(this).apply {
