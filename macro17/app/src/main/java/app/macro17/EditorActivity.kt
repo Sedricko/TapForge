@@ -349,50 +349,87 @@ class EditorActivity : Activity() {
         return if (t >= 60) "%dm %.1fs".format(java.util.Locale.US, (t / 60).toInt(), t % 60) else "%.1fs".format(java.util.Locale.US, t)
     }
 
-    private fun chip(ic: Ic, text: String) = LinearLayout(this).apply {
+    /** Vetores do próprio base para cada tipo (list_icon / lista de itens). */
+    private val typeRes = mapOf(
+        Type.TAP to R.drawable.bp_touch_app, Type.SWIPE to R.drawable.bp_touch_app, Type.PINCH_IN to R.drawable.bp_touch_app, Type.PINCH_OUT to R.drawable.bp_touch_app,
+        Type.IMAGE to R.drawable.bp_touch_app, Type.NODE to R.drawable.bp_format_text, Type.NUMBER to R.drawable.bp_format_text, Type.TEXT to R.drawable.bp_format_text,
+        Type.WAIT to R.drawable.bp_ic_timer, Type.KEY to R.drawable.bp_outline_keyboard_24, Type.STATUS to R.drawable.bp_outline_notifications_active,
+        Type.GOTO to R.drawable.bp_action_goto, Type.COUNTER to R.drawable.bp_action_repeat_count, Type.RESET to R.drawable.bp_action_repeat_counter_zero,
+        Type.CALL to R.drawable.bp_file_replace_outline, Type.STOP to R.drawable.bp_stop_macro, Type.CHANGE to R.drawable.bp_image_compare,
+        Type.GESTURE to R.drawable.bp_ic_gesture_swipe, Type.GROUP to R.drawable.bp_ic_loop,
+    )
+
+    private fun resIcon(res: Int, sizeDp: Int, tint: Int? = null) = ImageView(this).apply {
+        setImageResource(res); scaleType = ImageView.ScaleType.FIT_CENTER; tint?.let { setColorFilter(it) }
+        layoutParams = LinearLayout.LayoutParams(dp(sizeDp), dp(sizeDp))
+    }
+
+    /** Valor da linha (ícone de 14 + texto de 14sp), como os chips do base. */
+    private fun chip(res: Int, text: String) = LinearLayout(this).apply {
         gravity = Gravity.CENTER_VERTICAL
-        layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.marginEnd = dp(14) }
-        addView(glyph(ic, 0xFF000000.toInt(), 14)); addView(label(text, 14f, 0xDE000000.toInt()).apply { setPadding(dp(4), 0, 0, 0) })
+        layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.marginEnd = dp(6) }
+        addView(resIcon(res, 14, 0xFF000000.toInt()))
+        addView(label(text, 14f, 0xDE000000.toInt()).apply { setPadding(dp(2), 0, 0, 0) })
+    }
+
+    private fun limit(ms: Int) = if (ms == 0) "Infinito" else secs(ms)
+
+    /** Informação curta do item (tv_string_info do base). */
+    private fun info(s: Step): String = when (s.type) {
+        Type.KEY -> mapOf(1 to "Voltar", 2 to "Início", 3 to "Recentes", 4 to "Notificações", KEY_SCREENSHOT to "Captura de tela")[s.x1] ?: ""
+        Type.STATUS -> s.text
+        Type.CALL -> store.get(s.text)?.name ?: "Nenhum arquivo alocado."
+        Type.COUNTER -> s.cases.joinToString(" ") { "${it.n}:${it.to}" }
+        Type.RESET -> "Contador ${s.counter}"
+        Type.TEXT, Type.NODE -> s.text.replace(",", ", ")
+        Type.NUMBER -> "${s.lo}"
+        Type.GROUP -> if (s.rep == 0) "Infinito" else "${s.rep} vezes"
+        Type.GESTURE -> "${gesturePoints(s.text).size} pontos"
+        else -> ""
     }
 
     private fun stepRow(i: Int, s: Step): View {
-        val vision = s.type == Type.IMAGE || s.type == Type.TEXT || s.type == Type.NODE || s.type == Type.NUMBER
+        val search = s.type in Step.SEARCHES || s.useImg
+        val gestureLike = s.type in Step.GESTURES
         val thumbId = if (s.type == Type.IMAGE) s.text else s.img
         val thumb: View = (if (thumbId.isNotEmpty()) thumbs.getOrPut(thumbId) { store.templateThumb(thumbId, 120) } else null)?.let { bmp ->
-            ImageView(this).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER; layoutParams = LinearLayout.LayoutParams(dp(32), dp(32)) }
-        } ?: glyph(icons.getValue(s.type), 0xFF607D8B.toInt(), 32).apply { layoutParams = LinearLayout.LayoutParams(dp(32), dp(32)) } // ícone do tipo: 32dp, #607D8B
-        val jumps = listOfNotNull(s.goto.takeIf { it > 0 }?.let { it to 0xFF2121FF.toInt() }, s.fail.takeIf { it > 0 }?.let { it to 0xFFF44336.toInt() })
-        val delayText = if (s.rnd > 0) "${secs(s.rndMin)}–${secs(s.rnd)}" else secs(s.delay)
+            ImageView(this).apply { setImageBitmap(bmp); scaleType = ImageView.ScaleType.FIT_CENTER; layoutParams = LinearLayout.LayoutParams(dp(32), dp(32)).also { it.setMargins(0, dp(6), 0, dp(6)) } }
+        } ?: resIcon(if (s.type == Type.GROUP && s.mono) R.drawable.bp_ic_loop_image else typeRes.getValue(s.type), 32, 0xFF607D8B.toInt()).apply { (layoutParams as LinearLayout.LayoutParams).setMargins(0, dp(6), 0, dp(6)) }
+        // Setas de salto só quando existe condição (busca) ou o item é um "Ir para": azul = sucesso, vermelha = falha.
+        val jumps = if (s.type == Type.GOTO) listOfNotNull(s.goto.takeIf { it > 0 }?.let { it to 0xFF2121FF.toInt() })
+            else if (search) listOfNotNull(s.goto.takeIf { it > 0 }?.let { it to 0xFF2121FF.toInt() }, s.fail.takeIf { it > 0 }?.let { it to 0xFFF44336.toInt() }) else emptyList()
+        val delayText = if (s.rnd > 0) "${secs(s.rndMin)}~${secs(s.rnd)}" else secs(s.delay)
+        val infoText = info(s)
         return LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6) + if (inGroup(i)) dp(24) else 0, dp(2), dp(12), dp(2))
-            alpha = if (s.off) 0.4f else if (s.skip) 0.7f else 1f
+            setBackgroundColor(Color.WHITE)
+            setPadding(dp(6) + if (inGroup(i)) dp(24) else 0, dp(2), dp(6), dp(2))
             addView(CheckBox(this@EditorActivity).apply {
-                isChecked = i in selected; buttonTintList = ColorStateList.valueOf(B.TEXT2)
+                isChecked = i in selected; buttonTintList = ColorStateList.valueOf(0xFFD81B60.toInt())
                 setOnCheckedChangeListener { _, on -> if (on) selected.add(i) else selected.remove(i) }
+                layoutParams = LinearLayout.LayoutParams(dp(42), WRAP_CONTENT)
             })
             addView(thumb)
             addView(LinearLayout(this@EditorActivity).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(14), 0, dp(8), 0)
-                layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-                addView(label("${i + 1}. ${s.name.ifBlank { if (s.type == Type.TAP && s.ms >= 500) "Press" else titles.getValue(s.type) }}" + if (s.skip) " (pular)" else "", 18f, 0xFF607D8B.toInt()))
+                layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).also { it.setMargins(dp(16), dp(4), dp(16), dp(4)) }
+                addView(label("${i + 1}. ${s.name.ifBlank { if (s.type == Type.TAP && s.ms >= 500) "Press" else titles.getValue(s.type) }}", 18f, 0xFF607D8B.toInt()).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
                 addView(LinearLayout(this@EditorActivity).apply {
-                    setPadding(0, dp(4), 0, 0)
-                    // Como no base: cada valor só aparece quando está ligado (busca de imagem; atraso > 0).
-                    if (vision || s.useImg) addView(chip(Ic.IMAGE_SEARCH, secs(if (s.useImg) s.sms else s.ms)))
-                    else addView(chip(icons.getValue(s.type), secs(s.ms)))
-                    if (s.delay > 0 || s.rnd > 0) addView(chip(Ic.WAIT, delayText))
-                    // Tipos sem busca/gesto mostram a informação do item ao lado (tv_string_info do base): tecla, alerta, arquivo, contador...
-                    if (s.type in setOf(Type.KEY, Type.STATUS, Type.CALL, Type.COUNTER, Type.RESET, Type.GOTO, Type.TEXT, Type.NODE, Type.NUMBER)) addView(label(detail(s), 14f, 0xDE000000.toInt()).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+                    gravity = Gravity.CENTER_VERTICAL
+                    // Cada valor só aparece quando está ligado: busca (tempo ou Infinito), atraso, ação pulada e a informação do tipo.
+                    if (search) addView(chip(R.drawable.bp_outline_image_search_24, limit(if (s.type in Step.GESTURES) s.sms else s.ms)))
+                    if (s.delay > 0 || s.rnd > 0) addView(chip(R.drawable.bp_ic_timer, delayText))
+                    if (gestureLike && s.skip) addView(resIcon(R.drawable.bp_ic_do_not_touch_24px, 14, 0xFF000000.toInt()))
+                    if (infoText.isNotEmpty()) addView(label(infoText, 14f, 0xDE000000.toInt()).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
                 })
             })
+            if (s.off) addView(resIcon(R.drawable.bp_remove_circle, 24, 0xFFD81B60.toInt()).apply { (layoutParams as LinearLayout.LayoutParams).setMargins(dp(3), 0, dp(3), 0) })
             jumps.forEach { (to, color) ->
                 addView(LinearLayout(this@EditorActivity).apply {
                     orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
-                    setPadding(dp(4), 0, 0, 0)
-                    addView(glyph(Ic.JUMP, color, 22))
-                    addView(label(to.toString(), 17f, color, bold = true))
+                    layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.setMargins(dp(3), 0, dp(3), 0) }
+                    addView(resIcon(R.drawable.bp_arrow_right, 16, color))
+                    addView(label(to.toString(), 16f, color, bold = true))
                 })
             }
         }
