@@ -222,6 +222,7 @@ class EditorActivity : Activity() {
     override fun onActivityResult(req: Int, res: Int, data: android.content.Intent?) {
         super.onActivityResult(req, res, data)
         if (req == REQ_ADD && res == RESULT_OK) { data?.getStringExtra("type")?.let { addOfType(Type.valueOf(it)) }; return }
+        if (req == 79) { if (res == RESULT_OK && data != null) data.getIntArrayExtra("v")?.let { applyBatchResult(data.getIntExtra("opt", 0), it) }; return }
         if (req != REQ_ITEM || res != RESULT_OK || data == null) return
         val st = runCatching { Step.fromJson(org.json.JSONObject(data.getStringExtra("step") ?: return)) }.getOrNull() ?: return
         val i = data.getIntExtra("index", -1)
@@ -345,44 +346,34 @@ class EditorActivity : Activity() {
     /** "Editar Itens Selecionados" do base: escolha do que editar (rádio) e o valor, aplicado só aos itens a que se aplica. */
     private fun batchEdit() {
         val idx = needSelection() ?: return
-        val opts = arrayOf("Tempo de atraso", "Pesquisa de imagem", "Pesquisa de imagem/Taxa de correspondência", "Pesquisa de imagem/Velocidade de pesquisa",
-            "Pesquisa de imagem/Duração da pesquisa", "Pesquisa de imagem/Mover", "Ação")
-        var pick = 0
-        AlertDialog.Builder(this).setTitle("Selecione o que editar.").setSingleChoiceItems(opts, 0) { _, w -> pick = w }
-            .setPositiveButton("Alterar tudo") { _, _ ->
-                fun img(f: (Step) -> Step): (Step) -> Step = { if (it.type in Step.GESTURES) f(it) else it }
-                when (pick) {
-                    0 -> askNumber("Tempo de Atraso (ms)") { v -> applyBatch(idx) { it.copy(delay = v, rnd = 0, rndMin = 0) } }
-                    1 -> askChoice("Pesquisa de imagem", arrayOf("Ligada", "Desligada")) { c -> applyBatch(idx, img { it.copy(useImg = c == 0 && it.img.isNotEmpty()) }) }
-                    2 -> askNumber("Taxa de correspondência (20 a 100)", 95) { v -> applyBatch(idx, img { it.copy(thr = v) }) }
-                    3 -> askNumber("Velocidade de pesquisa (ms)", 1000) { v -> applyBatch(idx, img { it.copy(cycle = v) }) }
-                    4 -> askNumber("Duração da pesquisa (ms, 0 = infinito)", 5000) { v -> applyBatch(idx, img { it.copy(sms = v) }) }
-                    5 -> askNumber("Mover em caso de sucesso (passo, 0 = próximo)", 0) { v -> applyBatch(idx, img { it.copy(goto = v) }) }
-                    else -> askChoice("Ação", arrayOf("Pular a ação", "Executar a ação")) { c -> applyBatch(idx, img { it.copy(skip = c == 0) }) }
-                }
-            }.setNegativeButton("Cancelar", null).show()
+        batchIdx = idx
+        startActivityForResult(Intent(this, EditSelectedActivity::class.java).putExtra("total", steps.size), 79)
     }
+    private var batchIdx: List<Int> = emptyList()
 
-    private fun askChoice(title: String, items: Array<String>, then: (Int) -> Unit) {
-        var pick = 0
-        AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(items, 0) { _, w -> pick = w }
-            .setPositiveButton("Alterar tudo") { _, _ -> then(pick) }.setNegativeButton("Cancelar", null).show()
-    }
-
-    /** Aplica [f] aos marcados; se algum ficar inválido, nada muda e o motivo aparece. */
-    private fun applyBatch(idx: List<Int>, f: (Step) -> Step) {
-        val next = steps.mapIndexed { i, s -> if (i in idx) f(s) else s }
-        next.forEachIndexed { i, s -> s.validate(next.size)?.let { return toast("Item ${i + 1}: $it") } }
+    /** Aplica o resultado da tela "Editar Itens Selecionados" aos marcados que a opção atinge (sem validar em lote, como no base). */
+    private fun applyBatchResult(opt: Int, v: IntArray) {
+        fun img(f: (Step) -> Step): (Step) -> Step = { if (it.type in Step.GESTURES) f(it) else it }
+        val gest: (Step) -> Boolean = { it.type in Step.GESTURES }
+        val change: (Step) -> Step = when (opt) {
+            0 -> { st -> if (st.type in Step.GESTURES) st.copy(delay = if (v[0] == 1) v[1] else 0) else st }
+            1 -> img { it.copy(useImg = v[0] == 1 && it.img.isNotEmpty()) }
+            2 -> img { st -> when (v[0]) {
+                0 -> st.copy(fx = true, ax1 = 0, ay1 = 0, ax2 = 0, ay2 = 0)
+                1, 2 -> st.copy(fx = false, ax1 = 0, ay1 = 0, ax2 = 0, ay2 = 0, mono = v[0] == 2)
+                else -> st.copy(fx = false, mono = v[0] == 4, ax1 = v[1], ay1 = v[2], ax2 = v[3], ay2 = v[4])
+            } }
+            3 -> img { it.copy(thr = v[0]) }
+            4 -> img { it.copy(cycle = v[0]) }
+            5 -> img { it.copy(sms = v[0]) }
+            6 -> img { it.copy(fail = v[0], goto = v[1]) }
+            else -> img { it.copy(skip = v[0] == 1) }
+        }
+        val idx = batchIdx.filter { it in steps.indices }
+        val next = steps.mapIndexed { i, st -> if (i in idx) change(st) else st }
         val changed = idx.count { next[it] != steps[it] }
         steps = next; refresh()
-        toast(if (changed == 0) "Nenhum item se aplica a esta opção." else "$changed ${if (changed == 1) "item alterado" else "itens alterados"}.")
-    }
-
-    private fun askNumber(title: String, initial: Int = 1000, then: (Int) -> Unit) {
-        val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER; setText(initial.toString()); setPadding(dp(24), dp(16), dp(24), dp(8)) }
-        AlertDialog.Builder(this).setTitle(title).setView(et)
-            .setPositiveButton("Alterar tudo") { _, _ -> et.text.toString().toIntOrNull()?.let(then) ?: toast("Número inválido") }
-            .setNegativeButton("Cancelar", null).show()
+        toast(if (changed == 0) "Nenhum item selecionado." else "$changed itens alterados.")
     }
 
     /** Descarta as mudanças e relê a macro salva. */
