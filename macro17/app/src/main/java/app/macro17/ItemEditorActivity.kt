@@ -229,7 +229,7 @@ class ItemEditorActivity : Activity() {
             }
             Type.NUMBER -> {
                 p.valueRow("Área do número", "${s.x1},${s.y1},${s.x2},${s.y2}") {
-                    fieldsDialog("Área do número", null, listOf("X inicial", "Y inicial", "X final", "Y final"), listOf(s.x1, s.y1, s.x2, s.y2), signed = false) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]); render() }
+                    pick(PositionPickerActivity.AREA, intArrayOf(s.x1, s.y1, s.x2, s.y2)) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]) }
                 }
                 val ops = arrayOf("Maior ou igual (≥)", "Menor ou igual (≤)", "Igual (=)", "Entre")
                 p.valueRow("Condição", ops[s.cmp.coerceIn(0, 3)]) {
