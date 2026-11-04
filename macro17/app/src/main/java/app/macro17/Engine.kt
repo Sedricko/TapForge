@@ -32,6 +32,16 @@ class Engine(
 ) {
     @Volatile private var thread: Thread? = null
     val running get() = thread?.isAlive == true
+    /** "Testar item" da lista flutuante: compara a imagem do item com a tela agora e devolve a semelhança (chamar fora da thread principal). */
+    fun probeItem(s: Step): String {
+        val id = if (s.type == Type.IMAGE) s.text else s.img
+        val needle = ports.template(id) ?: return "Este item não tem imagem"
+        val fr = ports.screen() ?: return "Captura falhou"
+        val pr = TemplateMatcher.Probe()
+        TemplateMatcher.findNcc(fr, needle, 0f, pr)
+        return "Semelhança: ${(pr.best * 100).toInt()}% (exigido ${s.thr}%)"
+    }
+
     /** Alerta de status: se definido, mostra a mensagem por [ms] em janela própria (como a mensagem instantânea do base) em vez de um toast. */
     @Volatile var onStatus: ((String, Int) -> Unit)? = null
     /** Pausa entre os passos (o Runner dorme ao menos 1 ms por passo); parar a macro também solta a pausa. */

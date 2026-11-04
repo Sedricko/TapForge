@@ -21,6 +21,9 @@ class Store(ctx: Context) {
         get() = runCatching { org.json.JSONObject(prefs.getString("autoOpen", "{}")!!).let { j -> j.keys().asSequence().associateWith { j.getString(it) } } }.getOrDefault(emptyMap())
         set(v) = prefs.edit().putString("autoOpen", org.json.JSONObject(v).toString()).apply()
 
+    /** Posição vertical da lista flutuante (o título arrasta; o base guarda x,y). */
+    var listY: Int get() = prefs.getInt("listY", 0); set(v) = prefs.edit().putInt("listY", v).apply()
+
     var selected: String?
         get() = prefs.getString("selected", null)
         set(v) = prefs.edit().putString("selected", v).apply()

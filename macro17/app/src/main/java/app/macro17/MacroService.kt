@@ -383,19 +383,55 @@ class MacroService : AccessibilityService() {
         if (listWin != null) { hideList(); fillRow1(); return }
         val m = store.selected?.let { store.get(it) } ?: return toast("Por favor, selecione um arquivo.")
         val col = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL }
-        m.steps.forEachIndexed { i, s ->
-            val nm = "${i + 1}. ${s.name.ifBlank { s.type.name.lowercase().replaceFirstChar { it.uppercase() } }}"
+        val collapsed = HashSet<Int>() // cabeçalhos de grupo recolhidos
+        fun applyCollapse() {
+            for (k in m.steps.indices) {
+                val hidden = m.steps.indices.any { g -> g in collapsed && m.steps[g].type == Type.GROUP && k > g && k <= g + m.steps[g].grp }
+                col.getChildAt(k * 2)?.visibility = if (hidden) View.GONE else View.VISIBLE
+                col.getChildAt(k * 2 + 1)?.visibility = if (hidden) View.GONE else View.VISIBLE
+            }
+        }
+        fun chip(res: Int, t: String) = android.widget.LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            addView(ImageView(this@MacroService).apply { setImageResource(res); setColorFilter(0xFF9E9E9E.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(14), dp(14)))
+            addView(label(t, 14f, 0xFF9E9E9E.toInt()).apply { setPadding(dp(2), 0, dp(6), 0) })
+        }
+        m.steps.forEachIndexed { i, st ->
+            val nm = "${i + 1}. ${st.name.ifBlank { st.type.name.lowercase().replaceFirstChar { it.uppercase() } }}"
+            val search = st.type in Step.SEARCHES || st.useImg
             col.addView(android.widget.LinearLayout(this).apply {
-                orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(8), dp(6), dp(6), dp(6))
-                addView(label(nm, 16f, B.TEXT).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
-                addView(label("%.1fs".format(s.delay / 1000f), 14f, 0xFF9E9E9E.toInt()))
+                orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(8) + if (m.steps.indices.any { g -> m.steps[g].type == Type.GROUP && i > g && i <= g + m.steps[g].grp }) dp(12) else 0, dp(6), dp(6), dp(6))
+                addView(android.widget.LinearLayout(this@MacroService).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(label(nm, 16f, B.TEXT).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
+                    // contadores do base: destino de sucesso (azul) e de falha (vermelho)
+                    if (search && st.goto > 0) addView(label("${st.goto}", 16f, 0xFF2121FF.toInt(), bold = true).apply { setPadding(dp(4), 0, 0, 0) })
+                    if (search && st.fail > 0) addView(label("${st.fail}", 16f, 0xFFF44336.toInt(), bold = true).apply { setPadding(dp(4), 0, 0, 0) })
+                })
+                addView(android.widget.LinearLayout(this@MacroService).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    if (st.type == Type.GROUP) addView(chip(R.drawable.bp_repeat, if (st.rep == 0) "Infinito" else "${st.rep}"))
+                    if (search && st.ms > 0) addView(chip(R.drawable.bp_outline_image_search_24, "${st.ms / 1000f}s"))
+                    if (st.delay > 0) addView(chip(R.drawable.bp_ic_timer, "${st.delay / 1000f}s"))
+                    if (st.skip) addView(chip(R.drawable.bp_ic_do_not_touch_24px, ""))
+                })
+                // Toque curto: abre o editor desse item (grupo: recolhe/expande). Toque longo: testa o item (grupo: abre o editor).
+                setOnClickListener {
+                    if (st.type == Type.GROUP) { if (i in collapsed) collapsed.remove(i) else collapsed.add(i); applyCollapse() }
+                    else openItemFromList(m.id, i)
+                }
+                setOnLongClickListener {
+                    if (st.type == Type.GROUP) openItemFromList(m.id, i)
+                    else Thread { instant(engine.probeItem(st), 3000) }.start()
+                    true
+                }
             })
             col.addView(View(this).apply { setBackgroundColor(0x1F000000) }, android.widget.LinearLayout.LayoutParams(-1, 1))
         }
         // Como no base: título de 36dp verde com o nome da macro (arrasta a lista na vertical) e corpo branco de 170x240dp na borda direita.
         val lp = WindowManager.LayoutParams(-2, -2, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT)
-            .apply { gravity = Gravity.TOP or Gravity.START; x = resources.displayMetrics.widthPixels - dp(171); y = 0 }
+            .apply { gravity = Gravity.TOP or Gravity.START; x = resources.displayMetrics.widthPixels - dp(171); y = store.listY.coerceIn(0, resources.displayMetrics.heightPixels - dp(100)) }
         val title = android.widget.LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(0xFF008577.toInt())
             addView(ImageView(this@MacroService).apply { setImageResource(R.drawable.bp_ic_move_resize_variant); setColorFilter(0xFFFAFAFA.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(24), dp(24)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) })
@@ -404,6 +440,7 @@ class MacroService : AccessibilityService() {
             setOnTouchListener { _, e ->
                 when (e.actionMasked) {
                     MotionEvent.ACTION_DOWN -> { oy = e.rawY; sy = lp.y }
+                    MotionEvent.ACTION_UP -> store.listY = lp.y
                     MotionEvent.ACTION_MOVE -> { lp.y = (sy + (e.rawY - oy).toInt()).coerceIn(0, resources.displayMetrics.heightPixels - dp(100)); listWin?.let { v -> runCatching { wm.updateViewLayout(v, lp) } } }
                 }
                 true
@@ -419,11 +456,16 @@ class MacroService : AccessibilityService() {
         fillRow1()
     }
 
+    /** Toque na linha da lista flutuante: abre o editor da macro já no item escolhido. */
+    private fun openItemFromList(macroId: String, index: Int) {
+        startActivity(Intent(this, EditorActivity::class.java).putExtra("id", macroId).putExtra("open", index).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
     private fun hideList() { listWin?.let { runCatching { wm.removeView(it) } }; listWin = null; listCol = null; listSv = null }
 
     private fun highlightStep(i: Int) {
         val col = listCol ?: return
-        for (k in 0 until col.childCount / 2) ((col.getChildAt(k * 2) as? android.widget.LinearLayout)?.getChildAt(0) as? android.widget.TextView)?.apply {
+        for (k in 0 until col.childCount / 2) (((col.getChildAt(k * 2) as? android.widget.LinearLayout)?.getChildAt(0) as? android.widget.LinearLayout)?.getChildAt(0) as? android.widget.TextView)?.apply {
             setTextColor(if (k == i) 0xFFD81B60.toInt() else B.TEXT); typeface = if (k == i) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         }
         col.getChildAt(i * 2)?.let { v -> listSv?.post { listSv?.smoothScrollTo(0, (v.top - dp(60)).coerceAtLeast(0)) } }

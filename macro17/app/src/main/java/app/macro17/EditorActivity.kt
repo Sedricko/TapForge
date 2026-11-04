@@ -110,6 +110,8 @@ class EditorActivity : Activity() {
         id = existing?.id ?: UUID.randomUUID().toString()
         existingId = id
         steps = existing?.steps.orEmpty()
+        // Vindo da lista flutuante (toque na linha): abre direto o item escolhido.
+        intent.getIntExtra("open", -1).takeIf { it >= 0 }?.let { k -> window.decorView.post { steps.getOrNull(k)?.let { openItem(it.type, it, k) } } }
 
         // Como no editor do app base: barra verde, barra de ícones, nome com repetições, lista com seleção e botão + flutuante.
         name = EditText(this).apply {
