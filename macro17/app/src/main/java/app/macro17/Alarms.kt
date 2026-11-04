@@ -22,7 +22,9 @@ class AlarmReceiver : BroadcastReceiver() {
         val a = Store(c).alarms().firstOrNull { it.id == id && it.enabled } ?: return // alarme apagado ou desligado: nada a iniciar nem a parar
         if (stop) { MacroService.instance?.stopMacro(); return }
         Alarms.rearm(c) // próxima ocorrência (amanhã)
-        Alarms.arm(c, a.id, true, System.currentTimeMillis() + a.uptime * 60_000L)
+        // Como no base: só agenda a parada se nenhum outro agendamento ativo começa no minuto do fim (a parada mataria o outro).
+        val endMin = (a.start + a.uptime) % 1440
+        if (Store(c).alarms().none { it.enabled && it.id != a.id && it.start == endMin }) Alarms.arm(c, a.id, true, System.currentTimeMillis() + a.uptime * 60_000L)
         runCatching { c.startActivity(Intent(c, FullScreenActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } // acende a tela
         val svc = MacroService.instance
         if (svc == null) android.widget.Toast.makeText(c, "Macro agendada não rodou: serviço de acessibilidade desligado", android.widget.Toast.LENGTH_LONG).show()
@@ -72,7 +74,7 @@ object Alarms {
     fun rearm(c: Context): Boolean {
         val am = c.getSystemService(AlarmManager::class.java)
         val all = Store(c).alarms()
-        all.filter { !it.enabled }.forEach { am.cancel(pi(c, it.id, false)); am.cancel(pi(c, it.id, true)) }
+        all.filter { !it.enabled || conflict(it, all) }.forEach { am.cancel(pi(c, it.id, false)); am.cancel(pi(c, it.id, true)) }
         val on = all.filter { it.enabled && !conflict(it, all) }
         on.forEach { arm(c, it.id, false, nextStart(it.start)) }
         return on.isEmpty() || canExact(c)

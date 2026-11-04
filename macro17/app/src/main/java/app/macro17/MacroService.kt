@@ -108,7 +108,7 @@ class MacroService : AccessibilityService() {
             val pkg = e.packageName?.toString()
             if (pkg != null && pkg != packageName && !pkg.contains("systemui") && !pkg.contains("inputmethod") && !pkg.contains("honeyboard") && pkg != lastPkg) {
                 lastPkg = pkg
-                if (!engine.running && !recording) store.autoOpen[pkg]?.let { id -> Diag.d("início automático", "$pkg -> $id"); runMacro(id) }
+                store.autoOpen[pkg]?.let { id -> ui.postDelayed({ if (lastPkg == pkg && !engine.running && !recording) { Diag.d("início automático", "$pkg -> $id"); runMacro(id) } }, 1000) } // debounce de 1 s, como no base
             }
         }
     }

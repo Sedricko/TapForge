@@ -129,7 +129,7 @@ object TmcImport {
                 }
                 14 -> {
                     val o = f(c, 31).toIntOrNull() ?: 1
-                    common.copy(type = Type.STATUS, text = f(c, 45).ifBlank { "Alerta de status" }.take(200), ms = (f(c, 10).toIntOrNull() ?: 5000).coerceIn(1, MAX_MS), snd = o and 1 != 0, vib = o and 2 != 0)
+                    common.copy(type = Type.STATUS, text = f(c, 45).ifBlank { "Alerta de status" }.take(200), ms = (f(c, 10).toIntOrNull() ?: 5000).coerceIn(1, MAX_MS), snd = o and 1 != 0, vib = o and 2 != 0, pop = o and 4 != 0, snu = f(c, 43).substringAfter('|', "").take(500))
                 }
                 15 -> {
                     val code = when (f(c, 32).toIntOrNull() ?: 4) { 4 -> 1; 3 -> 2; 187 -> 3; 120 -> KEY_SCREENSHOT; else -> 1 }

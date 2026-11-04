@@ -34,6 +34,7 @@ class Engine(
     val running get() = thread?.isAlive == true
     /** "Testar item" da lista flutuante: compara a imagem do item com a tela agora e devolve a semelhança (chamar fora da thread principal). */
     fun probeItem(s: Step): String {
+        if (running) return "Pare a macro para testar o item" // a thread da macro usa a captura e os modelos ao mesmo tempo
         val id = if (s.type == Type.IMAGE) s.text else s.img
         val needle = ports.template(id) ?: return "Este item não tem imagem"
         val fr = ports.screen() ?: return "Captura falhou"

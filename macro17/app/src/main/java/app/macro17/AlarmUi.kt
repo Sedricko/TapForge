@@ -157,6 +157,7 @@ class AlarmEditActivity : Activity() {
                 if (u == null || u < 1 || u > 1440) return@setOnClickListener Toast.makeText(context, "Tempo de atividade: 1 a 1440 minutos", Toast.LENGTH_SHORT).show()
                 val a = (old ?: Alarm(macroId = m, start = start, uptime = u)).copy(macroId = m, start = start, uptime = u)
                 val rest = store.alarms().filter { it.id != a.id }
+                if (a.enabled && Alarms.conflict(a, rest)) return@setOnClickListener Toast.makeText(context, "Este cronograma se sobrepõe a outro. Ajuste o horário.", Toast.LENGTH_LONG).show()
                 store.saveAlarms(rest + a)
                 if (!Alarms.rearm(context)) Toast.makeText(context, "Permita “Alarmes e lembretes” para o horário exato", Toast.LENGTH_LONG).show()
                 finish()

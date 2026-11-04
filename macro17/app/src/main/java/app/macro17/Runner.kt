@@ -219,6 +219,9 @@ class Runner(private val p: Ports) {
                     }
                 }
             }
+            // Anterior/Próximo pedidos durante a fase de ação (espera, alerta, busca): valem agora, para o vizinho deste passo.
+            val dj2 = p.takeJump()
+            if (dj2 != 0) { advance(stack, f, (f.pc + dj2).coerceIn(0, f.macro.steps.size - 1), natural = false); continue }
             if (jump > 0) p.log("Passo ${f.pc + 1} → Passo $jump")
             advance(stack, f, if (jump > 0) jump - 1 else f.pc + 1, natural = jump <= 0)
         }
@@ -347,8 +350,9 @@ class Runner(private val p: Ports) {
         val dy = if (s.jitter > 0) p.nextInt(2 * s.jitter + 1) - s.jitter else 0
         val x1 = (s.x1 + shiftX + dx).coerceIn(0, w - 1)
         val y1 = (s.y1 + shiftY + dy).coerceIn(0, h - 1)
-        val x2 = (s.x2 + shiftX + dx).coerceIn(0, w - 1)
-        val y2 = (s.y2 + shiftY + dy).coerceIn(0, h - 1)
+        // Deslizar relativo à imagem: só o ponto inicial acompanha o achado; o final fica absoluto (como no base). Pinça segue o achado inteira.
+        val x2 = (s.x2 + (if (s.type == Type.SWIPE) 0 else shiftX) + dx).coerceIn(0, w - 1) // o jitter vale nos dois pontos
+        val y2 = (s.y2 + (if (s.type == Type.SWIPE) 0 else shiftY) + dy).coerceIn(0, h - 1)
         val mx = (x1 + x2) / 2
         val my = (y1 + y2) / 2
         return when (s.type) {

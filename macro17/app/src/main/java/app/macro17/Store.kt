@@ -10,6 +10,7 @@ import java.io.IOException
 import java.io.InputStream
 
 class Store(ctx: Context) {
+    private val appCtx: Context = ctx.applicationContext ?: ctx
     private val dir = File(ctx.filesDir, "macros").apply { mkdirs() }
     private val tdir = File(ctx.filesDir, "templates").apply { mkdirs() }
     private val sdir = File(ctx.filesDir, "samples").apply { mkdirs() }
@@ -219,7 +220,10 @@ class Store(ctx: Context) {
     fun delete(id: String) {
         Diag.d("dados", "macro excluída id=$id")
         file(id)?.delete()
+        alarms().filter { it.macroId == id }.forEach { Alarms.cancel(appCtx, it.id) }
         saveAlarms(alarms().filter { it.macroId != id })
+        autoOpen = autoOpen.filterValues { it != id }
+        File(hdir, id).deleteRecursively()
         if (selected == id) selected = null
     }
 

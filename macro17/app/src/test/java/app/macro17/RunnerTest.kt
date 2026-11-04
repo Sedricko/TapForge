@@ -726,10 +726,10 @@ class RunnerTest {
         assertEquals(1, gestures(f).size)
     }
 
-    @Test fun swipeMovesBothEndsWithTheImage() {
+    @Test fun swipeMovesOnlyTheStartWithTheImage() {
         val s = Step(Type.SWIPE, 65, 70, 300, 400, ms = 10, img = "t", useImg = true, sms = 1000, cycle = 100, thr = 95)
         val f = fakeWith(screenWith(90, 70))                      // deslocamento (+40,+10)
         run(macro(s), f)
-        assertEquals(listOf("g:105,80>340,410@10"), gestures(f))
+        assertEquals(listOf("g:105,80>300,400@10"), gestures(f)) // só o início acompanha o achado
     }
 }
