@@ -27,6 +27,34 @@ class ShellControlTest {
         assertEquals(setOf("input touchscreen swipe 1 2 3 4 300", "input touchscreen swipe 5 6 7 8 300"), r.cmds.toSet())
     }
 
+    @Test fun touchDeviceIsFoundInGeteventOutput() {
+        val out = """add device 1: /dev/input/event0
+  name:     "gpio-keys"
+  events:
+    KEY (0001): 0074
+add device 2: /dev/input/event3
+  name:     "sec_touchscreen"
+  events:
+    KEY (0001): 014a
+    ABS (0003): 002f  : value 0, min 0, max 9, fuzz 0, flat 0, resolution 0
+                0035  : value 0, min 0, max 4095, fuzz 0, flat 0, resolution 0
+                0036  : value 0, min 0, max 8191, fuzz 0, flat 0, resolution 0
+                0039  : value 0, min 0, max 65535, fuzz 0, flat 0, resolution 0
+"""
+        val d = TouchEvents.parse(out)!!
+        assertEquals("/dev/input/event3", d.path); assertEquals(4095, d.maxX); assertEquals(8191, d.maxY)
+        assertEquals(null, TouchEvents.parse("add device 1: /dev/input/event0\n  name: \"gpio-keys\"\n  events:\n    KEY (0001): 0074"))
+    }
+
+    @Test fun twoFingerScriptWritesBothSlotsAndScalesToTheDevice() {
+        val d = TouchEvents.Dev("/dev/input/event3", 4095, 8191)
+        val sc = TouchEvents.script(d, listOf(listOf(540 to 1000, 540 to 1000), listOf(100 to 100, 200 to 200)), 100, 1080, 2400, true)
+        assertTrue(sc.startsWith("printf '"))
+        assertEquals(6, Regex("printf '").findAll(sc).count())             // 100 ms / 25 = 4 passos = 5 quadros + o de soltar os dedos
+        assertTrue(sc.contains("> /dev/input/event3"))
+        assertTrue(sc.contains("\\001\\010\\000\\000"))               // X=540 de 1080 -> 2049 (0x0801) em little-endian
+    }
+
     @Test fun adbPacketHeaderRoundTrips() {
         val raw = AdbProtocol.encode(AdbProtocol.OPEN, 1, 0, "shell:ls\u0000".toByteArray())
         val m = AdbProtocol.read(raw.inputStream())

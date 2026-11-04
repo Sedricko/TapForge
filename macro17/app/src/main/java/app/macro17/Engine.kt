@@ -90,6 +90,7 @@ class Engine(
     private val store by lazy { Store(svc) }
 
     private val ports = object : Ports {
+        private val is64 = android.os.Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()
         private val bounds get() = svc.getSystemService(WindowManager::class.java).maximumWindowMetrics.bounds
         override val width get() = bounds.width()
         override val height get() = bounds.height()
@@ -109,7 +110,7 @@ class Engine(
         private fun sh(): Shell? = if (store.controlMode == MODE_ACCESS) null else store.shell()
 
         override fun gesture(strokes: List<Stroke>, ms: Int) {
-            sh()?.let { s -> (svc as? MacroService)?.showTouches(strokes.map { it.x1 to it.y1 }, ms); Diag.d("gesto", "shell ${strokes.size} dedo(s) @${ms}ms"); ShellInput.gesture(s, strokes, ms); return }
+            sh()?.let { s -> (svc as? MacroService)?.showTouches(strokes.map { it.x1 to it.y1 }, ms); Diag.d("gesto", "shell ${strokes.size} dedo(s) @${ms}ms"); if (!ShellInput.touch(s, strokes.map { st -> if (st.x1 == st.x2 && st.y1 == st.y2) listOf(st.x1 to st.y1) else listOf(st.x1 to st.y1, st.x2 to st.y2) }, ms, width, height, is64)) ShellInput.gesture(s, strokes, ms); return }
             val b = GestureDescription.Builder()
             for (s in strokes) {
                 val path = Path().apply {
@@ -122,7 +123,7 @@ class Engine(
         }
 
         override fun path(points: List<Pair<Int, Int>>, ms: Int) {
-            sh()?.let { s -> ShellInput.path(s, points, ms); return }
+            sh()?.let { s -> if (!ShellInput.touch(s, listOf(points), ms, width, height, is64)) ShellInput.path(s, points, ms); return }
             val path = Path().apply { moveTo(points[0].first.toFloat(), points[0].second.toFloat()); for (k in 1 until points.size) lineTo(points[k].first.toFloat(), points[k].second.toFloat()) }
             dispatch(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, ms.toLong())).build(), listOf(points[0]), ms, "gesto livre ${points.size} pontos")
         }
