@@ -539,7 +539,11 @@ class MacroService : AccessibilityService() {
         })
     }
 
+    /** Guarda a última captura para servir de fundo aos seletores de posição/área/desvio. */
+    private fun rememberShot(b: Bitmap) { runCatching { java.io.File(cacheDir, "last_shot.jpg").outputStream().use { b.compress(Bitmap.CompressFormat.JPEG, 70, it) } } }
+
     private fun pick(macroId: String, shot: Bitmap) {
+        rememberShot(shot)
         val picker = RegionPicker(this, shot)
         val root = FrameLayout(this)
         fun close() {
@@ -702,6 +706,7 @@ class MacroService : AccessibilityService() {
 
     private fun commitItem(pressedAt: Long, bmp: Bitmap?) {
         if (!recording) return // Stop durante o Add: nada de gravar nem tocar depois de salvar
+        bmp?.let { rememberShot(it) }
         var restoreAfter = 0L
         try {
             val mode = recorder.mode

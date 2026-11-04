@@ -139,7 +139,7 @@ class ItemEditorActivity : Activity() {
                         }.setNegativeButton("Cancelar", null).show()
                     }
                     p.valueRow("Área Personalizada", "${s.x1},${s.y1},${s.x2},${s.y2}", !whole) {
-                        fieldsDialog("Área Personalizada", null, listOf("X inicial", "Y inicial", "X final", "Y final"), listOf(s.x1, s.y1, s.x2, s.y2), signed = false) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]); render() }
+                        pick(PositionPickerActivity.AREA, intArrayOf(s.x1, s.y1, s.x2, s.y2)) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]) }
                     }
                     p.valueRow("Confiança mínima (%)", "${s.minConf}%") { numDialog("Confiança mínima (%)", "De 0 a 100. Leituras abaixo disso são descartadas.", s.minConf) { v -> s = s.copy(minConf = v); render() } }
                 }
@@ -152,7 +152,7 @@ class ItemEditorActivity : Activity() {
                 }
                 p.switchRow("Tocar ao achar", "Toca no centro do que foi encontrado.", s.tap) { v -> s = s.copy(tap = v); render() }
                 p.valueRow("Desvio de Coordenadas", "X${"%+d".format(s.ox)}, Y${"%+d".format(s.oy)} px", s.tap) {
-                    fieldsDialog("Desvio de Coordenadas (px)", null, listOf("X (negativo = esquerda)", "Y (negativo = acima)"), listOf(s.ox, s.oy), signed = true) { v -> s = s.copy(ox = v[0], oy = v[1]); render() }
+                    pick(PositionPickerActivity.DEV, intArrayOf(s.ox, s.oy), if (s.type == Type.IMAGE) s.text else null) { v -> s = s.copy(ox = v[0], oy = v[1]) }
                 }
                 val jumps = s.ms > 0
                 p.valueRow("Mover em Caso de Falha", gotoLabel(s.fail), jumps) { gotoDialog("Mover em Caso de Falha", s.fail) { v -> s = s.copy(fail = v); render() } }
@@ -168,7 +168,7 @@ class ItemEditorActivity : Activity() {
                     }.setNegativeButton("Cancelar", null).show()
                 }
                 p.valueRow("Área Personalizada", "${s.x1},${s.y1},${s.x2},${s.y2}", !whole) {
-                    fieldsDialog("Área Personalizada", null, listOf("X inicial", "Y inicial", "X final", "Y final"), listOf(s.x1, s.y1, s.x2, s.y2), signed = false) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]); render() }
+                    pick(PositionPickerActivity.AREA, intArrayOf(s.x1, s.y1, s.x2, s.y2)) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]) }
                 }
                 p.valueRow("Taxa de correspondência de imagem (%)", "${s.thr}%") { numDialog("Taxa de correspondência de imagem (%)", "De 20 a 100.", s.thr) { v -> s = s.copy(thr = v); render() } }
                 p.switchRow("Comparar em cinza", "Ignora a cor e compara só a luminosidade.", s.mono) { v -> s = s.copy(mono = v); render() }
@@ -183,7 +183,7 @@ class ItemEditorActivity : Activity() {
                 }
                 p.switchRow("Tocar ao achar", "Toca no centro da imagem encontrada.", s.tap) { v -> s = s.copy(tap = v); render() }
                 p.valueRow("Desvio de Coordenadas", "X${"%+d".format(s.ox)}, Y${"%+d".format(s.oy)} px", s.tap) {
-                    fieldsDialog("Desvio de Coordenadas (px)", null, listOf("X (negativo = esquerda)", "Y (negativo = acima)"), listOf(s.ox, s.oy), signed = true) { v -> s = s.copy(ox = v[0], oy = v[1]); render() }
+                    pick(PositionPickerActivity.DEV, intArrayOf(s.ox, s.oy), if (s.type == Type.IMAGE) s.text else null) { v -> s = s.copy(ox = v[0], oy = v[1]) }
                 }
                 val jumps = s.ms > 0
                 p.valueRow("Mover em Caso de Falha", gotoLabel(s.fail), jumps) { gotoDialog("Mover em Caso de Falha", s.fail) { v -> s = s.copy(fail = v); render() } }
@@ -213,7 +213,7 @@ class ItemEditorActivity : Activity() {
                     }.setNegativeButton("Cancelar", null).show()
                 }
                 p.valueRow("Área Personalizada", "${s.x1},${s.y1},${s.x2},${s.y2}", !whole) {
-                    fieldsDialog("Área Personalizada", null, listOf("X inicial", "Y inicial", "X final", "Y final"), listOf(s.x1, s.y1, s.x2, s.y2), signed = false) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]); render() }
+                    pick(PositionPickerActivity.AREA, intArrayOf(s.x1, s.y1, s.x2, s.y2)) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]) }
                 }
                 p.valueRow("Semelhança para considerar igual (%)", "${s.thr}%") { numDialog("Semelhança (%)", "Abaixo disso a imagem é considerada mudada. De 1 a 100.", s.thr) { v -> s = s.copy(thr = v); render() } }
                 p.valueRow("Velocidade de Pesquisa", speeds.firstOrNull { it.second == s.cycle }?.first ?: "${s.cycle} ms") {
@@ -310,9 +310,7 @@ class ItemEditorActivity : Activity() {
                 }.setNegativeButton("Cancelar", null).show()
         }
         p.valueRow("Área Personalizada", "${s.ax1},${s.ay1},${s.ax2},${s.ay2}", on && !whole && !s.fx) {
-            fieldsDialog("Área Personalizada", null, listOf("X inicial", "Y inicial", "X final", "Y final"), listOf(s.ax1, s.ay1, s.ax2, s.ay2), signed = false) { v ->
-                s = s.copy(ax1 = v[0], ay1 = v[1], ax2 = v[2], ay2 = v[3]); render()
-            }
+            pick(PositionPickerActivity.AREA, intArrayOf(s.ax1, s.ay1, s.ax2, s.ay2)) { v -> s = s.copy(ax1 = v[0], ay1 = v[1], ax2 = v[2], ay2 = v[3]) }
         }
         p.valueRow("Taxa de correspondência de imagem (%)", "${s.thr}%", on) {
             numDialog("Taxa de correspondência de imagem (%)", "De 20 a 100. Quanto maior, mais parecida com a gravada a imagem precisa ser.", s.thr) { v -> s = s.copy(thr = v); render() }
@@ -339,11 +337,7 @@ class ItemEditorActivity : Activity() {
         p.switchRow("Pular", "Tocar/Deslizar/Pressionar não funcionará. Usado para fins de atraso e comparação de imagens.", s.skip) { v -> s = s.copy(skip = v); render() }
         p.switchRow("Clique Duplo", "Clica duas vezes no mesmo local.", s.dbl, enabled = !s.skip && s.type == Type.TAP) { v -> s = s.copy(dbl = v); render() }
         p.valueRow("Desvio de Coordenadas", "X${"%+d".format(s.ox)}, Y${"%+d".format(s.oy)} px", on && !s.skip) {
-            fieldsDialog(
-                "Desvio de Coordenadas (px)",
-                "Esta função permite tocar num local diferente da posição da imagem. Defina o desvio de coordenadas para onde tocar a partir da posição da imagem encontrada pela pesquisa.",
-                listOf("X (negativo = esquerda)", "Y (negativo = acima)"), listOf(s.ox, s.oy), signed = true,
-            ) { v -> s = s.copy(ox = v[0], oy = v[1]); render() }
+            pick(PositionPickerActivity.DEV, intArrayOf(s.ox, s.oy), s.img.ifBlank { null }) { v -> s = s.copy(ox = v[0], oy = v[1]) }
         }
 
         p.category("Evasão de Detecção", Ic.EYE_OFF)
@@ -406,9 +400,22 @@ class ItemEditorActivity : Activity() {
     }
 
     private fun positionDialog() {
-        if (s.type == Type.SWIPE) fieldsDialog("Posição do Toque", null, listOf("X inicial", "Y inicial", "X final", "Y final"), listOf(s.x1, s.y1, s.x2, s.y2), signed = false) { v ->
-            s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]); render()
-        } else fieldsDialog("Posição do Toque", null, listOf("X", "Y"), listOf(s.x1, s.y1), signed = false) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[0], y2 = v[1]); render() }
+        val sw = s.type == Type.SWIPE
+        pick(PositionPickerActivity.POS, intArrayOf(s.x1, s.y1, s.x2, s.y2), swipe = sw) { v ->
+            s = if (sw) s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]) else s.copy(x1 = v[0], y1 = v[1], x2 = v[0], y2 = v[1])
+        }
+    }
+
+    private var pickCb: ((IntArray) -> Unit)? = null
+    /** Abre o seletor em tela cheia do base (posição, área ou desvio) e aplica o resultado. */
+    private fun pick(mode: Int, init: IntArray, tpl: String? = null, swipe: Boolean = false, ok: (IntArray) -> Unit) {
+        pickCb = ok
+        startActivityForResult(Intent(this, PositionPickerActivity::class.java).putExtra("mode", mode).putExtra("v", init).putExtra("tpl", tpl).putExtra("swipe", swipe), 77)
+    }
+
+    override fun onActivityResult(req: Int, res: Int, data: Intent?) {
+        super.onActivityResult(req, res, data)
+        if (req == 77 && res == RESULT_OK) data?.getIntArrayExtra("v")?.let { pickCb?.invoke(it); render() }
     }
 
     /** 0 = seguir para o próximo; 1..total = ir para esse passo. */
