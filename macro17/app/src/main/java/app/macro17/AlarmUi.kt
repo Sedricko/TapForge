@@ -51,7 +51,7 @@ class AlarmListActivity : Activity() {
             setOnClickListener { startActivity(Intent(this@AlarmListActivity, AlarmEditActivity::class.java)) }
         }
         setContentView(FrameLayout(this).apply {
-            setBackgroundColor(0xFFF5F5F5.toInt())
+            setBackgroundColor(Color.WHITE)
             addView(LinearLayout(this@AlarmListActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(appBar("Agendamento", Ic.BACK, { finish() }))
@@ -84,14 +84,13 @@ class AlarmListActivity : Activity() {
         for (a in all) {
             val macro = store.get(a.macroId)
             val bad = a.enabled && Alarms.conflict(a, all)
+            // alarm_list_row do base: linha 1 = título (18sp, sem negrito) + interruptor; linha 2 = horário + lápis + lixeira à direita.
             list.addView(LinearLayout(this).apply {
-                gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(12), dp(8), dp(12))
+                orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(8), dp(12))
                 background = rounded(Color.WHITE, 12, 0xFFE0E0E0.toInt()); alpha = if (a.enabled) 1f else 0.5f
                 addView(LinearLayout(this@AlarmListActivity).apply {
-                    orientation = LinearLayout.VERTICAL
-                    addView(label(macro?.name ?: "(macro removida)", 18f, B.TEXT, bold = true))
-                    addView(label(a.label(), 16f, if (bad) B.RED else 0xDE000000.toInt()))
-                }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(label(macro?.name ?: "(macro removida)", 18f, 0xFF000000.toInt()), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
                 addView(Switch(this@AlarmListActivity).apply {
                     isChecked = a.enabled
                     setOnCheckedChangeListener { _, on ->
@@ -100,14 +99,19 @@ class AlarmListActivity : Activity() {
                         store.saveAlarms(upd); if (!Alarms.rearm(context)) permissionDialog(); render()
                     }
                 })
-                addView(glyph(Ic.EDIT, 0xFF00574B.toInt(), 40).apply { setPadding(dp(8), dp(8), dp(8), dp(8)); setOnClickListener { startActivity(Intent(context, AlarmEditActivity::class.java).putExtra("id", a.id)) } })
-                addView(glyph(Ic.TRASH, 0xFFD32F2F.toInt(), 40).apply {
-                    setPadding(dp(8), dp(8), dp(8), dp(8))
+                })
+                addView(LinearLayout(this@AlarmListActivity).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    addView(label(a.label(), 16f, if (bad) B.RED else 0xDE000000.toInt()), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+                addView(glyph(Ic.EDIT, 0xFF00574B.toInt(), 32).apply { setPadding(dp(4), dp(4), dp(4), dp(4)); (layoutParams as? LinearLayout.LayoutParams)?.marginEnd = dp(16); setOnClickListener { startActivity(Intent(context, AlarmEditActivity::class.java).putExtra("id", a.id)) } })
+                addView(glyph(Ic.TRASH, 0xFFD32F2F.toInt(), 32).apply {
+                    setPadding(dp(4), dp(4), dp(4), dp(4))
                     setOnClickListener {
                         AlertDialog.Builder(context).setTitle("Excluir agendamento").setMessage("Tem certeza de que deseja excluir este agendamento?")
                             .setPositiveButton("Excluir") { _, _ -> Alarms.cancel(context, a.id); store.saveAlarms(all.filter { it.id != a.id }); Alarms.rearm(context); render() }
                             .setNegativeButton("Cancelar", null).show()
                     }
+                })
                 })
                 layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(8) }
             })
@@ -166,7 +170,7 @@ class AlarmEditActivity : Activity() {
         val cancel = label("Cancelar", 16f, Color.WHITE, bold = true).apply { gravity = Gravity.CENTER; background = rounded(B.PRIMARY, 28); setOnClickListener { finish() } }
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xFFF5F5F5.toInt())
+            setBackgroundColor(Color.WHITE)
             addView(appBar("Agendamento", Ic.BACK, { finish() }))
             addView(ScrollView(this@AlarmEditActivity).apply {
                 setOnApplyWindowInsetsListener { v, i -> v.setPadding(0, 0, 0, i.getInsets(WindowInsets.Type.navigationBars()).bottom); i }
