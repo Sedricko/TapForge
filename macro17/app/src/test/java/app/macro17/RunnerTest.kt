@@ -116,7 +116,7 @@ class RunnerTest {
         val f = Fake(); val log = ArrayList<Boolean>()
         val shared = object : Ports by f { override fun shareFrames(on: Boolean) { log += on } }
         Runner(shared).run(macro(Step(Type.GROUP, grp = 1, rep = 2, mono = true), tap(1)))
-        assertEquals(listOf(true, false), log)           // liga ao entrar no grupo e desliga ao sair
+        assertEquals(listOf(true, false, false), log)   // liga ao entrar, desliga ao sair do grupo e de novo ao fim da macro (reset de segurança)
     }
 
     @Test fun fixedPositionLimitsTheSearchToTheRecordedSpot() {
