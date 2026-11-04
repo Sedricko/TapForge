@@ -36,6 +36,7 @@ class EditorActivity : Activity() {
     private lateinit var id: String
     private lateinit var name: EditText
     private lateinit var loops: EditText
+    private lateinit var selAll: ImageView
     private lateinit var list: ListView
     private lateinit var emptyHint: TextView
     private var steps: List<Step> = emptyList()
@@ -139,22 +140,21 @@ class EditorActivity : Activity() {
             setImageDrawable(Icon(Ic.MORE, Color.WHITE)); setPadding(dp(10), dp(10), dp(10), dp(10)); foreground = ripple(24, 0x33FFFFFF)
             contentDescription = "Mais opções"; layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)); setOnClickListener { overflow(this) }
         }
-        fun tool(ic: Ic, desc: String, click: () -> Unit) = ImageView(this).apply {
-            setImageDrawable(Icon(ic, B.TEXT)); setPadding(dp(12), dp(12), dp(12), dp(12)); foreground = ripple(24, 0x1F000000)
+        // Vetores originais do base (content_touch_macro): 48dp, sem tint próprio, ✓ vira rosa quando tudo está marcado.
+        fun tool(res: Int, desc: String, click: () -> Unit) = ImageView(this).apply {
+            setImageResource(res); setPadding(dp(12), dp(12), dp(12), dp(12)); foreground = ripple(24, 0x1F000000)
             contentDescription = desc; layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f); setOnClickListener { click() }
         }
+        selAll = tool(R.drawable.bp_icn_check_circle, "Selecionar tudo") { toggleAll() }
         val tools = LinearLayout(this).apply {
             setBackgroundColor(Color.WHITE); elevation = dp(2).toFloat(); setPadding(dp(4), dp(2), dp(4), dp(2))
-            addView(tool(Ic.SELECT, "Selecionar tudo") { toggleAll() })
-            addView(tool(Ic.UP, "Subir os selecionados") { moveSelected(up = true) })
-            addView(tool(Ic.DOWN, "Descer os selecionados") { moveSelected(up = false) })
-            addView(tool(Ic.COPY, "Duplicar os selecionados") { duplicateSelected() })
-            addView(tool(Ic.TRASH, "Excluir os selecionados") { deleteSelected() })
-            addView(tool(Ic.SAVE, "Salvar") { save() })
-            addView(ImageView(this@EditorActivity).apply {
-                setImageResource(R.drawable.bp_ic_ungroup); setPadding(dp(12), dp(12), dp(12), dp(12)); foreground = ripple(24, 0x1F000000)
-                contentDescription = "Desagrupar"; layoutParams = LinearLayout.LayoutParams(0, dp(48), 1f); setOnClickListener { ungroupSelected() }
-            })
+            addView(selAll)
+            addView(tool(R.drawable.bp_arrow_upward, "Subir os selecionados") { moveSelected(up = true) })
+            addView(tool(R.drawable.bp_arrow_downward, "Descer os selecionados") { moveSelected(up = false) })
+            addView(tool(R.drawable.bp_icn_file_copy, "Duplicar os selecionados") { duplicateSelected() })
+            addView(tool(R.drawable.bp_icn_delete, "Excluir os selecionados") { deleteSelected() })
+            addView(tool(R.drawable.bp_icn_save, "Salvar") { save() })
+            addView(tool(R.drawable.bp_ic_ungroup, "Desagrupar") { ungroupSelected() })
         }
         val head = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(Color.WHITE); setPadding(0, dp(4), dp(16), dp(4))
@@ -189,6 +189,7 @@ class EditorActivity : Activity() {
     private fun refresh() {
         selected.retainAll(steps.indices.toSet())
         emptyHint.visibility = if (steps.isEmpty()) View.VISIBLE else View.GONE
+        selAll.setImageResource(if (steps.isNotEmpty() && selected.size == steps.size) R.drawable.bp_icn_check_circle_sel else R.drawable.bp_icn_check_circle)
         (list.adapter as BaseAdapter).notifyDataSetChanged()
     }
 
