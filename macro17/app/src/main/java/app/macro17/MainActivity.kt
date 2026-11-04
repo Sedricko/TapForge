@@ -36,11 +36,12 @@ class MainActivity : Activity() {
             setOnApplyWindowInsetsListener { v, i -> v.setPadding(0, 0, 0, i.getInsets(WindowInsets.Type.navigationBars()).bottom); i }
         }
         drawer = mainDrawer(0)
-        // Como o app base: pede a permissão de notificações na primeira abertura (serviço de gravação de tela e avisos); o microfone só ao ligar o áudio.
-        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED && !store.askedNotif) {
-            store.askedNotif = true
-            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 5)
-        }
+        // Sequência do base a cada abertura: notificações (Android 13+) e depois "Exibir sobre outros apps", enquanto faltarem.
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 113)
+        } else askOverlay()
+        // Primeira abertura: o base cria a macro "sample" e a seleciona.
+        if (store.list().isEmpty()) runCatching { Macro(java.util.UUID.randomUUID().toString(), "sample", 1, emptyList()).also { store.save(it); store.selected = it.id } }
         val root = FrameLayout(this).apply {
             setBackgroundColor(B.BG)
             addView(LinearLayout(this@MainActivity).apply {
@@ -52,6 +53,18 @@ class MainActivity : Activity() {
         drawer.attach(root)
         setContentView(root)
     }
+
+    override fun onRequestPermissionsResult(req: Int, p: Array<out String>, r: IntArray) { if (req == 113) askOverlay() }
+
+    private fun askOverlay() {
+        if (Settings.canDrawOverlays(this) || overlayAsked) return
+        overlayAsked = true
+        AlertDialog.Builder(this).setTitle("Permissão de sobreposição")
+            .setMessage("Para mostrar o painel sobre outros apps, permita “Exibir sobre outros apps” para o Macro17.")
+            .setPositiveButton("Ir para Configurações") { _, _ -> startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
+            .setNegativeButton("Cancelar", null).show()
+    }
+    private var overlayAsked = false
 
     override fun onResume() { super.onResume(); refresh() }
 
@@ -73,10 +86,18 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(12), dp(18), dp(12), dp(18))
-            val ok = MacroService.instance != null
+            // O cartão reflete o modo de controle escolhido em Permissões (acessibilidade, ADB ou root), como no base.
+            val mode = store.controlMode
+            val adbOn = Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0) == 1
+            val ok = when (mode) { MODE_ADB -> adbOn; MODE_ROOT -> true; else -> MacroService.instance != null }
+            val text = when (mode) {
+                MODE_ADB -> if (adbOn) "Modo ADB selecionado." else "ADB não ativado."
+                MODE_ROOT -> "Modo Root selecionado."
+                else -> if (ok) "Permissão de Acessibilidade Concedida" else "A permissão de acessibilidade deve ser concedida."
+            }
             addView(glyph(Ic.INFO, if (ok) 0xFF00574B.toInt() else B.RED, 24))
-            addView(label(if (ok) "Permissão de Acessibilidade Concedida" else "A acessibilidade não está ativada.", 14f, if (ok) 0xFF00574B.toInt() else B.RED, bold = true).apply { setPadding(dp(8), 0, 0, 0) })
-            if (!ok) setOnClickListener { startActivity(Intent(this@MainActivity, AccessibilityAgreementActivity::class.java)) }
+            addView(label(text, 14f, if (ok) 0xFF00574B.toInt() else B.RED, bold = true).apply { setPadding(dp(8), 0, 0, 0) })
+            setOnClickListener { startActivity(Intent(this@MainActivity, if (mode == MODE_ACCESS && !ok) AccessibilityAgreementActivity::class.java else PermissionsActivity::class.java)) }
         })
 
         content.addView(card().apply {

@@ -27,7 +27,7 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
     private class Win(val view: View, val lp: WindowManager.LayoutParams)
     private val wins = ArrayList<Win>()
     private val dot = ctx.dp(40) // marcador de 40dp, como no base
-    private val screen = wm.maximumWindowMetrics.bounds
+    private val screen get() = wm.maximumWindowMetrics.bounds // relido a cada uso: a tela pode girar
     private val pts = ArrayList<Pair<Int, Int>>(); private var drawStart = 0L; private var drawEnd = 0L
     private var p1: Win? = null; private var p2: Win? = null; private var box: Win? = null; private var handle: Win? = null
 

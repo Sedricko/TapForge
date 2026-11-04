@@ -55,15 +55,15 @@
         <activity android:name=".PermissionsActivity" android:exported="false" />
         <activity android:name=".BackupActivity" android:exported="false" />
         <activity android:name=".FileManagerActivity" android:exported="false" />
-        <activity android:name=".AddItemsActivity" android:exported="false" />
+        <activity android:name=".AddItemsActivity" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|fontScale|density|layoutDirection|locale" android:exported="false" />
         <activity android:name=".AccessibilityAgreementActivity" android:theme="@android:style/Theme.DeviceDefault.Light.Dialog" android:exported="false" />
         <activity android:name=".PanelSettingsActivity" android:theme="@android:style/Theme.DeviceDefault.Light.Dialog" android:launchMode="singleTask" android:taskAffinity="" android:excludeFromRecents="true" android:exported="false" />
         <activity android:name=".DebugFileManagerActivity" android:exported="false" />
         <activity android:name=".AboutActivity" android:exported="false" />
         <activity android:name=".AlarmListActivity" android:exported="false" />
-        <activity android:name=".AlarmEditActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".AlarmEditActivity" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|fontScale|density|layoutDirection|locale" android:exported="false" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".FullScreenActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleInstance" android:showWhenLocked="true" android:turnScreenOn="true" />
-        <activity android:name=".ItemEditorActivity" android:exported="false" />
+        <activity android:name=".ItemEditorActivity" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|fontScale|density|layoutDirection|locale" android:exported="false" />
         <activity android:name=".DiagActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
         <activity android:name=".ReaderActivity" android:theme="@style/Theme.Macro17.Dark" android:exported="false" />
 

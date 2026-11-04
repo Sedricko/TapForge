@@ -72,7 +72,7 @@ class Store(ctx: Context) {
     var endAlarm: Boolean get() = flag("endAlarm"); set(v) = setFlag("endAlarm", v)
 
     var stopOnLock: Boolean
-        get() = prefs.getBoolean("stopOnLock", true)
+        get() = prefs.getBoolean("stopOnLock", false) // o base não para a macro ao apagar a tela
         set(v) = prefs.edit().putBoolean("stopOnLock", v).apply()
 
     var opacity: Int // 50..100 (= transparência de 0 a 50%, o limite do base): mais transparente que isso a bolha some

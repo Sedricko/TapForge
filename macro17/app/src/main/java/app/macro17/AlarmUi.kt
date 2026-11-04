@@ -39,14 +39,12 @@ class FullScreenActivity : Activity() {
 
 class AlarmListActivity : Activity() {
     private lateinit var list: LinearLayout
-    private lateinit var drawer: Drawer
     private lateinit var store: Store
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         store = Store(this)
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(80)) }
-        drawer = mainDrawer(2)
         val fab = glyph(Ic.ADD, Color.WHITE, 24).apply {
             background = android.graphics.drawable.GradientDrawable().apply { shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(B.PINK) }
             elevation = dp(6).toFloat(); setPadding(dp(16), dp(16), dp(16), dp(16))
@@ -56,19 +54,17 @@ class AlarmListActivity : Activity() {
             setBackgroundColor(0xFFF5F5F5.toInt())
             addView(LinearLayout(this@AlarmListActivity).apply {
                 orientation = LinearLayout.VERTICAL
-                addView(appBar("Agendamento", Ic.MENU, { drawer.open() }))
+                addView(appBar("Agendamento", Ic.BACK, { finish() }))
                 addView(ScrollView(this@AlarmListActivity).apply {
                     addView(list)
                     setOnApplyWindowInsetsListener { v, i -> v.setPadding(0, 0, 0, i.getInsets(WindowInsets.Type.navigationBars()).bottom); i }
                 }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
             }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
             addView(fab, FrameLayout.LayoutParams(dp(56), dp(56), Gravity.END or Gravity.BOTTOM).also { it.setMargins(0, 0, dp(16), dp(16)) })
-            drawer.attach(this)
         })
     }
 
     override fun onResume() { super.onResume(); render() }
-    override fun onBackPressed() { if (drawer.isOpen) drawer.close() else super.onBackPressed() }
 
     private fun permissionDialog() = AlertDialog.Builder(this).setTitle("Permissão necessária")
         .setMessage("Para iniciar no horário exato, permita “Alarmes e lembretes” para este app.")

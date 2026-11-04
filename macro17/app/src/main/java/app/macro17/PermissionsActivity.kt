@@ -67,18 +67,14 @@ class PermissionsActivity : Activity() {
             addView(glyph(Ic.INFO, B.RED, 24))
             addView(label("Por favor, selecione uma permissão.", 14f, B.RED, bold = true).apply { setPadding(dp(10), 0, 0, 0) })
         })
-        content.addView(option("Acessibilidade", if (granted) "A permissão de acessibilidade está concedida." else "A permissão de acessibilidade deve ser concedida.") {
+        content.addView(option("Acessibilidade", "A permissão de acessibilidade deve ser concedida.") {
             // Como no base: escolhe o modo de controle (só existe o de acessibilidade) e volta à Home; sem a permissão, abre o Acordo.
             Store(this).controlMode = MODE_ACCESS
             if (granted) finish() else startActivity(Intent(this, AccessibilityAgreementActivity::class.java))
         })
-        val overlay = android.provider.Settings.canDrawOverlays(this)
-        content.addView(option("Sobreposição", if (overlay) "Exibir sobre outros apps: permitido." else "Permita “Exibir sobre outros apps” para o painel flutuante.") {
-            if (!overlay) startActivity(Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:$packageName")))
-        })
         val mode = Store(this).controlMode
-        content.addView(option("Android Debug Bridge (ADB)" + if (mode == MODE_ADB) "  ✓" else "", "Precisa ser configurado usando um computador.") { adbDialog() })
-        content.addView(option("Root" + if (mode == MODE_ROOT) "  ✓" else "", "Disponível em smartphones com root.") { rootDialog() })
+        content.addView(option("Android Debug Bridge (ADB)", "Precisa ser configurado usando um computador.") { adbDialog() })
+        content.addView(option("Root", "Disponível em smartphones com root.") { rootDialog() })
     }
 
     private fun adbDialog() {
