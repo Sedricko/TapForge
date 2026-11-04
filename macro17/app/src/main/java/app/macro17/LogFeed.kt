@@ -34,7 +34,7 @@ object LogRules {
         e.level == Level.ERROR -> Tone.ERROR
         e.level == Level.WARN -> Tone.WARN
         e.tag == "passo" && resultWords.any { e.text.contains(it) } -> Tone.VALUE
-        e.tag in systemTags -> Tone.SYSTEM
+        e.tag in systemTags || e.tag in screenTags -> Tone.SYSTEM
         else -> Tone.PLAIN
     }
 }

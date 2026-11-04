@@ -29,6 +29,9 @@ class LogFeedTest {
         assertTrue(LogRules.matches(Cat.GESTURES, gesture))
         assertTrue(LogRules.matches(Cat.SYSTEM, sys)); assertFalse(LogRules.matches(Cat.SYSTEM, gesture))
         assertTrue(LogRules.matches(Cat.ERRORS, err)); assertFalse(LogRules.matches(Cat.ERRORS, step))
+        val screen = e("tela", "MainActivity criada")
+        assertTrue(LogRules.matches(Cat.SCREENS, screen)); assertFalse(LogRules.matches(Cat.SCREENS, gesture)); assertFalse(LogRules.matches(Cat.SYSTEM, screen))
+        assertEquals(Level.WARN, LogRules.level("gesto", "dispatchGesture recusado pelo sistema"))
         listOf(step, found, gesture, sys, err).forEach { assertTrue(LogRules.matches(Cat.ALL, it)) }
     }
 
