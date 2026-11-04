@@ -44,6 +44,8 @@ class Engine(
 
     /** Alerta de status: se definido, mostra a mensagem por [ms] em janela própria (como a mensagem instantânea do base) em vez de um toast. */
     @Volatile var onStatus: ((String, Int) -> Unit)? = null
+    /** Título do painel durante a execução: segundos restantes da espera ("3s") ou semelhança da busca ("87%"). */
+    @Volatile var onTick: ((String) -> Unit)? = null
     /** Pausa entre os passos (o Runner dorme ao menos 1 ms por passo); parar a macro também solta a pausa. */
     @Volatile var paused = false
     /** Anterior/Próximo pedidos pelo painel; o Runner lê no próximo passo. */
@@ -89,7 +91,11 @@ class Engine(
         override fun sleep(ms: Long) {
             // Fatias de 100 ms: a pausa vale no meio de esperas longas, não só depois delas.
             var left = ms
-            while (left > 0) { val n = minOf(left, 100L); Thread.sleep(n); left -= n; while (paused) Thread.sleep(50) }
+            var shown = -1L
+            while (left > 0) {
+                if (ms >= 1000) { val sec = (left + 999) / 1000; if (sec != shown) { shown = sec; onTick?.invoke("${sec}s") } }
+                val n = minOf(left, 100L); Thread.sleep(n); left -= n; while (paused) Thread.sleep(50)
+            }
             while (paused) Thread.sleep(50)
         }
 
@@ -149,6 +155,7 @@ class Engine(
             val t0 = SystemClock.elapsedRealtime()
             val r = if (Cv.ok) Cv.ncc(hay, needle, th, probe) else TemplateMatcher.findNcc(hay, needle, th, probe)
             val dt = SystemClock.elapsedRealtime() - t0
+            onTick?.invoke("${(probe.best * 100).toInt()}%")
             if (dt > 250) Diag.d("visão", "casamento lento: $dt ms (${if (Cv.ok) "OpenCV" else "Kotlin"}) área ${hay.w}x${hay.h} modelo ${needle.w}x${needle.h}")
             return r
         }
