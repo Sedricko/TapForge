@@ -37,6 +37,7 @@ class EditorActivity : Activity() {
     private lateinit var name: EditText
     private lateinit var loops: EditText
     private lateinit var selAll: ImageView
+    private lateinit var ungroupBtn: ImageView
     private lateinit var list: ListView
     private lateinit var emptyHint: TextView
     private var steps: List<Step> = emptyList()
@@ -154,15 +155,19 @@ class EditorActivity : Activity() {
             addView(tool(R.drawable.bp_icn_file_copy, "Duplicar os selecionados") { duplicateSelected() })
             addView(tool(R.drawable.bp_icn_delete, "Excluir os selecionados") { deleteSelected() })
             addView(tool(R.drawable.bp_icn_save, "Salvar") { save() })
-            addView(tool(R.drawable.bp_ic_ungroup, "Desagrupar") { ungroupSelected() })
+            ungroupBtn = tool(R.drawable.bp_ic_ungroup, "Desagrupar") { ungroupSelected() }.apply { visibility = View.GONE }
+            addView(ungroupBtn)
         }
+        // Como no base (expandable_list_header): nome a 20sp e, embaixo, o ícone de repetição de 14sp com o número.
+        loops.apply { setPadding(dp(2), 0, 0, 0); minWidth = 0; textSize = 14f; setTextColor(0xDE000000.toInt()) }
         val head = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(Color.WHITE); setPadding(0, dp(4), dp(16), dp(4))
-            addView(name, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-            // Como no base: "Repetir reprodução N" alinhado à direita, na mesma linha do nome
-            addView(label("Repetir reprodução", 14f, B.TEXT2))
-            loops.setPadding(dp(6), 0, 0, 0); loops.minWidth = 0; loops.textSize = 14f
-            addView(loops)
+            orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE); setPadding(dp(16), dp(6), dp(16), dp(6))
+            addView(name.apply { setPadding(0, 0, 0, 0) })
+            addView(LinearLayout(this@EditorActivity).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(ImageView(this@EditorActivity).apply { setImageResource(R.drawable.bp_repeat) }, LinearLayout.LayoutParams(dp(18), dp(18)))
+                addView(loops)
+            }, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.topMargin = dp(2) })
         }
         val fab = ImageView(this).apply {
             setImageDrawable(Icon(Ic.ADD, Color.WHITE)); setPadding(dp(16), dp(16), dp(16), dp(16))
@@ -186,10 +191,16 @@ class EditorActivity : Activity() {
         refresh()
     }
 
+    /** ✓ rosa com tudo marcado; o botão de desagrupar (btnRevert do base) só aparece com um cabeçalho de grupo marcado. */
+    private fun syncTools() {
+        selAll.setImageResource(if (steps.isNotEmpty() && selected.size == steps.size) R.drawable.bp_icn_check_circle_sel else R.drawable.bp_icn_check_circle)
+        ungroupBtn.visibility = if (selected.any { steps.getOrNull(it)?.type == Type.GROUP }) View.VISIBLE else View.GONE
+    }
+
     private fun refresh() {
         selected.retainAll(steps.indices.toSet())
         emptyHint.visibility = if (steps.isEmpty()) View.VISIBLE else View.GONE
-        selAll.setImageResource(if (steps.isNotEmpty() && selected.size == steps.size) R.drawable.bp_icn_check_circle_sel else R.drawable.bp_icn_check_circle)
+        syncTools()
         (list.adapter as BaseAdapter).notifyDataSetChanged()
     }
 
@@ -410,8 +421,8 @@ class EditorActivity : Activity() {
             setBackgroundColor(Color.WHITE)
             setPadding(dp(6) + if (inGroup(i)) dp(24) else 0, dp(2), dp(6), dp(2))
             addView(CheckBox(this@EditorActivity).apply {
-                isChecked = i in selected; buttonTintList = ColorStateList.valueOf(0xFFD81B60.toInt())
-                setOnCheckedChangeListener { _, on -> if (on) selected.add(i) else selected.remove(i) }
+                isChecked = i in selected; buttonTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFFD81B60.toInt(), 0x8A000000.toInt()))
+                setOnCheckedChangeListener { _, on -> if (on) selected.add(i) else selected.remove(i); syncTools() }
                 layoutParams = LinearLayout.LayoutParams(dp(42), WRAP_CONTENT)
             })
             addView(thumb)
