@@ -88,9 +88,15 @@ class ScreenRecordService : Service() {
             }
             recorder = r
             display = mp.createVirtualDisplay("macro17-rec", w, h, m.densityDpi, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, r.surface, null, null)
-            r.start()
-            if (audioMode == 2) runCatching { startInternalAudio(mp) }.onFailure { Diag.e("vídeo", "áudio interno indisponível", it); Toast.makeText(this, "A gravação de áudio interno não é suportada nesta versão do Android.", Toast.LENGTH_LONG).show() }
             running = true
+            // Contagem 3-2-1 antes de gravar (como no base); a gravação só começa depois, então os números não entram no vídeo.
+            Thread({
+                for (n in 3 downTo 1) { MacroService.instance?.instant("$n", 900); Thread.sleep(1000); if (!running) return@Thread }
+                runCatching {
+                    r.start()
+                    if (audioMode == 2) runCatching { startInternalAudio(mp) }.onFailure { Diag.e("vídeo", "áudio interno indisponível", it); Handler(Looper.getMainLooper()).post { Toast.makeText(this, "A gravação de áudio interno não é suportada nesta versão do Android.", Toast.LENGTH_LONG).show() } }
+                }.onFailure { Diag.e("vídeo", "não foi possível iniciar a gravação", it); Handler(Looper.getMainLooper()).post { finish() } }
+            }, "macro17-rec-start").start()
             Diag.d("vídeo", "gravação de tela iniciada ${w}x$h, áudio=$audio")
         } catch (e: Exception) {
             Diag.e("vídeo", "não foi possível gravar a tela", e)
@@ -209,7 +215,7 @@ class ScreenRecordService : Service() {
                     contentResolver.openOutputStream(uri)!!.use { o -> src.inputStream().use { it.copyTo(o) } }
                     say("Gravação salva em Filmes/Macro17")
                     Diag.d("vídeo", "gravação salva: $uri")
-                    ui.post { runCatching { startActivity(android.content.Intent(this, VideoPlayerActivity::class.java).setData(uri).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } } // pode ser barrado em segundo plano: o aviso acima continua
+                    ui.post { MacroService.instance?.askPlay(uri) ?: runCatching { startActivity(android.content.Intent(this, VideoPlayerActivity::class.java).setData(uri).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } } // diálogo Reproduzir/Fechar do base
                 }.onFailure { Diag.e("vídeo", "falha ao salvar o vídeo", it); say("Falha ao salvar o vídeo") }
                 src.delete()
             }
