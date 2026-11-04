@@ -155,6 +155,38 @@ class MacroService : AccessibilityService() {
 
     fun stopMacro() { Diag.d("serviço", "parar macro pedido"); engine.stop() }
 
+    /** Autoteste: gesto, captura e uma macro real de 2 passos. Chamar fora da thread principal. */
+    fun selfTest(): List<SelfTest.Check> {
+        val out = ArrayList<SelfTest.Check>()
+        val l1 = java.util.concurrent.CountDownLatch(1); var gok = false
+        val path = Path().apply { moveTo(1f, 1f) }
+        val sent = dispatchGesture(GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path, 0, 10)).build(),
+            object : GestureResultCallback() {
+                override fun onCompleted(g: GestureDescription?) { gok = true; l1.countDown() }
+                override fun onCancelled(g: GestureDescription?) { l1.countDown() }
+            }, null)
+        if (sent) l1.await(4, java.util.concurrent.TimeUnit.SECONDS)
+        out += SelfTest.Check("Gesto de teste", gok, if (gok) "toque em (1,1) concluído" else "não concluído")
+        val l2 = java.util.concurrent.CountDownLatch(1); var cok = false; var cdetail = "sem resposta"
+        try {
+            takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : TakeScreenshotCallback {
+                override fun onSuccess(r: ScreenshotResult) { cok = true; cdetail = "${r.hardwareBuffer.width}x${r.hardwareBuffer.height}"; r.hardwareBuffer.close(); l2.countDown() }
+                override fun onFailure(code: Int) { cdetail = "falhou, código $code"; l2.countDown() }
+            })
+            l2.await(4, java.util.concurrent.TimeUnit.SECONDS)
+        } catch (e: Exception) { cdetail = e.toString() }
+        out += SelfTest.Check("Captura de tela", if (cok) true else if (cdetail.contains("código 3")) null else false, cdetail)
+        if (engine.running || recording) {
+            out += SelfTest.Check("Macro de 2 passos", null, "ignorado: há macro rodando ou gravação")
+        } else {
+            val ok = engine.start(Macro("autoteste", "Autoteste", 1, listOf(Step(Type.WAIT, ms = 100), Step(Type.TAP, 1, 1, ms = 10))))
+            var t = 0
+            while (ok && engine.running && t++ < 50) Thread.sleep(100)
+            out += SelfTest.Check("Macro de 2 passos", ok && !engine.running, if (!ok) "não iniciou" else if (engine.running) "não terminou em 5 s" else "executada")
+        }
+        return out
+    }
+
     fun toast(msg: String) { ui.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() } }
 
     /** Alarme: para o que estiver rodando, espera 1 s e roda a macro agendada. Recusa se estiver gravando. */

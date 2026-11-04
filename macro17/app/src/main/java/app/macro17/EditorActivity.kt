@@ -153,12 +153,12 @@ class EditorActivity : Activity() {
             addView(tool(Ic.SAVE, "Salvar") { save() })
         }
         val head = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE)
-            addView(name)
-            addView(LinearLayout(this@EditorActivity).apply {
-                gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), 0, 0, 0)
-                addView(glyph(Ic.REPEAT, B.TEXT, 18)); addView(loops)
-            })
+            gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(Color.WHITE); setPadding(0, dp(4), dp(16), dp(4))
+            addView(name, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            // Como no base: "Repetir reprodução N" alinhado à direita, na mesma linha do nome
+            addView(label("Repetir reprodução", 14f, B.TEXT2))
+            loops.setPadding(dp(6), 0, 0, 0); loops.minWidth = 0; loops.textSize = 14f
+            addView(loops)
         }
         val fab = ImageView(this).apply {
             setImageDrawable(Icon(Ic.ADD, Color.WHITE)); setPadding(dp(16), dp(16), dp(16), dp(16))
