@@ -80,9 +80,11 @@ class EditorActivity : Activity() {
     private val optional = setOf(DELAY, RND, JIT, RMIN, GOTO, FAIL, CMP, LO, HI, OX, OY, MINC) + (CASE0 until CASE0 + MAX_CASES * 2) // em branco vale 0
 
     private val titles = mapOf(
-        Type.TAP to "Toque", Type.SWIPE to "Deslizar", Type.PINCH_IN to "Pinça para dentro", Type.PINCH_OUT to "Pinça para fora",
-        Type.WAIT to "Esperar", Type.KEY to "Tecla", Type.STATUS to "Alerta de status", Type.GOTO to "Ir para o passo",
-        Type.COUNTER to "Contador de execução", Type.RESET to "Zerar contador", Type.CALL to "Chamar macro", Type.IMAGE to "Buscar imagem", Type.NODE to "Achar por texto", Type.TEXT to "Ler texto da tela (OCR)", Type.NUMBER to "Ler número", Type.STOP to "Parar Macro", Type.CHANGE to "Detecção de Mudança de Imagem", Type.GESTURE to "Gesto", Type.GROUP to "Grupo",
+        Type.TAP to "Tap", Type.SWIPE to "Swipe", Type.PINCH_IN to "Pinça para dentro", Type.PINCH_OUT to "Pinça para fora",
+        Type.WAIT to "Esperar", Type.KEY to "Evento de Teclado", Type.STATUS to "Alertas de status", Type.GOTO to "GOTO",
+        Type.COUNTER to "Contador de Execuções", Type.RESET to "Reiniciar Contador de Execuções", Type.CALL to "Arquivo de Macro", Type.IMAGE to "Image",
+        Type.NODE to "Achar por texto", Type.TEXT to "Reconhecimento de Texto", Type.NUMBER to "Ler número", Type.STOP to "Parar Macro",
+        Type.CHANGE to "Detecção de Mudança de Imagem", Type.GESTURE to "Gesture", Type.GROUP to "Grupo",
     )
     private val icons = mapOf(
         Type.TAP to Ic.TAP, Type.SWIPE to Ic.SWIPE, Type.PINCH_IN to Ic.SWIPE, Type.PINCH_OUT to Ic.SWIPE, Type.WAIT to Ic.WAIT,
@@ -122,8 +124,9 @@ class EditorActivity : Activity() {
         emptyHint = label("Sem itens. Toque em + ou grave pelo painel.", 14f, B.TEXT2).apply { setPadding(dp(16), dp(16), dp(16), 0) }
         list = ListView(this).apply {
             divider = ColorDrawable(0x1F000000); dividerHeight = 1
-            setOnItemClickListener { _, _, i, _ -> openItem(steps[i].type, steps[i], i) }
-            setOnItemLongClickListener { _, _, i, _ -> rowMenu(i); true }
+            // Como no base: tocar em "Parar macro" não abre nada; toque longo só no "Arquivo de macro" (abre o arquivo alvo).
+            setOnItemClickListener { _, _, i, _ -> if (steps[i].type != Type.STOP) openItem(steps[i].type, steps[i], i) }
+            setOnItemLongClickListener { _, _, i, _ -> val t = steps[i]; if (t.type == Type.CALL && store.get(t.text) != null) { startActivity(android.content.Intent(this@EditorActivity, EditorActivity::class.java).putExtra("id", t.text)); true } else false }
             clipToPadding = false; setPadding(0, 0, 0, dp(96))
             adapter = object : BaseAdapter() {
                 override fun getCount() = steps.size
@@ -134,7 +137,7 @@ class EditorActivity : Activity() {
         }
         val more = ImageView(this).apply {
             setImageDrawable(Icon(Ic.MORE, Color.WHITE)); setPadding(dp(10), dp(10), dp(10), dp(10)); foreground = ripple(24, 0x33FFFFFF)
-            contentDescription = "Mais opções"; layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)); setOnClickListener { overflow() }
+            contentDescription = "Mais opções"; layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)); setOnClickListener { overflow(this) }
         }
         fun tool(ic: Ic, desc: String, click: () -> Unit) = ImageView(this).apply {
             setImageDrawable(Icon(ic, B.TEXT)); setPadding(dp(14), dp(14), dp(14), dp(14)); foreground = ripple(24, 0x1F000000)
@@ -211,7 +214,7 @@ class EditorActivity : Activity() {
 
     private fun marked(): List<Int> = selected.filter { it in steps.indices }.sorted()
 
-    private fun needSelection(): List<Int>? = marked().takeIf { it.isNotEmpty() } ?: run { toast("Marque os itens primeiro"); null }
+    private fun needSelection(): List<Int>? = marked().takeIf { it.isNotEmpty() } ?: run { toast("Nenhum item selecionado."); null }
 
     private fun toggleAll() {
         if (selected.size == steps.size) selected.clear() else { selected.clear(); selected.addAll(steps.indices) }
@@ -221,6 +224,8 @@ class EditorActivity : Activity() {
     /** Move cada item marcado uma posição; um bloco encostado na borda ou em outro marcado fica onde está. */
     private fun moveSelected(up: Boolean) {
         val idx = needSelection() ?: return
+        // Como no base: se o primeiro item do sentido do movimento já está na borda, nenhum se move.
+        if (if (up) idx.first() == 0 else idx.last() == steps.lastIndex) return
         val cur = idx.toMutableSet()
         for (i in if (up) idx else idx.reversed()) {
             val j = if (up) i - 1 else i + 1
@@ -232,26 +237,28 @@ class EditorActivity : Activity() {
 
     private fun duplicateSelected() {
         val idx = needSelection() ?: return
-        for (i in idx.reversed()) if (steps.size < MAX_STEPS) steps = steps.afterInsert(i + 1, steps[i].shiftedFrom(i + 1))
-        selected.clear(); refresh()
+        // Como no base: as cópias entram juntas, depois do último marcado, e a seleção continua nos originais.
+        var at = idx.last() + 1
+        for (i in idx) if (steps.size < MAX_STEPS) { steps = steps.afterInsert(at, steps[i].shiftedFrom(at)); at++ }
+        refresh()
     }
 
     private fun deleteSelected() {
         val idx = needSelection() ?: return
-        AlertDialog.Builder(this).setMessage("Excluir ${idx.size} ${if (idx.size == 1) "item" else "itens"}?")
-            .setPositiveButton("Excluir") { _, _ -> for (i in idx.reversed()) steps = steps.afterDelete(i); selected.clear(); refresh() }
-            .setNegativeButton("Cancelar", null).show()
+        for (i in idx.reversed()) steps = steps.afterDelete(i) // sem confirmação, como no base
+        selected.clear(); refresh()
     }
 
-    private fun overflow() {
+    private fun overflow(anchor: View) {
+        // Menu do base (menu_edit_macro_root): Grupo de Macro, Alternar Pular, Editar Itens Selecionados, Recarregar; "Desagrupar" é extra.
+        val pm = android.widget.PopupMenu(this, anchor)
         val acts = listOf<Pair<String, () -> Unit>>(
-            "Alternar Pular" to { toggleSkip() },
-            "Grupo de Macro" to { groupSelected() },
-            "Desagrupar" to { ungroupSelected() },
-            "Editar Itens Selecionados" to { batchEdit() },
-            "Recarregar" to { reload() },
+            "Grupo de Macro" to { groupSelected() }, "Alternar Pular" to { toggleSkip() }, "Editar Itens Selecionados" to { batchEdit() },
+            "Recarregar" to { reload() }, "Desagrupar" to { ungroupSelected() },
         )
-        AlertDialog.Builder(this).setItems(acts.map { it.first }.toTypedArray()) { _, w -> acts[w].second() }.show()
+        acts.forEachIndexed { k, a -> pm.menu.add(0, k, k, a.first) }
+        pm.setOnMenuItemClickListener { acts[it.itemId].second(); true }
+        pm.show()
     }
 
     /** Agrupa os itens marcados (têm de ser seguidos e sem outro grupo): entra um cabeçalho de grupo antes do primeiro. */
@@ -369,7 +376,7 @@ class EditorActivity : Activity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(14), 0, dp(8), 0)
                 layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
-                addView(label("${i + 1}. ${s.name.ifBlank { titles.getValue(s.type) }}" + if (s.skip) " (pular)" else "", 18f, 0xFF607D8B.toInt()))
+                addView(label("${i + 1}. ${s.name.ifBlank { if (s.type == Type.TAP && s.ms >= 500) "Press" else titles.getValue(s.type) }}" + if (s.skip) " (pular)" else "", 18f, 0xFF607D8B.toInt()))
                 addView(LinearLayout(this@EditorActivity).apply {
                     setPadding(0, dp(4), 0, 0)
                     // Como no base: cada valor só aparece quando está ligado (busca de imagem; atraso > 0).
@@ -460,19 +467,6 @@ class EditorActivity : Activity() {
             }
             openItem(type, base, -1)
         }
-    }
-
-    private fun rowMenu(i: Int) {
-        selected.clear()
-        AlertDialog.Builder(this).setItems(arrayOf("Duplicar", "Mover para cima", "Mover para baixo", "Excluir")) { _, w ->
-            when (w) {
-                0 -> if (steps.size < MAX_STEPS) steps = steps.afterInsert(i + 1, steps[i].shiftedFrom(i + 1))
-                1 -> if (i > 0) steps = steps.afterSwap(i, i - 1)
-                2 -> if (i < steps.lastIndex) steps = steps.afterSwap(i, i + 1)
-                3 -> steps = steps.afterDelete(i)
-            }
-            refresh()
-        }.show()
     }
 
     /** [total] é o número de passos depois da edição, para validar os destinos de salto. */
