@@ -44,7 +44,7 @@ class EditSelectedActivity : Activity() {
     private fun render() {
         val p = Prefs(this)
         p.category("Editar Itens Selecionados", iconRes = R.drawable.bp_ic_menu_edit)
-        p.valueRow("Selecionar o que editar.", OPTIONS[opt]) {
+        p.valueRow("Selecione o que editar.", OPTIONS[opt]) {
             AlertDialog.Builder(this).setSingleChoiceItems(OPTIONS, opt) { d, w -> opt = w; d.dismiss(); render() }.show()
         }
         when (opt) {

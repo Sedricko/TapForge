@@ -234,7 +234,7 @@ class EditorActivity : Activity() {
 
     override fun onActivityResult(req: Int, res: Int, data: android.content.Intent?) {
         super.onActivityResult(req, res, data)
-        if (req == REQ_ADD && res == RESULT_OK) { data?.getStringExtra("type")?.let { addOfType(Type.valueOf(it)) }; return }
+        if (req == REQ_ADD && res == RESULT_OK) { data?.getStringExtra("type")?.let { addOfType(Type.valueOf(it), data.getBooleanExtra("mono", false)) }; return }
         if (req == 79) { if (res == RESULT_OK && data != null) data.getIntArrayExtra("v")?.let { applyBatchResult(data.getIntExtra("opt", 0), it) }; return }
         if (req != REQ_ITEM || res != RESULT_OK || data == null) return
         val st = runCatching { Step.fromJson(org.json.JSONObject(data.getStringExtra("step") ?: return)) }.getOrNull() ?: return
@@ -295,7 +295,7 @@ class EditorActivity : Activity() {
         // Menu do base (menu_edit_macro_root): Grupos de Macros, Alternar Pular, Editar Itens Selecionados, Recarregar.
         val pm = android.widget.PopupMenu(this, anchor)
         val acts = listOf<Pair<String, () -> Unit>>(
-            "Grupo de Macros" to { groupSelected() }, "Alternar Pular" to { toggleSkip() }, "Editar Itens Selecionados" to { batchEdit() },
+            "Grupo de Macro" to { groupSelected() }, "Alternar Pular" to { toggleSkip() }, "Editar Itens Selecionados" to { batchEdit() },
             "Recarregar" to { reload() },
         )
         acts.forEachIndexed { k, a -> pm.menu.add(0, k, k, a.first) }
@@ -313,7 +313,7 @@ class EditorActivity : Activity() {
         if (marked.any { steps[it].type == Type.GROUP }) return toast("Grupo selecionado.")
         val heads = steps.indices.filter { steps[it].type == Type.GROUP }.filter { it !in marked }
         val names = (heads.map { "${it + 1}. ${steps[it].name.ifBlank { "Grupo" }}" } + "Criar um novo grupo").toTypedArray()
-        AlertDialog.Builder(this).setTitle("Grupo de Macros").setItems(names) { _, w -> moveToGroup(marked, if (w < heads.size) heads[w] else -1) }
+        AlertDialog.Builder(this).setTitle("Grupo de Macro").setItems(names) { _, w -> moveToGroup(marked, if (w < heads.size) heads[w] else -1) }
             .setNegativeButton("Cancelar", null).show()
     }
 
@@ -404,7 +404,7 @@ class EditorActivity : Activity() {
         if (h.isEmpty()) return toast("Nenhuma edição salva no histórico.")
         val fmt = java.text.SimpleDateFormat("yyyyMMddHHmmss", java.util.Locale.US); val out = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
         val names = h.map { runCatching { out.format(fmt.parse(it)!!) }.getOrDefault(it) }.toTypedArray()
-        AlertDialog.Builder(this).setTitle("Selecionar Histórico de Edições").setItems(names) { _, w ->
+        AlertDialog.Builder(this).setTitle("Selecionar Histórico de Edição").setItems(names) { _, w ->
             val m = store.loadHistory(existingId, h[w]) ?: return@setItems toast("Cópia ilegível")
             steps = m.steps; name.setText(m.name); loops.setText(m.loops.toString()); selected.clear(); refresh()
         }.setNegativeButton("Cancelar", null).show()
@@ -548,7 +548,7 @@ class EditorActivity : Activity() {
         startActivityForResult(android.content.Intent(this, AddItemsActivity::class.java), REQ_ADD)
     }
 
-    private fun addOfType(type: Type) {
+    private fun addOfType(type: Type, mono: Boolean = false) {
         // Como no base, estes itens do catálogo entram direto na lista, com os padrões dele; o toque na linha abre a edição.
         val direct = when (type) {
             Type.KEY -> Step(type, x1 = 1, delay = 5000)
@@ -577,7 +577,7 @@ class EditorActivity : Activity() {
                 Type.NUMBER -> Step(type, 100, 100, 400, 180, ms = 3000, cycle = 300)
                 Type.STOP -> Step(type)
                 Type.CHANGE -> Step(type, ms = 5000, cycle = 500, thr = 95)
-                Type.GROUP -> Step(type)
+                Type.GROUP -> Step(type, mono = mono, name = if (mono) "Grupo de pesquisa" else "Grupo")
                 Type.GESTURE -> Step(type, ms = 500, text = "300,900;700,900")
             }
             openItem(type, base, -1)

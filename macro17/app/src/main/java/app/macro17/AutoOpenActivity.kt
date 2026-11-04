@@ -42,7 +42,7 @@ class AutoOpenActivity : Activity() {
                             addView(label(ri.loadLabel(pm).toString(), 16f, Color.BLACK))
                             if (mac != null) addView(label(mac.name, 16f, 0xFF008577.toInt()))
                         }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).also { it.marginStart = dp(16) })
-                        if (mac != null) addView(ImageView(this@AutoOpenActivity).apply { setImageResource(R.drawable.bp_ic_arrow_forward); setColorFilter(0xFFD81B60.toInt()) }, LinearLayout.LayoutParams(dp(24), dp(24)).also { it.marginEnd = dp(10) })
+                        if (mac != null) addView(ImageView(this@AutoOpenActivity).apply { setImageResource(R.drawable.bp_ic_done_24px); setColorFilter(0xFFD81B60.toInt()) }, LinearLayout.LayoutParams(dp(24), dp(24)).also { it.marginEnd = dp(10) })
                     }
                 }
             }

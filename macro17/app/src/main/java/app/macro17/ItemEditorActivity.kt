@@ -78,8 +78,8 @@ class ItemEditorActivity : Activity() {
     /** Itens que não são toque: mesma estrutura (nome, categoria do tipo, valores, atraso), só com as linhas de cada tipo. */
     private fun buildSimple(p: Prefs) {
         val title = titleOf.getValue(s.type)
-        p.valueRow("Nome", s.name.ifBlank { title }) { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
-        p.category(title, Ic.GEAR)
+        if (s.type != Type.STATUS) p.valueRow("Nome", s.name.ifBlank { title }) { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
+        if (s.type != Type.STATUS) p.category(title, Ic.GEAR)
         when (s.type) {
             Type.WAIT -> p.valueRow("Tempo de Espera", secs(s.ms)) { secDialog("Tempo de Espera (segundos)", null, s.ms) { v -> s = s.copy(ms = v); render() } }
             Type.KEY -> p.valueRow("Tecla", keyNames[s.x1] ?: "Voltar") {

@@ -13,11 +13,13 @@ import android.widget.ScrollView
 
 /** "Adicionar Itens" do base: linhas com ícone, título e descrição; devolve o tipo escolhido em "type". */
 class AddItemsActivity : Activity() {
-    private class Entry(val type: Type, val ic: Ic, val title: String, val desc: String)
+    private class Entry(val type: Type, val ic: Ic, val title: String, val desc: String, val mono: Boolean = false)
 
     // Ordem do base para o que o Macro17 já executa; os extras do Macro17 ficam no fim. Faltam (ainda sem executor): Grupo,
     // Grupo de Pesquisa de Imagem, Detecção de Mudança de Imagem e Parar Macro.
     private val entries = listOf(
+        Entry(Type.GROUP, Ic.REPEAT, "Grupo", "Agrupa itens para repeti-los juntos."),
+        Entry(Type.GROUP, Ic.IMAGE_SEARCH, "Grupo de Pesquisa de Imagem", "Procura várias imagens ou textos no mesmo quadro capturado.", mono = true),
         Entry(Type.TEXT, Ic.NUM, "Reconhecimento de Texto", "Reconhece texto na tela e encontra o mesmo texto."),
         Entry(Type.CHANGE, Ic.IMAGE_SEARCH, "Detecção de Mudança de Imagem", "Captura uma imagem na primeira execução e verifica continuamente se ela mudou da imagem previamente capturada."),
         Entry(Type.GOTO, Ic.JUMP, "Ir Para", "Ir para uma macro específica"),
@@ -54,7 +56,7 @@ class AddItemsActivity : Activity() {
                     }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
                 })
                 addView(View(this@AddItemsActivity).apply { setBackgroundColor(0x1E000000) }, LinearLayout.LayoutParams(MATCH_PARENT, 1))
-                setOnClickListener { setResult(RESULT_OK, Intent().putExtra("type", e.type.name)); finish() }
+                setOnClickListener { setResult(RESULT_OK, Intent().putExtra("type", e.type.name).putExtra("mono", e.mono)); finish() }
             }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
         }
         setContentView(LinearLayout(this).apply {

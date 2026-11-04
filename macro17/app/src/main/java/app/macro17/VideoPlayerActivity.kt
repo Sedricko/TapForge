@@ -24,7 +24,7 @@ class VideoPlayerActivity : Activity() {
         super.onCreate(b)
         val uri = intent.data ?: return finish()
         val video = VideoView(this)
-        val play = ImageButton(this).apply { setImageResource(android.R.drawable.ic_media_play); setBackgroundColor(0); contentDescription = "Reproduzir" }
+        val play = ImageButton(this).apply { setImageResource(android.R.drawable.ic_media_play); setBackgroundColor(0); contentDescription = "Reproduzir"; setColorFilter(0xFF333333.toInt()) }
         val cur = TextView(this).apply { text = "00:00"; textSize = 12f; setTextColor(0xFF555555.toInt()) }
         val total = TextView(this).apply { text = "00:00"; textSize = 12f; setTextColor(0xFF555555.toInt()) }
         val bar = SeekBar(this).apply {

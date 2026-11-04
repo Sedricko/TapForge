@@ -55,7 +55,6 @@ class PositionPickerActivity : Activity() {
         super.onCreate(b)
         mode = intent.getIntExtra("mode", POS); swipe = intent.getBooleanExtra("swipe", false)
         intent.getIntArrayExtra("v")?.copyInto(v, 0, 0, minOf(4, intent.getIntArrayExtra("v")!!.size))
-        window.insetsController?.let { it.hide(WindowInsets.Type.systemBars()); it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE }
         val bnd = windowManager.currentWindowMetrics.bounds; sw = bnd.width(); sh = bnd.height()
         root = FrameLayout(this).apply { setBackgroundColor(0xFFF0F0F0.toInt()) }
         bg = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_XY }
@@ -79,6 +78,7 @@ class PositionPickerActivity : Activity() {
             setBackgroundResource(R.drawable.bp_bg_glass_panel); setPadding(dp(24), dp(16), dp(24), dp(16)); addView(coords)
         }, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).also { it.bottomMargin = dp(40) })
         setContentView(root)
+        window.insetsController?.let { it.hide(WindowInsets.Type.systemBars()); it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE } // depois do setContentView: antes disso o controlador ainda não existe
         root.post { place(); refresh() }
     }
 
