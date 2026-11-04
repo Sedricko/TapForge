@@ -28,32 +28,33 @@ class Prefs(private val a: Activity) {
 
     private fun divider() = View(a).apply { setBackgroundColor(0x1F000000); layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 1) }
 
-    /** Título de categoria (verde-escuro) com ícone opcional na coluna da esquerda. */
-    fun category(title: String, ic: Ic? = null) {
+    /** Título de categoria (cor de destaque do base) com ícone opcional na coluna da esquerda; [iconRes] é um vetor com cor própria (ex.: new_icon). */
+    fun category(title: String, ic: Ic? = null, iconRes: Int? = null) {
         if (!first) column.addView(divider())
         first = false
         column.addView(LinearLayout(a).apply {
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(a.dp(16), a.dp(18), a.dp(16), a.dp(6))
+            setPadding(a.dp(16), a.dp(8), a.dp(16), a.dp(8))
             addView(FrameLayout(a).apply {
-                layoutParams = LinearLayout.LayoutParams(a.dp(56), a.dp(28))
-                if (ic != null) addView(a.glyph(ic, B.TEXT2, 24), FrameLayout.LayoutParams(a.dp(24), a.dp(24), Gravity.CENTER_VERTICAL))
+                layoutParams = LinearLayout.LayoutParams(a.dp(56), WRAP_CONTENT)
+                if (iconRes != null) addView(android.widget.ImageView(a).apply { setImageResource(iconRes) }, FrameLayout.LayoutParams(a.dp(48), a.dp(48), Gravity.CENTER_VERTICAL))
+                else if (ic != null) addView(a.glyph(ic, B.TEXT2, 24), FrameLayout.LayoutParams(a.dp(24), a.dp(24), Gravity.CENTER_VERTICAL))
             })
             addView(a.label(title, 14f, 0xFF00574B.toInt(), medium = true)) // colorAccent do tema do base (#00574B)
-        })
+        }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = a.dp(16) })
     }
 
     private fun texts(title: String, summary: String, enabled: Boolean) = LinearLayout(a).apply {
         orientation = LinearLayout.VERTICAL
         layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)
         addView(a.label(title, 16f, B.TEXT))
-        if (summary.isNotEmpty()) addView(a.label(summary, 14f, B.TEXT2).apply { setPadding(0, a.dp(3), a.dp(8), 0) })
+        if (summary.isNotEmpty()) addView(a.label(summary, 14f, B.TEXT2))
         alpha = if (enabled) 1f else 0.45f
     }
 
     private fun row(enabled: Boolean = true, click: (() -> Unit)? = null) = LinearLayout(a).apply {
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(a.dp(72), a.dp(16), a.dp(20), a.dp(16))
+        setPadding(a.dp(72), a.dp(16), a.dp(16), a.dp(16))
         if (enabled && click != null) { foreground = a.ripple(0, 0x1F00897B); setOnClickListener { Diag.d("config", "linha: ${(getChildAt(0) as? android.view.ViewGroup)?.getChildAt(0).let { (it as? android.widget.TextView)?.text }}"); click() } }
         column.addView(this, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
     }
@@ -66,7 +67,7 @@ class Prefs(private val a: Activity) {
             setOnCheckedChangeListener { _, on -> Diag.d("config", "$title = $on"); onChange(on) }
         }
         val r = row(enabled) { sw.toggle() }
-        r.addView(texts(title, summary, enabled)); r.addView(sw)
+        r.addView(texts(title, summary, enabled)); r.addView(sw, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.marginStart = a.dp(16) })
         return sw
     }
 

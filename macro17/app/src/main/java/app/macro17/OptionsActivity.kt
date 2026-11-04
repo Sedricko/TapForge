@@ -20,6 +20,7 @@ import android.widget.TextView
 class OptionsActivity : Activity() {
     private lateinit var store: Store
     private var battery: Switch? = null
+    private var resetting = false
 
     private fun pushOptions() { MacroService.instance?.applyOptions() }
 
@@ -43,8 +44,14 @@ class OptionsActivity : Activity() {
         p.switchRow("Alarme", "Um alarme soará quando a macro terminar.", store.endAlarm) { store.endAlarm = it }
         p.switchRow("Monitoramento contínuo da tela", "Mantém a captura de tela em ociosidade para reduzir o atraso de inicialização. (indisponível: o Macro17 captura sob demanda)", false, enabled = false)
         battery = p.switchRow("Desativar otimização de bateria", "Permita o uso em segundo plano sem restrições para uma operação estável.", ignoringBattery()) {
-            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-            battery?.isChecked = ignoringBattery() // o toque não decide: o switch reflete o estado real (também relido no onResume)
+            // Como no base: o toque não alterna; explica e leva às informações do app, onde está "Bateria". O switch reflete o estado real.
+            if (resetting) return@switchRow
+            resetting = true; battery?.isChecked = ignoringBattery(); resetting = false
+            AlertDialog.Builder(this).setTitle("Gerenciamento de Bateria do Aplicativo")
+                .setMessage("Para executar macros de forma estável em segundo plano, você precisa alterar as configurações de bateria. Permita o uso em segundo plano sem restrições.\n\n" +
+                    if (ignoringBattery()) "Na próxima tela, toque em Bateria e escolha Otimizado ou Restrito." else "Na próxima tela, toque em Bateria e escolha Sem restrições.")
+                .setPositiveButton("Ir para Configurações") { _, _ -> startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
+                .setNegativeButton("Cancelar", null).show()
         }
 
         p.category("Janela Pop-up")
@@ -56,7 +63,7 @@ class OptionsActivity : Activity() {
         val simpleSw = p.switchRow("Visualização Simples", "Simplifica os botões de controle exibidos na tela.", store.simpleView) { store.simpleView = it; if (it) playSw?.isChecked = false; pushOptions() }
         playSw = p.switchRow("Modo de Reprodução", "Apenas o botão de reprodução é exibido.", store.playMode) { store.playMode = it; if (it) simpleSw.isChecked = false; pushOptions() }
 
-        p.category("Gravação de tela", Ic.REC)
+        p.category("Gravação de tela", iconRes = R.drawable.bp_new_icon)
         var audioTxt: TextView? = null; var bitTxt: TextView? = null; var fpsTxt: TextView? = null
         val audioNames = arrayOf("Sem áudio", "Microfone")
         audioTxt = p.valueRow("Configurações de gravação de áudio", audioNames[store.recAudio.coerceIn(0, 1)]) {
