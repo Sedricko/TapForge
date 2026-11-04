@@ -105,7 +105,7 @@ class AlarmListActivity : Activity() {
                     setPadding(dp(8), dp(8), dp(8), dp(8))
                     setOnClickListener {
                         AlertDialog.Builder(context).setTitle("Excluir agendamento").setMessage("Tem certeza de que deseja excluir este agendamento?")
-                            .setPositiveButton("Excluir") { _, _ -> store.saveAlarms(all.filter { it.id != a.id }); Alarms.rearm(context); render() }
+                            .setPositiveButton("Excluir") { _, _ -> Alarms.cancel(context, a.id); store.saveAlarms(all.filter { it.id != a.id }); Alarms.rearm(context); render() }
                             .setNegativeButton("Cancelar", null).show()
                     }
                 })

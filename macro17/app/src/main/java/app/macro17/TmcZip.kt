@@ -35,7 +35,7 @@ object TmcZip {
                         png.getOrPut(parts[parts.size - 2]) { HashMap() }[file] = b
                     }
                 }
-                if (total > BackupZip.MAX_TOTAL) throw IOException("backup grande demais")
+                if (total > minOf(BackupZip.MAX_TOTAL, 64L shl 20)) throw IOException("backup grande demais") // tudo fica em memória: teto de 64 MB
             }
         }
         if (tmc.isEmpty()) return null
@@ -46,6 +46,8 @@ object TmcZip {
         for ((name, text) in tmc) {
             val imgIds = HashMap<String, String>()
             png[name]?.forEach { (fname, bytes) ->
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }.also { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, it) }
+                if (bounds.outWidth !in 1..8192 || bounds.outHeight !in 1..8192 || bounds.outWidth.toLong() * bounds.outHeight > 16_000_000L) return@forEach // imagem enorme: não decodifica
                 val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return@forEach
                 val tid = store.newTemplateId(); store.saveTemplate(tid, bmp); bmp.recycle(); imgIds[fname] = tid; images++
             }

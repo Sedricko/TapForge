@@ -117,8 +117,8 @@ class MacroService : AccessibilityService() {
     override fun onUnbind(intent: Intent?): Boolean {
         Diag.d("serviço", "acessibilidade desconectada")
         hideList()
-        logPanel.hide()
-        engine.stop()
+        if (::logPanel.isInitialized) logPanel.hide()
+        if (::engine.isInitialized) engine.stop()
         stopRecording(save = false)
         lock?.let { runCatching { unregisterReceiver(it) } }
         lock = null
@@ -378,7 +378,7 @@ class MacroService : AccessibilityService() {
 
     private fun toggleVideo() {
         if (ScreenRecordService.running) { ScreenRecordService.stop(this); ui.postDelayed({ fillRow1() }, 600); return }
-        startActivity(Intent(this, ScreenRecordPermissionActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        openScreen(Intent(this, ScreenRecordPermissionActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private fun togglePlay() {
@@ -470,8 +470,14 @@ class MacroService : AccessibilityService() {
     }
 
     /** Toque na linha da lista flutuante: abre o editor da macro já no item escolhido. */
+    /** Abre uma tela a partir do serviço; sem "Exibir sobre outros apps" o Android pode barrar em silêncio, então avisa. */
+    private fun openScreen(i: Intent) {
+        if (!android.provider.Settings.canDrawOverlays(this)) toast("Permita \"Exibir sobre outros apps\" para abrir telas pelo painel")
+        startActivity(i)
+    }
+
     private fun openItemFromList(macroId: String, index: Int) {
-        startActivity(Intent(this, EditorActivity::class.java).putExtra("id", macroId).putExtra("open", index).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        openScreen(Intent(this, EditorActivity::class.java).putExtra("id", macroId).putExtra("open", index).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private fun hideList() { listWin?.let { runCatching { wm.removeView(it) } }; listWin = null; listCol = null; listSv = null }
@@ -541,11 +547,11 @@ class MacroService : AccessibilityService() {
             gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE
             addView(pbtn(Ic.IMAGE, "Capturar imagem para a macro") { captureImage() })
-            addView(pbtn(Ic.ALARM, "Agendamento", 38, 38, 2) { startActivity(Intent(this@MacroService, AlarmListActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
+            addView(pbtn(Ic.ALARM, "Agendamento", 38, 38, 2) { openScreen(Intent(this@MacroService, AlarmListActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
             addView(pbtn(Ic.EDIT, "Abrir o editor da macro", 38, 38, 2) {
-                startActivity(Intent(this@MacroService, EditorActivity::class.java).putExtra("id", store.selected ?: "new").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                openScreen(Intent(this@MacroService, EditorActivity::class.java).putExtra("id", store.selected ?: "new").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             })
-            addView(pbtn(Ic.GEAR, "Configurações", 38, 38, 2) { startActivity(Intent(this@MacroService, PanelSettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
+            addView(pbtn(Ic.GEAR, "Configurações", 38, 38, 2) { openScreen(Intent(this@MacroService, PanelSettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) })
             addView(pbtn(Ic.INFO, "Registro ao vivo") { toggleLog() })
             addView(pbtn(Ic.CANCEL, "Fechar o painel", 38, 38, 2) { hideControls() })
         }
@@ -845,7 +851,7 @@ class MacroService : AccessibilityService() {
         val d = android.app.AlertDialog.Builder(android.view.ContextThemeWrapper(this, android.R.style.Theme_Material_Light_Dialog_Alert))
             .setTitle("Gravação de macro encerrada.")
             .setMessage("Ir para o Editor de Macro?\n(${m.steps.size} itens em “${m.name}”)")
-            .setPositiveButton("OK") { _, _ -> startActivity(Intent(this, EditorActivity::class.java).putExtra("id", m.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            .setPositiveButton("OK") { _, _ -> openScreen(Intent(this, EditorActivity::class.java).putExtra("id", m.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             .setNegativeButton("Cancelar", null).create()
         d.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
         d.show()

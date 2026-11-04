@@ -61,7 +61,10 @@ object TmcImport {
         }
         // Contadores do base são os próprios itens (ID); aqui cada item contador usa o próximo número livre de 1..10.
         val counterSlot = HashMap<Int, Int>()
-        fun slot(itemId: Int): Int = counterSlot.getOrPut(itemId) { (counterSlot.size % MAX_COUNTERS) + 1 }
+        fun slot(itemId: Int): Int = counterSlot.getOrPut(itemId) {
+            if (counterSlot.size >= MAX_COUNTERS) notes.add("mais de $MAX_COUNTERS contadores: os excedentes compartilham o mesmo número")
+            (counterSlot.size % MAX_COUNTERS) + 1
+        }
 
         fun sec(s: String, max: Int = MAX_DELAY_MS) = ((s.trim().toDoubleOrNull() ?: 0.0) * 1000).toInt().coerceIn(0, max)
         fun f(c: List<String>, n: Int) = c[n].trim()
@@ -87,14 +90,15 @@ object TmcImport {
             val common = Step(Type.WAIT, delay = delay, rnd = rnd, rndMin = rndMin, jitter = jitter, name = nm, off = (f(c, 15).toIntOrNull() ?: 0) > 0)
             fun placeholder(why: String): Step { notes.add("Item ${pos + 1} “$nm”: $why"); return common.copy(ms = 1) }
             val built: Step = when (p) {
-                0, 1, 2, 4, 5 -> {
+                0, 1, 2, 4, 5, 20 -> { // 20 = duplo toque legado
                     if (p == 2) { x2 = x1; y2 = y1 }
                     val type = when (p) { 1 -> Type.SWIPE; 4 -> Type.PINCH_IN; 5 -> Type.PINCH_OUT; else -> Type.TAP }
                     val imgName = f(c, 12); val tid = images[imgName]
                     val matchOn = (cond shr 1) and 1 != 0 && tid != null && f(c, 19).isNotEmpty()
                     common.copy(
                         type = type, x1 = x1, y1 = y1, x2 = x2, y2 = y2, ms = ms, skip = (f(c, 20).toIntOrNull() ?: 0) != 0,
-                        dbl = type == Type.TAP && (f(c, 46) == "1" || p == 20), img = tid.orEmpty(), useImg = matchOn,
+                        dbl = type == Type.TAP && (f(c, 46) == "1" || p == 20), img = tid.orEmpty(), useImg = matchOn, fx = matchOn && (f(c, 28).toIntOrNull() ?: 1) == 0, // coluna 28 = 0: "Posição fixa"
+                        
                         sms = if (matchOn) searchMs else 5000, cycle = if (matchOn) cycle else 200, thr = if (matchOn) thr else 90,
                         ax1 = if (matchOn && custom) area!![0] else 0, ay1 = if (matchOn && custom) area!![1] else 0,
                         ax2 = if (matchOn && custom) area!![2] else 0, ay2 = if (matchOn && custom) area!![3] else 0,
@@ -105,7 +109,7 @@ object TmcImport {
                 6 -> { // item de imagem (sem tocar por padrão)
                     val tid = images[f(c, 12)] ?: return@map placeholder("imagem não encontrada no backup")
                     common.copy(
-                        type = Type.IMAGE, text = tid, ms = searchMs, cycle = cycle, thr = thr, tap = (f(c, 20).toIntOrNull() ?: 1) == 0,
+                        type = Type.IMAGE, text = tid, dbl = f(c, 46) == "1", ms = searchMs, cycle = cycle, thr = thr, tap = (f(c, 20).toIntOrNull() ?: 1) == 0,
                         x1 = if (custom) area!![0] else 0, y1 = if (custom) area!![1] else 0, x2 = if (custom) area!![2] else 0, y2 = if (custom) area!![3] else 0,
                         goto = if (searchMs > 0) goto else 0, fail = if (searchMs > 0) fail else 0,
                         ox = devs.getOrElse(0) { 0 }, oy = devs.getOrElse(1) { 0 }, mono = (f(c, 28).toIntOrNull() ?: 1) in setOf(2, 4),
@@ -135,7 +139,7 @@ object TmcImport {
                     val texts = f(c, 33).split('|', ',').map { it.trim() }.filter { it.isNotEmpty() }
                     if (texts.isEmpty() || f(c, 38) == "2") return@map placeholder("reconhecimento de texto numérico ou sem texto não é importado")
                     common.copy(
-                        type = Type.TEXT, text = texts.joinToString(","), ms = searchMs, cycle = maxOf(cycle, 200), minConf = (f(c, 42).toDoubleOrNull() ?: 0.0).toInt().coerceIn(0, 100),
+                        type = Type.TEXT, text = texts.joinToString(","), dbl = f(c, 46) == "1", ms = searchMs, cycle = maxOf(cycle, 200), minConf = (f(c, 42).toDoubleOrNull() ?: 0.0).toInt().coerceIn(0, 100),
                         x1 = if (custom) area!![0] else 0, y1 = if (custom) area!![1] else 0, x2 = if (custom) area!![2] else 0, y2 = if (custom) area!![3] else 0,
                         goto = if (searchMs > 0) goto else 0, fail = if (searchMs > 0) fail else 0, tap = (f(c, 20).toIntOrNull() ?: 1) == 0, // "Saltar" desliga o toque
                     )

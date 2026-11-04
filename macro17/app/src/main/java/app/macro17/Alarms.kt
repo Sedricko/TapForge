@@ -41,6 +41,9 @@ object Alarms {
         PendingIntent.FLAG_IMMUTABLE or flags,
     )
 
+    /** Cancela os PendingIntents de início e de parada de um agendamento (usado ao excluir). */
+    fun cancel(c: Context, id: String) { val am = c.getSystemService(AlarmManager::class.java); am.cancel(pi(c, id, false)); am.cancel(pi(c, id, true)) }
+
     fun canExact(c: Context) = c.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
 
     /** Intervalos [início, fim) no relógio de 24h, circulares: dois alarmes ativos que se cruzam entram em conflito. */

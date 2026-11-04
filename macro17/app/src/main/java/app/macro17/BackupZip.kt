@@ -91,7 +91,14 @@ object BackupZip {
     private fun invalid(name: String, data: ByteArray): String? = try {
         when {
             name.startsWith("macros/") -> Macro.fromJson(JSONObject(String(data)), name.substringAfter('/').removeSuffix(".json")).validate()
-            name.endsWith(".png") -> if (data.size > 4 && data.copyOfRange(0, 4).contentEquals(PNG)) null else "não é PNG"
+            name.endsWith(".png") -> when {
+                data.size < 24 || !data.copyOfRange(0, 4).contentEquals(PNG) -> "não é PNG"
+                else -> { // largura/altura no IHDR (big-endian): recusa imagens que estourariam a memória ao decodificar
+                    fun be(o: Int) = ((data[o].toInt() and 255) shl 24) or ((data[o + 1].toInt() and 255) shl 16) or ((data[o + 2].toInt() and 255) shl 8) or (data[o + 3].toInt() and 255)
+                    val w = be(16); val h = be(20)
+                    if (w !in 1..8192 || h !in 1..8192 || w.toLong() * h > 16_000_000L) "imagem grande demais (${w}x$h)" else null
+                }
+            }
             else -> { JSONObject(String(data)); null } // glyphs.json
         }
     } catch (e: Exception) { "conteúdo inválido (${e.javaClass.simpleName})" }
