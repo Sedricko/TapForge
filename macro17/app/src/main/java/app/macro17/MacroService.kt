@@ -314,7 +314,7 @@ class MacroService : AccessibilityService() {
                     row1.addView(pbtn(Ic.UP, "Anterior") { engine.jump = -1 }.also { it.rotation = -90f })
                     row1.addView(pbtn(Ic.UP, "Próximo") { engine.jump = 1 }.also { it.rotation = 90f })
                 } else row1.addView(pbtn(Ic.PAUSE, "Pausar") { engine.paused = true; fillRow1() })
-                if (engine.paused) row1.addView(pbtn(if (listWin != null) Ic.EYE_OFF else Ic.EYE, "Lista da macro") { toggleList() })
+                if (engine.paused) row1.addView(pbtn(if (listWin != null) Ic.EYE else Ic.EYE_OFF, "Lista da macro") { toggleList() })
                 row1.addView(android.view.View(this).apply { setBackgroundColor(0xFFE0E0E0.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(1), dp(30)).also { it.setMargins(dp(4), 0, dp(4), 0) })
                 tvInfo = label(lastInfo, 13f, teal).apply { maxLines = 1; maxWidth = dp(110); ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, 0, dp(6), 0) }
                 row1.addView(tvInfo)
@@ -322,7 +322,7 @@ class MacroService : AccessibilityService() {
             }
             // "Modo de Reprodução": só o ▶. "Visualização Simples": sem enquadrar e sem a segunda linha.
             if (!store.playMode) row1.addView(pbtn(Ic.REC, "Gravar") { startRecording() })
-            if (!store.playMode && !store.simpleView) row1.addView(pbtn(if (listWin != null) Ic.EYE_OFF else Ic.EYE, "Lista da macro") { toggleList() })
+            if (!store.playMode && !store.simpleView) row1.addView(pbtn(if (listWin != null) Ic.EYE else Ic.EYE_OFF, "Lista da macro") { toggleList() })
             if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.FRAME, if (ScreenRecordService.running) "Parar a gravação de tela" else "Gravar a tela") { toggleVideo() })
             if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.CHEVRON, if (expanded) "Recolher" else "Mais opções") { expanded = !expanded; row2.visibility = if (expanded) View.VISIBLE else View.GONE; fillRow1() }.also { it.rotation = if (expanded) -90f else 90f })
         }
@@ -342,34 +342,62 @@ class MacroService : AccessibilityService() {
     // --- lista flutuante da macro ("olho"): 170x240dp com o passo atual em rosa, como no base ---
     private var listWin: View? = null
     private var listCol: android.widget.LinearLayout? = null
+    private var listSv: android.widget.ScrollView? = null
 
     private fun toggleList() {
         if (listWin != null) { hideList(); fillRow1(); return }
         val m = store.selected?.let { store.get(it) } ?: return toast("Por favor, selecione um arquivo.")
-        val col = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(6), dp(4), dp(6), dp(4)) }
-        m.steps.forEachIndexed { i, s -> col.addView(label("${i + 1}. ${s.name.ifBlank { s.type.name.lowercase().replaceFirstChar { it.uppercase() } }}", 13f, B.TEXT).apply { setPadding(0, dp(3), 0, dp(3)); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }) }
-        val sv = android.widget.ScrollView(this).apply { background = rounded(0xF2FFFFFF.toInt(), 8, 0xFFE0E0E0.toInt()); addView(col) }
-        val lp = WindowManager.LayoutParams(dp(170), dp(240), WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+        val col = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL }
+        m.steps.forEachIndexed { i, s ->
+            val nm = "${i + 1}. ${s.name.ifBlank { s.type.name.lowercase().replaceFirstChar { it.uppercase() } }}"
+            col.addView(android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(8), dp(6), dp(6), dp(6))
+                addView(label(nm, 16f, B.TEXT).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+                addView(label("%.1fs".format(s.delay / 1000f), 14f, 0xFF9E9E9E.toInt()))
+            })
+            col.addView(View(this).apply { setBackgroundColor(0x1F000000) }, android.widget.LinearLayout.LayoutParams(-1, 1))
+        }
+        // Como no base: título de 36dp verde com o nome da macro (arrasta a lista na vertical) e corpo branco de 170x240dp na borda direita.
+        val lp = WindowManager.LayoutParams(-2, -2, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT)
-            .apply { gravity = Gravity.TOP or Gravity.START; x = bubbleLp.x; y = bubbleLp.y + dp(48) }
-        runCatching { wm.addView(sv, lp) }.onSuccess { listWin = sv; listCol = col }
+            .apply { gravity = Gravity.TOP or Gravity.START; x = resources.displayMetrics.widthPixels - dp(171); y = 0 }
+        val title = android.widget.LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(0xFF008577.toInt())
+            addView(ImageView(this@MacroService).apply { setImageResource(R.drawable.bp_ic_move_resize_variant); setColorFilter(0xFFFAFAFA.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(24), dp(24)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) })
+            addView(label(m.name, 18f, 0xFFFAFAFA.toInt(), bold = true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
+            var oy = 0f; var sy = 0
+            setOnTouchListener { _, e ->
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> { oy = e.rawY; sy = lp.y }
+                    MotionEvent.ACTION_MOVE -> { lp.y = (sy + (e.rawY - oy).toInt()).coerceIn(0, resources.displayMetrics.heightPixels - dp(100)); runCatching { wm.updateViewLayout(listWin, lp) } }
+                }
+                true
+            }
+        }
+        val sv = android.widget.ScrollView(this).apply { setBackgroundColor(Color.WHITE); addView(col) }
+        val root = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL; alpha = if (playing) 0.5f else 1f
+            addView(title, android.widget.LinearLayout.LayoutParams(dp(170), dp(36)))
+            addView(sv, android.widget.LinearLayout.LayoutParams(dp(170), dp(240)))
+        }
+        runCatching { wm.addView(root, lp) }.onSuccess { listWin = root; listCol = col; listSv = sv }
         fillRow1()
     }
 
-    private fun hideList() { listWin?.let { runCatching { wm.removeView(it) } }; listWin = null; listCol = null }
+    private fun hideList() { listWin?.let { runCatching { wm.removeView(it) } }; listWin = null; listCol = null; listSv = null }
 
     private fun highlightStep(i: Int) {
         val col = listCol ?: return
-        for (k in 0 until col.childCount) (col.getChildAt(k) as? android.widget.TextView)?.apply {
+        for (k in 0 until col.childCount / 2) ((col.getChildAt(k * 2) as? android.widget.LinearLayout)?.getChildAt(0) as? android.widget.TextView)?.apply {
             setTextColor(if (k == i) 0xFFD81B60.toInt() else B.TEXT); typeface = if (k == i) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         }
-        (listWin as? android.widget.ScrollView)?.let { sv -> col.getChildAt(i)?.let { v -> sv.post { sv.smoothScrollTo(0, (v.top - dp(60)).coerceAtLeast(0)) } } }
+        col.getChildAt(i * 2)?.let { v -> listSv?.post { listSv?.smoothScrollTo(0, (v.top - dp(60)).coerceAtLeast(0)) } }
     }
 
     private var tvInfo: android.widget.TextView? = null
     private var lastInfo = ""
     private var playing = false // estado mostrado no painel (engine.running ainda é true dentro do callback de fim)
-    private fun setPlayIcon(running: Boolean) = ui.post { playing = running; if (running) { expanded = false; if (::row2.isInitialized) row2.visibility = View.GONE }; if (::row1.isInitialized && !recording) fillRow1() else playBtn?.setImageResource(if (running) R.drawable.ic_stop else R.drawable.bp_play_arrow) }
+    private fun setPlayIcon(running: Boolean) = ui.post { playing = running; listWin?.alpha = if (running) 0.5f else 1f; if (running) { expanded = false; if (::row2.isInitialized) row2.visibility = View.GONE }; if (::row1.isInitialized && !recording) fillRow1() else playBtn?.setImageResource(if (running) R.drawable.ic_stop else R.drawable.bp_play_arrow) }
 
     /** A camada do Gesto cobre a tela inteira e é criada depois do painel: recria o painel por cima, senão ele fica sem toque e o modo "não desativa". */
     private fun panelToFront() {
