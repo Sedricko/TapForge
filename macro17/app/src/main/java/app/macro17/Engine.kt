@@ -43,6 +43,9 @@ class Engine(
         return "Semelhança: ${(pr.best * 100).toInt()}% (exigido ${s.thr}%)"
     }
 
+    /** Id da macro em execução (a lista flutuante mostra essa, não só a selecionada). */
+    @Volatile var currentId: String? = null
+
     /** Alerta de status: se definido, mostra a mensagem por [ms] em janela própria (como a mensagem instantânea do base) em vez de um toast. */
     @Volatile var onStatus: ((String, Int) -> Unit)? = null
     /** Título do painel durante a execução: segundos restantes da espera ("3s") ou semelhança da busca ("87%"). */
@@ -66,6 +69,7 @@ class Engine(
 
     private fun run(m: Macro) {
         // Throwable (ex.: OutOfMemoryError ao decodificar quadro): o report sempre roda, para soltar a tela e a bolha.
+        currentId = m.id
         val t0 = SystemClock.elapsedRealtime()
         Diag.d("run", "início \"${m.name}\" passos=${m.steps.size} repetições=${m.loops}")
         val msg = try {
@@ -76,6 +80,7 @@ class Engine(
             }
         } catch (t: Throwable) { Diag.e("run", "Throwable no executor", t); "Erro inesperado: ${t.javaClass.simpleName}" }
         Diag.d("run", "fim: $msg (${SystemClock.elapsedRealtime() - t0} ms)")
+        currentId = null
         report(msg)
     }
 

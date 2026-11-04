@@ -113,7 +113,7 @@ class Runner(private val p: Ports) {
                 advance(stack, f, if (gx.gfail > 0) gx.gfail - 1 else gx.end + 1, natural = false); continue
             }
             val s = f.macro.steps[f.pc]
-            p.progress(f.lap + 1, f.macro.loops, f.pc + 1, f.macro.steps.size, s.name)
+            if (stack.size == 1) p.progress(f.lap + 1, f.macro.loops, f.pc + 1, f.macro.steps.size, s.name) // dentro de macro chamada (CALL) o painel e a lista continuam na raiz
             if (s.off) { p.sleep(1); advance(stack, f, f.pc + 1 + if (s.type == Type.GROUP) s.grp else 0); continue } // grupo desabilitado pula também os filhos
             val wait = delayOf(s) // uma vez só: delayOf sorteia quando o atraso é aleatório, e o rastro tem de mostrar o valor usado
             p.trace("passo ${f.pc + 1}/${f.macro.steps.size} ${s.type}" + (if (s.skip) " (pular)" else "") + " atraso=${wait}ms")

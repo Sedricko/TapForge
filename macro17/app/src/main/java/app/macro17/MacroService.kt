@@ -67,8 +67,11 @@ class MacroService : AccessibilityService() {
         engine.onStatus = { t, ms -> instant(t, ms) }
         engine.onTick = { t -> lastTitle = t; ui.post { tvTitle?.text = t } }
         engine.onProgress = { lap, loops, step, total, name ->
-            lastInfo = name.ifBlank { "$step/$total" }; lastCycle = "$lap"; lastTitle = "-"
-            if (!testing) ui.post { tvInfo?.text = lastInfo; tvCycle?.text = lastCycle; tvTitle?.text = lastTitle; highlightStep(step - 1) }
+            lastInfo = name.ifBlank { "$step/$total" }; lastCycle = "$lap"; lastTitle = "-"; lastStepIdx = step - 1
+            if (!testing) ui.post {
+                val cur = engine.currentId
+                if (listWin != null && cur != null && (cur != listMacroId || (listCol?.childCount ?: 0) / 2 != store.get(cur)?.steps?.size)) { hideList(); toggleList() }
+                tvInfo?.text = lastInfo; tvCycle?.text = lastCycle; tvTitle?.text = lastTitle; highlightStep(step - 1) }
         }
         instance = this
         Alarms.rearm(this)
@@ -404,10 +407,13 @@ class MacroService : AccessibilityService() {
     private var listWin: View? = null
     private var listCol: android.widget.LinearLayout? = null
     private var listSv: android.widget.ScrollView? = null
+    private var listMacroId: String? = null
+    private var lastStepIdx = -1
 
     private fun toggleList() {
         if (listWin != null) { hideList(); fillRow1(); return }
-        val m = store.selected?.let { store.get(it) } ?: return toast("Por favor, selecione um arquivo.")
+        val m = (engine.currentId ?: store.selected)?.let { store.get(it) } ?: return toast("Por favor, selecione um arquivo.") // a macro em execução, ou a selecionada
+        listMacroId = m.id
         val col = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.VERTICAL }
         val collapsed = HashSet<Int>() // cabeçalhos de grupo recolhidos
         fun applyCollapse() {
@@ -478,7 +484,7 @@ class MacroService : AccessibilityService() {
             addView(title, android.widget.LinearLayout.LayoutParams(dp(170), dp(36)))
             addView(sv, android.widget.LinearLayout.LayoutParams(dp(170), dp(240)))
         }
-        runCatching { wm.addView(root, lp) }.onSuccess { listWin = root; listCol = col; listSv = sv }
+        runCatching { wm.addView(root, lp) }.onSuccess { listWin = root; listCol = col; listSv = sv; if (playing && lastStepIdx >= 0) highlightStep(lastStepIdx) } // abre já com o passo atual em rosa
         fillRow1()
     }
 
