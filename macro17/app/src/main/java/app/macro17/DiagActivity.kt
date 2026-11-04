@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.WindowInsets
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.HorizontalScrollView
@@ -42,43 +43,38 @@ class DiagActivity : Activity() {
         super.onCreate(b)
         store = Store(this)
 
-        val bar = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            addView(circleBtn(Ic.BACK, Color.TRANSPARENT, 40, "Voltar") { finish() })
-            addView(label("Monitor e logs", 18f, bold = true).apply { setPadding(dp(4), 0, 0, 0) })
-        }
         val names = listOf("Serviço", "Macro", "Memória", "Erros", "Avisos")
-        stats = names.associateWith { label("–", 15f, bold = true).apply { gravity = Gravity.CENTER } }
+        stats = names.associateWith { label("–", 15f, B.TEXT, bold = true).apply { gravity = Gravity.CENTER } }
         val statRow = LinearLayout(this).apply {
             setPadding(0, dp(8), 0, dp(4))
             names.forEach { n ->
                 addView(LinearLayout(this@DiagActivity).apply {
                     orientation = LinearLayout.VERTICAL
-                    background = tileBg()
+                    background = rounded(Color.WHITE, 4, 0xFFE0E0E0.toInt()); elevation = dp(1).toFloat()
                     setPadding(dp(4), dp(8), dp(4), dp(8))
                     layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).also { it.setMargins(dp(2), 0, dp(2), 0) }
                     addView(stats.getValue(n), LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-                    addView(label(n, 11f, C.TEXT2).apply { gravity = Gravity.CENTER })
+                    addView(label(n, 11f, B.TEXT2).apply { gravity = Gravity.CENTER })
                 })
             }
         }
-        health = label("", 13f, bold = true).apply {
-            setPadding(dp(10), dp(8), dp(10), dp(8)); background = tileBg()
+        health = label("", 13f, B.TEXT, bold = true).apply {
+            setPadding(dp(10), dp(8), dp(10), dp(8)); background = rounded(Color.WHITE, 4, 0xFFE0E0E0.toInt()); elevation = dp(1).toFloat()
             setOnClickListener { cat = Cat.ERRORS; chips(); render() } // toque leva direto aos erros
         }
         val actions = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(LinearLayout(this@DiagActivity).apply {
                 setPadding(0, dp(4), 0, dp(4))
-                addView(pillBtn("Copiar", C.BLUE) { copy(visibleText()) })
-                addView(pillBtn("Compartilhar", C.PURPLE) { share(visibleText()) })
-                addView(pillBtn("Salvar relatório", C.TEAL) { saveReport() })
-                addView(pillBtn("Enviar tudo", C.DARK) { reportMenu() })
-                addView(pillBtn("Limpar", C.RED) { Diag.feed.clear(); Diag.clear() })
-                addView(pillBtn("Autoteste", C.TEAL) { selfTest() })
-                addView(pillBtn("Arquivo do log", C.BLUE) { showFileLog() })
-                addView(pillBtn("Painel flutuante", C.DARK) { MacroService.instance?.toggleLog() ?: toast("Ative o serviço de acessibilidade primeiro") })
-                addView(pillBtn("Opções", C.DARK) { options() })
+                addView(pillBtn("Copiar", B.PRIMARY) { copy(visibleText()) })
+                addView(pillBtn("Compartilhar", B.PRIMARY) { share(visibleText()) })
+                addView(pillBtn("Salvar relatório", B.PRIMARY) { saveReport() })
+                addView(pillBtn("Enviar tudo", B.PRIMARY) { reportMenu() })
+                addView(pillBtn("Limpar", B.PINK) { Diag.feed.clear(); Diag.clear() })
+                addView(pillBtn("Autoteste", B.PRIMARY) { selfTest() })
+                addView(pillBtn("Arquivo do log", B.PRIMARY) { showFileLog() })
+                addView(pillBtn("Painel flutuante", B.PRIMARY) { MacroService.instance?.toggleLog() ?: toast("Ative o serviço de acessibilidade primeiro") })
+                addView(pillBtn("Opções", B.PRIMARY) { options() })
             })
         }
         chipRow = LinearLayout(this).apply { setPadding(0, dp(4), 0, dp(4)) }
@@ -86,10 +82,18 @@ class DiagActivity : Activity() {
         chips()
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(bar); addView(statRow); addView(health, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(2), dp(4), dp(2), dp(4)) }); addView(actions)
-            addView(HorizontalScrollView(this@DiagActivity).apply { isHorizontalScrollBarEnabled = false; addView(chipRow) })
-            addView(ScrollView(this@DiagActivity).apply { addView(list) }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
-            padForSystemBars(dp(12))
+            setBackgroundColor(B.BG)
+            addView(appBar("Monitor e logs", Ic.BACK, { finish() }))
+            addView(LinearLayout(this@DiagActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(8), 0, dp(8), 0)
+                addView(statRow); addView(health, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(2), dp(4), dp(2), dp(4)) }); addView(actions)
+                addView(HorizontalScrollView(this@DiagActivity).apply { isHorizontalScrollBarEnabled = false; addView(chipRow) })
+            })
+            addView(ScrollView(this@DiagActivity).apply {
+                addView(list); setPadding(dp(12), 0, dp(12), 0); clipToPadding = false
+                setOnApplyWindowInsetsListener { v, i -> v.setPadding(dp(12), 0, dp(12), i.getInsets(WindowInsets.Type.navigationBars()).bottom); i }
+            }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
         })
     }
 
@@ -143,8 +147,8 @@ class DiagActivity : Activity() {
     private fun render() {
         list.removeAllViews()
         val rs = rows().take(200)
-        if (rs.isEmpty()) list.addView(label("Nenhum evento ainda neste uso do app.", 14f, C.TEXT2).apply { setPadding(dp(8), dp(12), 0, 0) })
-        rs.forEach { list.addView(logRow(it)) }
+        if (rs.isEmpty()) list.addView(label("Nenhum evento ainda neste uso do app.", 14f, B.TEXT2).apply { setPadding(dp(8), dp(12), 0, 0) })
+        rs.forEach { list.addView(logRow(it, light = true)) }
         updateStats()
     }
 
@@ -152,7 +156,13 @@ class DiagActivity : Activity() {
         chipRow.removeAllViews()
         Cat.values().forEach { c ->
             val on = c == cat
-            chipRow.addView(chipBtn(if (c == Cat.ERRORS || c == Cat.WARNINGS) "${c.label} · ${Diag.feed.count(c)}" else c.label, on) { cat = c; chips(); render() })
+            val t = if (c == Cat.ERRORS || c == Cat.WARNINGS) "${c.label} · ${Diag.feed.count(c)}" else c.label
+            chipRow.addView(label(t, 13f, if (on) Color.WHITE else B.TEXT, bold = on).apply {
+                setPadding(dp(12), dp(6), dp(12), dp(6))
+                background = rounded(if (on) B.PRIMARY else Color.WHITE, 16, if (on) B.PRIMARY else 0xFFE0E0E0.toInt())
+                layoutParams = LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.setMargins(dp(2), 0, dp(2), 0) }
+                setOnClickListener { cat = c; chips(); render() }
+            })
         }
     }
 
@@ -161,17 +171,17 @@ class DiagActivity : Activity() {
         val rt = Runtime.getRuntime()
         val err = Diag.feed.count(Cat.ERRORS); val warn = Diag.feed.count(Cat.WARNINGS)
         fun set(k: String, text: String, color: Int) { stats.getValue(k).apply { this.text = text; setTextColor(color) } }
-        set("Serviço", if (svc != null) "ativo" else "desligado", if (svc != null) 0xFF81C784.toInt() else 0xFFEF5350.toInt())
-        set("Macro", if (svc?.isRunning() == true) "rodando" else "parada", if (svc?.isRunning() == true) 0xFF64B5F6.toInt() else C.TEXT2)
-        set("Memória", "${(rt.totalMemory() - rt.freeMemory()) shr 20} MB", C.TEXT)
-        set("Erros", err.toString(), if (err > 0) 0xFFEF5350.toInt() else C.TEXT2)
-        set("Avisos", warn.toString(), if (warn > 0) 0xFFFFB74D.toInt() else C.TEXT2)
+        set("Serviço", if (svc != null) "ativo" else "desligado", if (svc != null) 0xFF2E7D32.toInt() else 0xFFF44336.toInt())
+        set("Macro", if (svc?.isRunning() == true) "rodando" else "parada", if (svc?.isRunning() == true) 0xFF1976D2.toInt() else B.TEXT2)
+        set("Memória", "${(rt.totalMemory() - rt.freeMemory()) shr 20} MB", B.TEXT)
+        set("Erros", err.toString(), if (err > 0) 0xFFF44336.toInt() else B.TEXT2)
+        set("Avisos", warn.toString(), if (warn > 0) 0xFFEF6C00.toInt() else B.TEXT2)
         val last = Diag.feed.snapshot(Cat.ERRORS, 1).firstOrNull()
         when {
-            svc == null -> { health.text = "Atenção: o serviço de acessibilidade está desligado"; health.setTextColor(0xFFFFB74D.toInt()) }
-            err > 0 -> { health.text = "Problema: $err erro(s). Último: ${last?.text.orEmpty().replace("ERRO ", "").lineSequence().firstOrNull().orEmpty().take(90)} (toque para ver)"; health.setTextColor(0xFFEF5350.toInt()) }
-            warn > 0 -> { health.text = "Atenção: $warn aviso(s) neste uso"; health.setTextColor(0xFFFFB74D.toInt()) }
-            else -> { health.text = "Tudo certo: nenhum erro ou aviso neste uso"; health.setTextColor(0xFF81C784.toInt()) }
+            svc == null -> { health.text = "Atenção: o serviço de acessibilidade está desligado"; health.setTextColor(0xFFEF6C00.toInt()) }
+            err > 0 -> { health.text = "Problema: $err erro(s). Último: ${last?.text.orEmpty().replace("ERRO ", "").lineSequence().firstOrNull().orEmpty().take(90)} (toque para ver)"; health.setTextColor(0xFFF44336.toInt()) }
+            warn > 0 -> { health.text = "Atenção: $warn aviso(s) neste uso"; health.setTextColor(0xFFEF6C00.toInt()) }
+            else -> { health.text = "Tudo certo: nenhum erro ou aviso neste uso"; health.setTextColor(0xFF2E7D32.toInt()) }
         }
         // Os chips de Erros e Avisos mostram a contagem: atualiza o texto sem refazer a lista.
         for (n in 0 until chipRow.childCount) (chipRow.getChildAt(n) as? TextView)?.let { v ->
