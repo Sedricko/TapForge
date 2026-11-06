@@ -82,7 +82,7 @@ class MacroService : AccessibilityService() {
         }
         pickReceiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) { i.getIntArrayExtra("v")?.let { v -> val cb = pendingPick; pendingPick = null; ui.post { cb?.invoke(v) } } }
-        }.also { registerReceiver(it, IntentFilter("app.macro17.PICKED"), Context.RECEIVER_NOT_EXPORTED) }
+        }.also { val f = IntentFilter("app.macro17.PICKED"); if (Build.VERSION.SDK_INT >= 33) registerReceiver(it, f, Context.RECEIVER_NOT_EXPORTED) else registerReceiver(it, f) }
         val off = IntentFilter(Intent.ACTION_SCREEN_OFF)
         // A versão com flags só existe na API 33; nas 31 e 32 o registro simples já basta para broadcast do sistema.
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(lock, off, Context.RECEIVER_NOT_EXPORTED) else registerReceiver(lock, off)

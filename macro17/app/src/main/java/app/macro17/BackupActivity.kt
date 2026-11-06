@@ -53,7 +53,7 @@ class BackupActivity : Activity() {
     }
 
     private var chosen: Set<String>? = null
-    private var withSamples = true
+    private var withSamples = false
 
     /** A seleção de macros é uma tela própria (BackupPickActivity); depois vem a pergunta sobre as capturas de tela. */
     private fun chooseMacros() {
