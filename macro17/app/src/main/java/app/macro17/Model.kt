@@ -192,7 +192,6 @@ data class Macro(val id: String, val name: String, val loops: Int, val steps: Li
 
 // --- edição da lista: os alvos de salto acompanham os passos (renumeração) ---
 
-private fun Step.mapTargets(f: (Int) -> Int) = copy(goto = f(goto), fail = f(fail), gfail = f(gfail), cases = cases.map { it.copy(to = f(it.to)) })
 
 /** Remove o passo [i] (0-based). Saltos para ele viram "seguir"; os seguintes descem um número. */
 fun List<Step>.afterDelete(i: Int): List<Step> {

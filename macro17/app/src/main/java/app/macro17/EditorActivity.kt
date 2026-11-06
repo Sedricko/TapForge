@@ -266,7 +266,7 @@ class EditorActivity : Activity() {
         val cur = idx.toMutableSet()
         for (i in if (up) idx else idx.reversed()) {
             val j = if (up) i - 1 else i + 1
-            if (j in steps.indices && j !in cur) { steps = steps.afterSwap(i, j); cur.remove(i); cur.add(j) }
+            if (j in steps.indices && j !in cur && steps[i].type != Type.GROUP && steps[j].type != Type.GROUP && steps.parentOf(i) == steps.parentOf(j)) { steps = steps.afterSwap(i, j); cur.remove(i); cur.add(j) }
         }
         selected.clear(); selected.addAll(cur)
         refresh()
@@ -275,19 +275,13 @@ class EditorActivity : Activity() {
     private fun duplicateSelected() {
         val idx = needSelection() ?: return
         // Como no base: as cópias entram juntas, depois do último marcado, e a seleção continua nos originais.
-        val at0 = idx.last() + 1
-        var at = at0
-        val set = idx.toSet()
-        for (i in idx) if (steps.size < MAX_STEPS) { steps = steps.afterInsert(at, steps[i].shiftedFrom(at)); at++ }
-        // Como no base: saltos entre itens copiados passam a apontar para as cópias (não para os originais).
-        fun map(t: Int) = if (t > 0 && (t - 1) in set) at0 + idx.indexOf(t - 1) + 1 else t
-        steps = steps.mapIndexed { k, st -> if (k in at0 until at) st.copy(goto = map(st.goto), fail = map(st.fail), cases = st.cases.map { it.copy(to = map(it.to)) }) else st }
+        steps = steps.duplicated(idx, MAX_STEPS)
         refresh()
     }
 
     private fun deleteSelected() {
         val idx = needSelection() ?: return
-        for (i in idx.reversed()) steps = steps.afterDelete(i) // sem confirmação, como no base
+        steps = steps.deleted(idx.toSet()) // sem confirmação, como no base
         selected.clear(); refresh()
     }
 
@@ -337,7 +331,7 @@ class EditorActivity : Activity() {
         val out = order.map { old ->
             if (old < 0) Step(Type.GROUP, grp = mk.size, name = "Grupo")
             else steps[old].let { st ->
-                val g = if (st.type == Type.GROUP) st.copy(grp = (kids[old] ?: 0) + if (old == target) mk.size else 0) else st
+                val g = if (st.type == Type.GROUP) st.copy(grp = (kids[old] ?: 0) + if (old == target || (target > old && target <= old + steps[old].grp)) mk.size else 0) else st
                 g.copy(goto = map(g.goto), fail = map(g.fail), cases = g.cases.map { it.copy(to = map(it.to)) })
             }
         }
@@ -349,7 +343,7 @@ class EditorActivity : Activity() {
         val idx = needSelection() ?: return
         val heads = idx.filter { steps[it].type == Type.GROUP }.sortedDescending()
         if (heads.isEmpty()) return toast("Marque o cabeçalho de um grupo.")
-        for (h in heads) steps = steps.afterDelete(h)
+        steps = steps.deleted(heads.toSet())
         selected.clear(); refresh()
     }
 
@@ -694,6 +688,7 @@ class EditorActivity : Activity() {
         val n = loops.text.toString().toIntOrNull() ?: return toast("Repetições deve ser um número inteiro")
         val m = Macro(id, name.text.toString().trim(), n, steps)
         m.validate()?.let { return toast(it) }
+        if (!steps.groupsConsistent()) return toast("Um grupo ultrapassa o fim da lista ou cruza outro")
         val pd = AlertDialog.Builder(this).setTitle("Aguarde").setView(android.widget.ProgressBar(this).apply { setPadding(dp(24), dp(24), dp(24), dp(24)) }).setCancelable(false).show()
         try {
             store.save(m); store.saveHistory(m); saved = snapshot()
