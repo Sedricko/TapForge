@@ -56,7 +56,7 @@ class MoveBlockTest {
         val l = listOf(tap(goto = 2), grp(1), tap(), tap())
         val (out, _) = l.movedBlock(1, up = true)!!
         assertEquals(listOf(Type.GROUP, Type.TAP, Type.TAP, Type.TAP), out.map { it.type })
-        assertEquals(3, out[2].goto) // o passo 1 (goto 2 = o cabeçalho) agora aponta para onde o cabeçalho foi
+        assertEquals(1, out[2].goto) // o antigo passo 1 (goto 2 = o cabeçalho) agora é o 3º e aponta para o cabeçalho, que virou o 1º
         assertTrue(out.groupsConsistent())
     }
 
