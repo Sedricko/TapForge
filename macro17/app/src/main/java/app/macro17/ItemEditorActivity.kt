@@ -75,7 +75,7 @@ class ItemEditorActivity : Activity() {
     private val speeds = listOf("Muito rápido" to 50, "Rápido" to 200, "1 Seg" to 1000, "2 Seg" to 2000, "3 Seg" to 3000) // shortcut: o base grava 0 em "Muito rápido"; aqui 50 ms para o laço não girar sem pausa
     private val searchMsg = "Definir o tempo de pesquisa como 0 significa pesquisa infinita. Definindo-o maior que 0 permite configurar para onde mover com base nos resultados da pesquisa. " +
         "Um tempo de pesquisa entre 0 e 1 segundo significa comparar imagens instantaneamente e usar imagens capturadas anteriormente."
-    private val speedMsg = "Defina uma velocidade mais rápida para detectar imagens em mudança rápida."
+    private val speedMsg = "Defina uma velocidade mais rápida para detectar imagens que mudam rapidamente."
 
     private val twoPoint = setOf(Type.SWIPE, Type.PINCH_IN, Type.PINCH_OUT)
     private fun kind() = when { s.type == Type.SWIPE -> "Deslizar"; s.type == Type.PINCH_OUT -> "Aumentar Zoom"; s.type == Type.PINCH_IN -> "Diminuir Zoom"; s.ms >= 500 -> "Pressionar"; else -> "Tocar" }
@@ -202,7 +202,7 @@ class ItemEditorActivity : Activity() {
                 speedRow(p, "Velocidade de Pesquisa", speeds, null)
                 p.switchRow("Tocar ao achar", "Toca no centro do que foi encontrado.", s.tap) { v -> s = s.copy(tap = v); render() }
                 p.valueRow("Desvio de Coordenadas", devSum(), s.tap) {
-                    pick(PositionPickerActivity.DEV, intArrayOf(s.ox, s.oy), null) { v -> s = s.copy(ox = v[0], oy = v[1]) }
+                    devDialog(null)
                 }
                 moveRows(p, s.ms)
             }
@@ -271,7 +271,7 @@ class ItemEditorActivity : Activity() {
         p.category("Ação de Toque", iconRes = R.drawable.bp_click_traffic)
         p.switchRow("Pular", "Tocar/Deslizar/Pressionar não funcionará. Usado para atraso e comparação de imagens.", !s.tap) { v -> s = s.copy(tap = !v); render() }
         p.valueRow("Desvio de Coordenadas", devSum()) {
-            pick(PositionPickerActivity.DEV, intArrayOf(s.ox, s.oy), s.text) { v -> s = s.copy(ox = v[0], oy = v[1]) }
+            devDialog(s.text)
         }
     }
 
@@ -328,7 +328,7 @@ class ItemEditorActivity : Activity() {
             p.category("Ação de Toque", iconRes = R.drawable.bp_click_traffic)
             p.switchRow("Pular", "Tocar/Deslizar/Pressionar não funcionará. Usado para atraso e comparação de imagens.", !s.tap) { v -> s = s.copy(tap = !v); render() }
             p.valueRow("Desvio de Coordenadas", devSum()) {
-                pick(PositionPickerActivity.DEV, intArrayOf(s.ox, s.oy), null) { v -> s = s.copy(ox = v[0], oy = v[1]) }
+                devDialog(null)
             }
         }
     }
@@ -420,7 +420,7 @@ class ItemEditorActivity : Activity() {
         p.switchRow("Pular", "Tocar/Deslizar/Pressionar não funcionará. Usado para atraso e comparação de imagens.", s.skip) { v -> s = s.copy(skip = v); render() }
         if (s.type == Type.TAP && s.ms < 500) p.switchRow("Clique Duplo", "Clica no mesmo lugar duas vezes.", s.dbl) { v -> s = s.copy(dbl = v); render() }
         if (on) p.valueRow("Desvio de Coordenadas", devSum()) {
-            pick(PositionPickerActivity.DEV, intArrayOf(s.ox, s.oy), s.img.ifBlank { null }) { v -> s = s.copy(ox = v[0], oy = v[1]) }
+            devDialog(s.img.ifBlank { null })
         }
 
         p.category("Evasão de Detecção", iconRes = R.drawable.bp_icn_hide_source_24px)
@@ -543,6 +543,14 @@ class ItemEditorActivity : Activity() {
         AlertDialog.Builder(this).setTitle("Selecionar Som").setView(list)
             .setPositiveButton("OK") { _, _ -> if (chosen >= 0) { s = s.copy(snu = uris[chosen]); render() } }
             .setNegativeButton("Cancelar", null).setOnDismissListener { playing?.stop() }.show()
+    }
+
+    /** "Desvio de Coordenadas" do base: explicação e Não usar / Configurar (abre o seletor). */
+    private fun devDialog(tpl: String?) {
+        AlertDialog.Builder(this).setTitle("Desvio de Coordenadas")
+            .setMessage("Esta função permite tocar em um local diferente da posição da imagem. Defina o desvio das coordenadas para onde tocar a partir da posição da imagem encontrada pela função de pesquisa.")
+            .setNegativeButton("Não usar") { _, _ -> s = s.copy(ox = 0, oy = 0); render() }
+            .setPositiveButton("Configurar") { _, _ -> pick(PositionPickerActivity.DEV, intArrayOf(s.ox, s.oy), tpl) { v -> s = s.copy(ox = v[0], oy = v[1]) } }.show()
     }
 
     private fun positionDialog() {
