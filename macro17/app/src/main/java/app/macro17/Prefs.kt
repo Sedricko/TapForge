@@ -118,5 +118,6 @@ fun Activity.mainDrawer(selected: Int): Drawer {
         Triple(Ic.ARCHIVE, "Backup e Restauração") { if (this !is BackupActivity) go(BackupActivity::class.java) },
         Triple(Ic.GEAR, "Configurações") { if (this !is OptionsActivity) go(OptionsActivity::class.java) },
         Triple(Ic.ARTICLE, "Sobre o Aplicativo") { if (this !is AboutActivity) go(AboutActivity::class.java) },
+        Triple(Ic.SEARCH, "Monitor e logs") { if (this !is DiagActivity) go(DiagActivity::class.java) }, // extra do Macro17: no fim, para não deslocar os itens do base
     ), selected)
 }
