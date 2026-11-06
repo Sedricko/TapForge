@@ -39,7 +39,7 @@ class ItemEditorActivity : Activity() {
         total = intent.getIntExtra("total", 1); index = intent.getIntExtra("index", -1)
         names = intent.getStringArrayExtra("names") ?: emptyArray()
         if (s.type == Type.GROUP && !s.mono) { setContentView(android.view.View(this).apply { setBackgroundColor(android.graphics.Color.WHITE) }); groupDialog() } // grupo comum: só o diálogo "Grupo"
-        else render()
+        else runCatching { render() }.onFailure { Diag.e("item", "falha ao montar a tela do item", it); Toast.makeText(this, "Erro ao abrir o item: ${it.javaClass.simpleName} ${it.message.orEmpty().take(80)}", Toast.LENGTH_LONG).show(); finish() }
     }
 
     override fun onBackPressed() = leave()

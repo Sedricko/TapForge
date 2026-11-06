@@ -492,6 +492,7 @@ class MacroService : AccessibilityService() {
                 // Como no base: toque curto edita o item numa janela por cima do app (só os tipos que o base permite; grupo recolhe/expande);
                 // toque longo testa o item (espera 500 ms, compara a imagem com a tela e mostra a semelhança).
                 setOnClickListener {
+                    Diag.d("lista", "toque no item ${i + 1} (${st.type.name}); gravando=$recording")
                     if (recording) toast("A edição não é possível durante a gravação de uma macro.") // como no base
                     else if (st.type == Type.GROUP) { if (i in collapsed) collapsed.remove(i) else collapsed.add(i); applyCollapse() }
                     else if (ItemOverlay.editable(st.type)) editFromList(m, i)
@@ -559,7 +560,9 @@ class MacroService : AccessibilityService() {
     }
 
     private fun editFromList(m: Macro, i: Int) {
-        itemOverlay.show(m.steps[i], m.steps.size, onSave = { ns -> applyListEdit(m, i, ns) }, onDelete = { applyListEdit(m, i, null) })
+        Diag.d("lista", "editar item ${i + 1} (${m.steps[i].type.name}) pela lista flutuante")
+        runCatching { itemOverlay.show(m.steps[i], m.steps.size, onSave = { ns -> applyListEdit(m, i, ns) }, onDelete = { applyListEdit(m, i, null) }) }
+            .onFailure { Diag.e("lista", "falha ao abrir a janela de edição", it); toast("Não foi possível abrir a edição: ${it.javaClass.simpleName} ${it.message.orEmpty().take(80)}") }
     }
 
     /** Grava a edição feita na janela: na macro salva ou, durante a gravação, na lista da gravação (itens já salvos também vão para o arquivo). */
