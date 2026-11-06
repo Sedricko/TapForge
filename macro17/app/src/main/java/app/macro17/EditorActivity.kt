@@ -678,8 +678,8 @@ class EditorActivity : Activity() {
 
     private fun loopsDialog() {
         val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER; setText(loops.text); setPadding(dp(24), dp(16), dp(24), dp(8)) }
-        et.hint = "Repetir reprodução" // edit_header_dialog do base: só o campo, com a dica
-        AlertDialog.Builder(this).setView(et)
+        et.hint = "0 significa infinito"
+        AlertDialog.Builder(this).setTitle("Repetir reprodução").setView(et)
             .setPositiveButton("OK") { _, _ -> et.text.toString().toIntOrNull()?.takeIf { it in 0..MAX_LOOPS }?.let { loops.setText(it.toString()) } ?: toast("Número inválido") }
             .setNegativeButton("Cancelar", null).show()
     }

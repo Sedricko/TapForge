@@ -92,12 +92,12 @@ class MainActivity : Activity() {
             val ok = when (mode) { MODE_ADB -> adbOn; MODE_ROOT -> true; else -> MacroService.instance != null }
             val text = when (mode) {
                 MODE_ADB -> if (adbOn) "Não desligue. Você precisará configurá-lo novamente." else "ADB não ativado."
-                MODE_ROOT -> "Modo Root selecionado."
-                else -> if (ok) "Permissão de Acessibilidade Concedida" else "A permissão de acessibilidade deve ser concedida."
+                MODE_ROOT -> "Permissão de root concedida."
+                else -> if (ok) "Permissão de Acessibilidade Concedida" else "A acessibilidade não está ativada."
             }
             addView(glyph(Ic.INFO, if (ok) 0xFF00574B.toInt() else B.RED, 24))
             addView(label(text, 14f, 0xDE000000.toInt(), bold = true).apply { gravity = Gravity.CENTER; minWidth = dp(225); maxWidth = dp(300) }) // texto escuro; só o ícone muda de cor, como no base
-            setOnClickListener { startActivity(Intent(this@MainActivity, if (mode == MODE_ACCESS && !ok) AccessibilityAgreementActivity::class.java else PermissionsActivity::class.java)) }
+            setOnClickListener { if (mode == MODE_ACCESS && ok) return@setOnClickListener; startActivity(Intent(this@MainActivity, if (mode == MODE_ACCESS && !ok) AccessibilityAgreementActivity::class.java else PermissionsActivity::class.java)) }
         })
 
         content.addView(card().apply {

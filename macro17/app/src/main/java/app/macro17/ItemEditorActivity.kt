@@ -71,7 +71,7 @@ class ItemEditorActivity : Activity() {
 
     private val simple = setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE, Type.IMAGE, Type.NUMBER, Type.CHANGE, Type.GESTURE, Type.GROUP)
     private val keyNames = mapOf(1 to "Tecla Voltar", 2 to "Tecla Home", 3 to "Tecla Recentes", 4 to "Tecla Voltar", KEY_SCREENSHOT to "Tecla de Captura de Tela")
-    private val keyChoices = listOf(1, 2, 3, KEY_SCREENSHOT) // base: 4 opções (a 4 de macros antigas aparece como Voltar)
+    private val keyChoices = listOf(2, 1, 3, KEY_SCREENSHOT) // base: 4 opções (a 4 de macros antigas aparece como Voltar)
     private val titleOf = mapOf(
         Type.WAIT to "Esperar", Type.KEY to "Evento de Teclado", Type.STATUS to "Alertas de status", Type.GOTO to "Ir para",
         Type.RESET to "Redefinir Contador de Execuções", Type.CALL to "Arquivo de Macro", Type.STOP to "Parar Macro",
@@ -159,7 +159,7 @@ class ItemEditorActivity : Activity() {
                 }
                 p.valueRow("Limite de Pontuação de Confiança", "${s.minConf}") { numDialog("Limite de Pontuação de Confiança", "Caracteres com pontuações de confiança abaixo do limite serão excluídos. De 0 a 90.", s.minConf) { v -> s = s.copy(minConf = v.coerceIn(0, 90)); render() } }
                 p.category("Ação de Toque", iconRes = R.drawable.bp_ic_tap)
-                p.switchRow("Saltar", "Não toca no texto achado. Usado só para comparar.", !s.tap) { v -> s = s.copy(tap = !v); render() }
+                p.switchRow("Pular", "Não toca no texto achado. Usado só para comparar.", !s.tap) { v -> s = s.copy(tap = !v); render() }
                 p.valueRow("Desvio de Coordenadas", "X${"%+d".format(s.ox)}, Y${"%+d".format(s.oy)} px", s.tap) {
                     pick(PositionPickerActivity.DEV, intArrayOf(s.ox, s.oy), null) { v -> s = s.copy(ox = v[0], oy = v[1]) }
                 }

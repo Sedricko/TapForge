@@ -178,9 +178,9 @@ class ItemOverlay(private val svc: MacroService, private val wm: WindowManager) 
         }
         val buttons = LinearLayout(svc).apply {
             weightSum = 3f; layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(24) }
-            addView(btn("Eliminar") { dismiss(); onDelete() }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).also { it.marginEnd = dp(8) })
+            addView(btn("Excluir") { dismiss(); onDelete() }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).also { it.marginEnd = dp(8) })
             addView(btn("Cancelar") { dismiss() }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).also { it.marginEnd = dp(8) })
-            addView(btn("Guardar") {
+            addView(btn("Salvar") {
                 s.validate(total)?.let { return@btn svc.toast(it) }
                 dismiss(); onSave(s)
             }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))

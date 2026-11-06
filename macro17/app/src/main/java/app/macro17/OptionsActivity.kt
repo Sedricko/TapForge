@@ -63,7 +63,6 @@ class OptionsActivity : Activity() {
         val simpleSw = p.switchRow("Visualização Simples", "Simplifica os botões de controle exibidos na tela.", store.simpleView) { store.simpleView = it; if (it) playSw?.isChecked = false; pushOptions() }
         playSw = p.switchRow("Modo de Reprodução", "Apenas o botão de reprodução é exibido.", store.playMode) { store.playMode = it; if (it) simpleSw.isChecked = false; pushOptions() }
 
-        p.valueRow("Início Automático", "Selecione a macro padrão para usar com o programa.") { if (Store(this).list().isEmpty()) android.widget.Toast.makeText(this, "Nenhum arquivo de macro.", android.widget.Toast.LENGTH_LONG).show() else startActivity(android.content.Intent(this, AutoOpenActivity::class.java)) }
         p.category("Gravação de tela", iconRes = R.drawable.bp_new_icon)
         var audioTxt: TextView? = null; var bitTxt: TextView? = null; var fpsTxt: TextView? = null
         val audioNames = arrayOf("Sem áudio", "Microfone", "Áudio interno")
@@ -81,6 +80,7 @@ class OptionsActivity : Activity() {
 
         p.category("Macro17")
         p.switchRow("Parar ao bloquear a tela", "Encerra a macro quando a tela apaga.", store.stopOnLock) { store.stopOnLock = it }
+        p.valueRow("Início Automático", "Selecione a macro padrão para usar com o programa.") { if (Store(this).list().isEmpty()) android.widget.Toast.makeText(this, "Nenhum arquivo de macro.", android.widget.Toast.LENGTH_LONG).show() else startActivity(android.content.Intent(this, AutoOpenActivity::class.java)) }
         p.valueRow("Leitor de números", "Ensine os dígitos de um jogo ou contador para o passo “Ler número”.") { startActivity(Intent(this, ReaderActivity::class.java)) }
         p.valueRow("Monitor e logs", "Registro de eventos, relatório do sistema e exportação para quem corrige.") { startActivity(Intent(this, DiagActivity::class.java)) }
 

@@ -24,9 +24,9 @@ class EditSelectedActivity : Activity() {
     }
 
     private var opt = 0
-    private var delayOn = false; private var delayMs = 3000
+    private var delayOn = true; private var delayMs = 3000
     private var matchOn = true
-    private var area = 1; private val ca = intArrayOf(0, 0, 500, 500)
+    private var area = 0; private val ca = intArrayOf(0, 0, 500, 500)
     private var thr = 100; private var cycle = 200; private var sms = 10_000
     private var fail = 0; private var ok = 0
     private var skipOn = false

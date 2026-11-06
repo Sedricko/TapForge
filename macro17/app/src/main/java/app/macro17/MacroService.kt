@@ -345,7 +345,7 @@ class MacroService : AccessibilityService() {
         if (store.scheduleOn && !recording && !playing) { // estado "agendado" do base: só o Agendar ligado e o próximo horário; linha 2 aberta
             row1.addView(pbtn(Ic.ALARM, "Agendar", 38, 38, 2, tint = 0xFF002626.toInt()) { toggleSchedule() })
             row1.addView(label(scheduleText(), 12f, 0xFF607D8B.toInt()).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; maxWidth = dp(150); setPadding(dp(4), 0, dp(8), 0) })
-            expanded = true; if (::row2.isInitialized) row2.visibility = View.VISIBLE
+            expanded = false; if (::row2.isInitialized) row2.visibility = View.GONE // base: agendado mostra só o Agendar e o horário
             return
         }
         if (recording) {
