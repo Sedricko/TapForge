@@ -79,3 +79,12 @@ class MoveBlockTest {
         assertEquals(null, l.movedBlock(1, up = true, blocked = setOf(0)))
     }
 }
+
+class DuplicateLastChildTest {
+    @Test fun copyOfTheLastChildStaysInsideTheGroup() {
+        val g = Step(type = Type.GROUP, grp = 2, gms = 1000)
+        val l = listOf(g, Step(type = Type.TAP), Step(type = Type.TAP)).duplicated(listOf(2), 5000)
+        assertEquals(3, l[0].grp)
+        assertTrue(l.groupsConsistent())
+    }
+}

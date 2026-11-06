@@ -45,7 +45,9 @@ fun List<Step>.duplicated(idx: List<Int>, max: Int): List<Step> {
     val at0 = idx.last() + 1
     val pos = pick.withIndex().associate { it.value to it.index }
     val shift = { t: Int -> if (t >= at0 + 1) t + k else t }
-    val head = mapIndexed { n, s -> if (s.type == Type.GROUP && at0 > n && at0 <= n + s.grp) s.copy(grp = s.grp + k) else s }
+    val last = idx.last(); val pickSet = pick.toSet()
+    // cresce o grupo que contém o ponto de inserção ou o último copiado (ex.: duplicar o último filho); um cabeçalho copiado junto não cresce
+    val head = mapIndexed { n, s -> if (s.type == Type.GROUP && ((at0 > n && at0 <= n + s.grp) || (n !in pickSet && last > n && last <= n + s.grp))) s.copy(grp = s.grp + k) else s }
     val copies = pick.map { i ->
         val s = this[i]
         val g = if (s.type == Type.GROUP) s.copy(grp = pick.count { it > i && it <= i + s.grp }) else s

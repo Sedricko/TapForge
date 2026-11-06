@@ -238,6 +238,11 @@ class EditorActivity : Activity() {
     }
 
     /** Posição de inserção de um item novo: fim da lista, ou fim do grupo na tela do grupo. */
+    /** Insere no fim da lista (ou do grupo aberto: então o cabeçalho cresce, senão o item ficaria fora dele). */
+    private fun insertEnd(st: Step) {
+        val ns = steps.afterInsert(endPos(), st)
+        steps = if (groupIdx >= 0) ns.toMutableList().also { it[groupIdx] = it[groupIdx].copy(grp = it[groupIdx].grp + 1) } else ns
+    }
     private fun endPos() = if (groupIdx >= 0) minOf(groupIdx + steps[groupIdx].grp + 1, steps.size) else steps.size
 
     /** Tocar numa linha de grupo abre a tela própria dele; o resultado é a lista inteira de volta. */
@@ -277,7 +282,7 @@ class EditorActivity : Activity() {
                     .putExtra("step", step.toJson().toString()).putExtra("total", if (index >= 0) steps.size else steps.size + 1).putExtra("index", index).putExtra("self", id).putExtra("names", steps.mapIndexed { i, st -> st.name.ifBlank { titles.getValue(st.type) } }.toTypedArray()), REQ_ITEM,
             )
         } else if (index >= 0) editStep(type, step, steps.size) { replace(index, it) }
-        else editStep(type, step, steps.size + 1) { steps = steps.afterInsert(endPos(), it); refresh() }
+        else editStep(type, step, steps.size + 1) { insertEnd(it); refresh() }
     }
 
     override fun onActivityResult(req: Int, res: Int, data: android.content.Intent?) {
@@ -288,7 +293,7 @@ class EditorActivity : Activity() {
         if (req != REQ_ITEM || res != RESULT_OK || data == null) return
         val st = runCatching { Step.fromJson(org.json.JSONObject(data.getStringExtra("step") ?: return)) }.getOrNull() ?: return
         val i = data.getIntExtra("index", -1)
-        if (i in steps.indices) replace(i, st) else { steps = steps.afterInsert(endPos(), st); refresh() }
+        if (i in steps.indices) replace(i, st) else { insertEnd(st); refresh() }
     }
 
     private fun replace(i: Int, s: Step) { steps = steps.toMutableList().also { it[i] = s }; refresh() }
@@ -436,7 +441,7 @@ class EditorActivity : Activity() {
         val next = steps.mapIndexed { i, st -> if (i in idx) change(st) else st }
         val changed = idx.count { next[it] != steps[it] }
         steps = next; refresh()
-        toast(if (changed == 0) "Nenhum item selecionado." else "$changed itens alterados.")
+        toast(if (changed == 0) "Nenhum item alterado." else "$changed itens alterados.")
     }
 
     /** Descarta as mudanças e relê a macro salva. */
@@ -602,7 +607,7 @@ class EditorActivity : Activity() {
     private fun addOfType(type: Type, mono: Boolean = false) {
         // Como no base, estes itens do catálogo entram direto na lista, com os padrões dele; o toque na linha abre a edição.
         val direct = catalogDefault(type, mono, resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels)
-        if (direct != null) { steps = steps.afterInsert(endPos(), direct); refresh(); list.setSelection(list.headerViewsCount + vis.size - 1); return }
+        if (direct != null) { insertEnd(direct); refresh(); list.setSelection(list.headerViewsCount + vis.size - 1); return }
         run {
             // Padrões que já passam na validação; a tela mostra um centro razoável.
             val base = when (type) {

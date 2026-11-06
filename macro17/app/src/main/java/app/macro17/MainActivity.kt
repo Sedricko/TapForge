@@ -97,7 +97,7 @@ class MainActivity : Activity() {
             }
             addView(glyph(Ic.INFO, if (ok) 0xFF00574B.toInt() else B.RED, 24))
             addView(label(text, 14f, 0xDE000000.toInt(), bold = true).apply { gravity = Gravity.CENTER; minWidth = dp(225); maxWidth = dp(300) }) // texto escuro; só o ícone muda de cor, como no base
-            setOnClickListener { if (ok) return@setOnClickListener; startActivity(Intent(this@MainActivity, if (mode == MODE_ADB) AdbSetupActivity::class.java else AccessibilityAgreementActivity::class.java)) }
+            setOnClickListener { if (ok) return@setOnClickListener; startActivity(Intent(this@MainActivity, when (mode) { MODE_ADB -> AdbSetupActivity::class.java; MODE_ROOT -> PermissionsActivity::class.java; else -> AccessibilityAgreementActivity::class.java })) }
         })
 
         content.addView(card().apply {

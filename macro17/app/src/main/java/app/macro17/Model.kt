@@ -162,7 +162,7 @@ data class Step(
                 List(minOf(cs?.length() ?: 0, MAX_CASES)) { Case(cs!!.getJSONObject(it).optInt("n"), cs.getJSONObject(it).optInt("to")) },
                 o.optString("tx"), o.optBoolean("rt", true),
                 o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"), o.optInt("cm"), o.optInt("lo"), o.optInt("hi"), o.optInt("mt"), o.optBoolean("mo"), o.optInt("cf", 1),
-                o.optBoolean("db"), o.optInt("ox"), o.optInt("oy"), o.optBoolean("vb"), o.optBoolean("sn"), o.optInt("mc"), o.optString("im"),
+                o.optBoolean("db"), o.optInt("ox"), o.optInt("oy"), o.optBoolean("vb"), o.optBoolean("sn"), o.optInt("mc").coerceIn(0, 90), o.optString("im"),
                 o.optBoolean("ui"), o.optInt("sm", 5000), o.optInt("a1"), o.optInt("b1"), o.optInt("a2"), o.optInt("b2"), o.optString("nm"), o.optBoolean("fx"), o.optInt("gp"), o.optInt("rp", 1), o.optInt("gm"), o.optInt("gf"), o.optBoolean("of"),
                 snu = o.optString("su"), pop = o.optBoolean("pp"), rot = o.optInt("ro"),
             )
