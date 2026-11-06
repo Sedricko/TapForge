@@ -6,6 +6,7 @@
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:dialogCornerRadius">8dp</item> <!-- diálogos do base: branco arredondado, botões rosa (colorAccent) -->
     </style>
 
     <!-- Telas ainda no visual noturno (Editor, Opções, Leitor); migram uma a uma para o claro. -->
