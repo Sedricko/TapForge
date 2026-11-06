@@ -38,7 +38,7 @@
 
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|fontScale|density|layoutDirection|locale"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -49,7 +49,7 @@
         <!-- configChanges: o editor guarda o estado em memória; evita perdê-lo ao girar a tela. -->
         <activity
             android:name=".EditorActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|fontScale|density|layoutDirection|locale"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
@@ -68,7 +68,7 @@
         <activity android:name=".FullScreenActivity" android:exported="false" android:excludeFromRecents="true" android:launchMode="singleInstance" android:showWhenLocked="true" android:turnScreenOn="true" />
         <activity android:name=".ItemEditorActivity" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|fontScale|density|layoutDirection|locale" android:exported="false" />
         <activity android:name=".DiagActivity" android:theme="@style/Theme.Macro17" android:exported="false" />
-        <activity android:name=".EditSelectedActivity" android:exported="false" />
+        <activity android:name=".EditSelectedActivity" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|fontScale|density|layoutDirection|locale" android:exported="false" />
         <activity android:name=".PositionPickerActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden" android:theme="@android:style/Theme.Material.NoActionBar" />
         <activity android:name=".VideoPlayerActivity" android:exported="false" android:theme="@android:style/Theme.Material.Light.Dialog" />
         <activity android:name=".AutoOpenActivity" android:exported="false" />
