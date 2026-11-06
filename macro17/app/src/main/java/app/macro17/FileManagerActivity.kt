@@ -116,7 +116,7 @@ class FileManagerActivity : Activity() {
     private fun copyDlg(m: Macro) = nameDialog("Novo nome (copiar arquivo)", "Criar", m.name) { n ->
         if (store.nameTaken(n)) return@nameDialog toast("Arquivo com o mesmo nome já existe")
         val c = m.copy(id = UUID.randomUUID().toString(), name = n)
-        store.save(c); store.selected = c.id; marked = c.id; render()
+        store.save(c); store.selected = c.id; marked = null; render()
     }
 
     private fun renameDlg(m: Macro) = nameDialog("Novo Nome (Renomear)", "Mudar", m.name) { n ->
@@ -143,7 +143,14 @@ class FileManagerActivity : Activity() {
             }.setNegativeButton("Cancelar", null).show()
     }
 
-    private fun exportM(m: Macro) {
+    private var exportSamples = false
+
+    private fun exportM(m: Macro) = AlertDialog.Builder(this).setTitle("Backup da Captura de Tela")
+        .setMessage("Você quer incluir os dados da captura de tela no backup? As capturas de tela podem conter informações pessoais sensíveis.")
+        .setPositiveButton("Sim") { _, _ -> exportSamples = true; exportPick(m) }
+        .setNegativeButton("Não") { _, _ -> exportSamples = false; exportPick(m) }.show()
+
+    private fun exportPick(m: Macro) {
         store.pendingExport = m.id
         startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip").putExtra(Intent.EXTRA_TITLE, "${m.name}.zip"), EXPORT)
     }
@@ -160,7 +167,7 @@ class FileManagerActivity : Activity() {
                 EXPORT -> {
                     val m = store.pendingExport?.let { store.get(it) } ?: throw IllegalStateException("macro não encontrada")
                     // ZIP no formato do Backup (macro + imagens citadas): a tela Backup e Restauração lê de volta com as imagens.
-                    contentResolver.openOutputStream(uri, "wt")!!.use { BackupZip.write(it, filesDir, setOf(m.id), samples = false) }
+                    contentResolver.openOutputStream(uri, "wt")!!.use { BackupZip.write(it, filesDir, setOf(m.id), samples = exportSamples) }
                     toast("Exportada com as imagens")
                 }
                 IMPORT -> {

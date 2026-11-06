@@ -55,6 +55,7 @@
 
         <activity android:name=".OptionsActivity" android:exported="false" />
         <activity android:name=".PermissionsActivity" android:exported="false" />
+        <activity android:name=".AdbSetupActivity" android:exported="false" />
         <activity android:name=".BackupActivity" android:exported="false" />
         <activity android:name=".FileManagerActivity" android:exported="false" />
         <activity android:name=".AddItemsActivity" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|fontScale|density|layoutDirection|locale" android:exported="false" />

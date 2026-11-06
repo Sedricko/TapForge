@@ -51,7 +51,7 @@ class AlarmListActivity : Activity() {
             setOnClickListener { startActivity(Intent(this@AlarmListActivity, AlarmEditActivity::class.java)) }
         }
         setContentView(FrameLayout(this).apply {
-            setBackgroundColor(Color.WHITE)
+            setBackgroundColor(0xFFF5F5F5.toInt())
             addView(LinearLayout(this@AlarmListActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(appBar("Agendamento", Ic.BACK, { finish() }))
@@ -74,15 +74,17 @@ class AlarmListActivity : Activity() {
     private fun render() {
         list.removeAllViews()
         val all = store.alarms()
+        // Como no base: ativos por próximo disparo, desativados no fim (sort estável).
+        val shown = all.sortedWith(compareBy({ !it.enabled }, { if (it.enabled) Alarms.nextStart(it.start) else 0L }))
         list.addView(LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12))
             background = rounded(0xFFFFF3C8.toInt(), 12); elevation = dp(2).toFloat()
             addView(glyph(Ic.WARN, 0xFFFFB300.toInt(), 32))
-            addView(label("O serviço de agendamento precisa ser executado em segundo plano quando a tela estiver desligada. Permita que o aplicativo use mais energia em segundo plano.", 14f, B.TEXT).apply { setPadding(dp(12), 0, 0, 0) })
-            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.bottomMargin = dp(8) }
-            setOnClickListener { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) } // o aviso abre as configurações do app (bateria)
+            addView(label("O serviço de agendamento precisa ser executado em segundo plano quando a tela estiver desligada. Permita que o aplicativo use mais energia em segundo plano.", 14f, B.TEXT).apply { setPadding(dp(16), 0, 0, 0) })
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.bottomMargin = dp(4) }
+            setOnClickListener { permissionDialog() } // como no base: leva à permissão de alarme exato
         })
-        for (a in all) {
+        for (a in shown) {
             val macro = store.get(a.macroId)
             val bad = a.enabled && Alarms.conflict(a, all)
             // alarm_list_row do base: linha 1 = título (18sp, sem negrito) + interruptor; linha 2 = horário + lápis + lixeira à direita.
@@ -96,20 +98,21 @@ class AlarmListActivity : Activity() {
                     isChecked = a.enabled
                     setOnCheckedChangeListener { _, on ->
                         val upd = all.map { if (it.id == a.id) it.copy(enabled = on) else it }
-                        if (on && Alarms.conflict(a, all)) { Toast.makeText(context, "Este cronograma se sobrepõe a outro. Ajuste o horário para ativá-lo.", Toast.LENGTH_LONG).show(); isChecked = false; return@setOnCheckedChangeListener }
+                        if (on && Alarms.conflict(a, all)) { Toast.makeText(context, "Este horário se sobrepõe a outro. Ajuste a hora para ativá-lo.", Toast.LENGTH_SHORT).show(); isChecked = false; return@setOnCheckedChangeListener }
                         store.saveAlarms(upd); if (!Alarms.rearm(context)) permissionDialog(); render()
                     }
                 })
                 })
                 addView(LinearLayout(this@AlarmListActivity).apply {
                     gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(8), 0, 0)
                     addView(label(a.label(), 16f, if (bad) B.RED else 0xDE000000.toInt()), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
                 addView(glyph(Ic.EDIT, 0xFF00574B.toInt(), 32).apply { setPadding(dp(4), dp(4), dp(4), dp(4)); (layoutParams as? LinearLayout.LayoutParams)?.marginEnd = dp(16); setOnClickListener { startActivity(Intent(context, AlarmEditActivity::class.java).putExtra("id", a.id)) } })
                 addView(glyph(Ic.TRASH, 0xFFD32F2F.toInt(), 32).apply {
                     setPadding(dp(4), dp(4), dp(4), dp(4))
                     setOnClickListener {
                         AlertDialog.Builder(context).setTitle("Excluir agendamento").setMessage("Tem certeza de que deseja excluir este agendamento?")
-                            .setPositiveButton("Excluir") { _, _ -> Alarms.cancel(context, a.id); store.saveAlarms(all.filter { it.id != a.id }); Alarms.rearm(context); render() }
+                            .setPositiveButton("OK") { _, _ -> Alarms.cancel(context, a.id); store.saveAlarms(all.filter { it.id != a.id }); Alarms.rearm(context); render() }
                             .setNegativeButton("Cancelar", null).show()
                     }
                 })
@@ -144,14 +147,14 @@ class AlarmEditActivity : Activity() {
                 background = rounded(Color.WHITE, 8, 0xFFBBBBBB.toInt())
                 setPadding(dp(12), 0, 0, 0)
                 addView(content, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
-                if (ic != null) addView(glyph(ic, Color.WHITE, 24).apply { background = rounded(B.PRIMARY, 4); setPadding(dp(6), dp(12), dp(6), dp(12)) }, LinearLayout.LayoutParams(dp(36), dp(48)).also { it.marginEnd = dp(6) })
+                if (ic != null) addView(glyph(ic, Color.WHITE, 24).apply { background = rounded(B.PRIMARY, 24); setPadding(dp(6), dp(12), dp(6), dp(12)) }, LinearLayout.LayoutParams(dp(36), dp(48)).also { it.marginEnd = dp(6) })
                 if (click != null) setOnClickListener { click() }
             }
             addView(box, FrameLayout.LayoutParams(MATCH_PARENT, dp(60)).also { it.topMargin = dp(8) })
-            addView(label(title, 12f, 0xFF616161.toInt()).apply { setBackgroundColor(Color.WHITE); setPadding(dp(4), 0, dp(4), 0) }, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.marginStart = dp(10) })
+            addView(label(title, 12f, 0xFF888888.toInt()).apply { setBackgroundColor(Color.WHITE); setPadding(dp(4), 0, dp(4), 0) }, FrameLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.marginStart = dp(12) })
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(10) }
         }
-        macroTxt.textSize = 18f; timeTxt.textSize = 18f
+        macroTxt.textSize = 18f; timeTxt.textSize = 18f; timeTxt.setTextColor(0xFF222222.toInt())
         up.background = null; up.textSize = 18f; up.hint = null
         val save = label("Salvar", 16f, Color.WHITE, bold = true).apply {
             gravity = Gravity.CENTER; background = rounded(B.PRIMARY, 28)
@@ -162,8 +165,9 @@ class AlarmEditActivity : Activity() {
                 if (u == null || u < 1 || u > 1440) return@setOnClickListener Toast.makeText(context, "Tempo de atividade: 1 a 1440 minutos", Toast.LENGTH_SHORT).show()
                 val a = (old ?: Alarm(macroId = m, start = start, uptime = u)).copy(macroId = m, start = start, uptime = u)
                 val rest = store.alarms().filter { it.id != a.id }
-                if (a.enabled && Alarms.conflict(a, rest)) return@setOnClickListener Toast.makeText(context, "Este cronograma se sobrepõe a outro. Ajuste o horário.", Toast.LENGTH_LONG).show()
-                store.saveAlarms(rest + a)
+                if (a.enabled && Alarms.conflict(a, rest)) return@setOnClickListener Toast.makeText(context, "Este horário se sobrepõe a outro. Ajuste a hora para ativá-lo.", Toast.LENGTH_SHORT).show()
+                // edita no lugar (a lista ordena por próximo disparo)
+                store.saveAlarms(if (old != null) store.alarms().map { if (it.id == a.id) a else it } else rest + a)
                 if (!Alarms.rearm(context)) Toast.makeText(context, "Permita “Alarmes e lembretes” para o horário exato", Toast.LENGTH_LONG).show()
                 finish()
             }
@@ -179,13 +183,17 @@ class AlarmEditActivity : Activity() {
                     orientation = LinearLayout.VERTICAL
                     addView(card().apply {
                         setPadding(dp(16), dp(8), dp(16), dp(16)); background = rounded(Color.WHITE, 20); elevation = dp(4).toFloat()
-                        (layoutParams as LinearLayout.LayoutParams).setMargins(dp(12), dp(14), dp(12), dp(14))
+                        (layoutParams as LinearLayout.LayoutParams).setMargins(dp(8), dp(8), dp(8), dp(8))
                         addView(outlined("Arquivo de Macro", macroTxt, Ic.FOLDER) {
                             val ms = store.list()
                             if (ms.isEmpty()) Toast.makeText(context, "Nenhum arquivo de macro", Toast.LENGTH_SHORT).show()
-                            else AlertDialog.Builder(context).setTitle("Arquivos de Macro").setItems(ms.map { it.name }.toTypedArray()) { _, w -> macroId = ms[w].id; refresh() }.show()
+                            else AlertDialog.Builder(context).setTitle("Arquivos de Macro").setItems(ms.map { it.name }.toTypedArray()) { _, w -> macroId = ms[w].id; refresh() }.setNegativeButton("Cancelar", null).show()
                         })
-                        addView(outlined("Hora de Início", timeTxt, Ic.CLOCK) {
+                        addView(outlined("Hora de Início", LinearLayout(context).apply {
+                            gravity = Gravity.CENTER_VERTICAL
+                            addView(android.widget.ImageView(context).apply { setImageResource(R.drawable.ic_timer); setColorFilter(0xFF555555.toInt()) }, LinearLayout.LayoutParams(dp(24), dp(24)).also { it.marginEnd = dp(12) })
+                            addView(timeTxt)
+                        }, Ic.CLOCK) {
                             TimePickerDialog(context, { _, h, mi -> start = h * 60 + mi; refresh() }, start / 60, start % 60, true).show()
                         })
                         addView(outlined("Tempo de Atividade do Script", up, null, null))
@@ -193,7 +201,7 @@ class AlarmEditActivity : Activity() {
                     addView(LinearLayout(this@AlarmEditActivity).apply {
                         addView(save, LinearLayout.LayoutParams(0, dp(56), 1f).also { it.setMargins(dp(5), 0, dp(5), 0) })
                         addView(cancel, LinearLayout.LayoutParams(0, dp(56), 1f).also { it.setMargins(dp(5), 0, dp(5), 0) })
-                    }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(10), dp(20), dp(10), dp(20)) })
+                    }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(20), dp(20), dp(20), dp(20)) })
                 })
             }, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
         })

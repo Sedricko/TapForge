@@ -26,11 +26,11 @@ class BackupActivity : Activity() {
             addView(card().apply {
                 setPadding(dp(12), dp(12), dp(12), dp(12))
                 addView(LinearLayout(this@BackupActivity).apply {
-                    gravity = Gravity.CENTER_VERTICAL
+                    gravity = Gravity.CENTER
                     addView(glyph(Ic.ARCHIVE, 0xFFD81B60.toInt(), 25))
-                    addView(label("Backup e Restauração", 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(dp(8), 0, 0, 0) })
+                    addView(label("Backup e Restauração", 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(dp(8), 0, 0, 0); minWidth = dp(225) })
                 })
-                addView(label("O local de armazenamento de dados foi alterado. Se você excluir o aplicativo, os dados da macro também serão excluídos. Faça um backup dos seus dados agora.", 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(0, dp(8), 0, 0) })
+                addView(label("O local de armazenamento de dados foi alterado. Se você excluir o aplicativo, os dados da macro também serão excluídos. Faça um backup dos seus dados agora.", 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(0, dp(8), 0, 0); gravity = Gravity.CENTER })
             })
             addView(bigText("Backup de Dados") { chooseMacros() })
             addView(bigText("Restaurar Dados") {

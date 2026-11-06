@@ -25,7 +25,17 @@ class ScreenRecordPermissionActivity : Activity() {
     private fun ask() = startActivityForResult(getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent(), 8)
 
     override fun onRequestPermissionsResult(req: Int, p: Array<out String>, r: IntArray) {
-        if (req == 7) { if (r.firstOrNull() != PackageManager.PERMISSION_GRANTED) { noAudio = true; android.widget.Toast.makeText(this, "A permissão do microfone é necessária para gravar áudio.", android.widget.Toast.LENGTH_LONG).show() }; ask() } // vale só nesta gravação: a opção salva não muda
+        if (req != 7) return
+        if (r.firstOrNull() == PackageManager.PERMISSION_GRANTED) return ask()
+        noAudio = true // vale só nesta gravação: a opção salva não muda
+        if (shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
+            android.widget.Toast.makeText(this, "A permissão do microfone é necessária para gravar áudio.", android.widget.Toast.LENGTH_LONG).show(); ask()
+        } else android.app.AlertDialog.Builder(this).setTitle("Permissão de microfone necessária")
+            .setMessage("A permissão do microfone foi negada permanentemente. Para usar o recurso de gravação de áudio, altere a permissão para 'Permitir' em [Configurações] > [Permissões].")
+            .setCancelable(false)
+            .setPositiveButton("Ir para Configurações") { _, _ ->
+                startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName"))); finish()
+            }.setNegativeButton("Cancelar") { _, _ -> ask() }.show()
     }
 
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {

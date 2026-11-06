@@ -60,7 +60,11 @@ class AutoOpenActivity : Activity() {
         val names = (listOf("Nenhum") + ms.map { it.name }).toTypedArray()
         var sel = ms.indexOfFirst { it.id == store.autoOpen[pkg] }.let { if (it < 0) 0 else it + 1 }
         // Diálogo do base: título, mensagem, escolha única com a atual marcada e Cancelar/Salvar (só grava em Salvar).
-        AlertDialog.Builder(this).setTitle("Início Automático").setMessage("Selecione a macro padrão para usar com o programa.")
+        AlertDialog.Builder(this).setCustomTitle(LinearLayout(this).apply { // setMessage esconderia a lista de escolha
+            orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(8))
+            addView(label("Início Automático", 20f, Color.BLACK, bold = true))
+            addView(label("Selecione a macro padrão para usar com o programa.", 16f, 0xFF9E9E9E.toInt()).apply { setPadding(0, dp(15), 0, 0) })
+        })
             .setSingleChoiceItems(names, sel) { _, w -> sel = w }
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Salvar") { _, _ ->

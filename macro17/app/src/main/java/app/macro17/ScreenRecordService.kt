@@ -61,7 +61,7 @@ class ScreenRecordService : Service() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CH, "Gravação de tela", NotificationManager.IMPORTANCE_LOW))
         val stopPi = android.app.PendingIntent.getService(this, 1, Intent(this, ScreenRecordService::class.java).setAction(ACTION_STOP), android.app.PendingIntent.FLAG_IMMUTABLE)
-        val n = Notification.Builder(this, CH).setSmallIcon(R.drawable.ic_stop).setContentTitle("Gravando a tela").setContentText("Toque para parar")
+        val n = Notification.Builder(this, CH).setSmallIcon(R.drawable.ic_stop).setContentTitle(applicationInfo.loadLabel(packageManager)).setContentText("Gravação de tela em andamento.")
             .setContentIntent(stopPi).setOngoing(true).build()
         var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
         val audioMode = intent.getIntExtra("audio", 0) // 0 nenhum, 1 microfone, 2 áudio interno

@@ -46,6 +46,13 @@ class StepOpsTest {
         assertFalse(listOf(grp(5), tap()).groupsConsistent())
         assertFalse(listOf(grp(2), grp(2), tap(), tap()).groupsConsistent())
     }
+
+    @Test fun ungroupMovesMarkedAfterTheGroup() {
+        val l = listOf(grp(2), tap(), tap(), tap(goto = 2)).ungrouped(0, setOf(1))
+        assertEquals(1, l[0].grp)
+        assertEquals(3, l[3].goto) // o antigo passo 2 agora é o 3º
+        assertTrue(l.groupsConsistent())
+    }
 }
 
 class MoveBlockTest {

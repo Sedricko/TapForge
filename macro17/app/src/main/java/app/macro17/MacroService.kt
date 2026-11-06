@@ -61,7 +61,7 @@ class MacroService : AccessibilityService() {
         // Ao terminar (qualquer motivo) a tela volta a poder apagar.
         logPanel = LogPanel(this, wm) { engine.stop() }
         engine = Engine(this, { msg ->
-            if (!testing) toast(msg); ui.post { awake(false); if (!testing) bubble?.visibility = View.VISIBLE }; logPanel.setThrough(false); setPlayIcon(false)
+            if (!testing) toast(if (msg.contains("macro vazia")) "Nenhuma macro." else "Macro encerrada."); ui.post { awake(false); if (!testing) bubble?.visibility = View.VISIBLE }; logPanel.setThrough(false); setPlayIcon(false)
             if (msg == "Macro concluída" && store.endAlarm && !testing) playEndAlarm() // só no fim natural, não em parada manual nem em erro
         }, ::toast, logPanel::captureHide)
         engine.onStatus = { t, ms -> instant(t, ms) }
@@ -219,6 +219,7 @@ class MacroService : AccessibilityService() {
     /** Mensagem instantânea do base (overlay_instant_message): janela branca arredondada, 80% opaca, embaixo, some após [ms]. */
     fun instant(text: String, ms: Int) = ui.post {
         instantWin?.let { runCatching { wm.removeView(it) } }; instantWin = null
+        if (ms == 900 && text.length == 1 && text[0] in '1'..'3') { showCountdown(text); return@post } // contagem do vídeo (ScreenRecordService)
         val v = android.widget.LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)); alpha = 0.8f
             background = rounded(Color.WHITE, 8, 0xFFBBBBBB.toInt())
@@ -232,6 +233,16 @@ class MacroService : AccessibilityService() {
             instantWin = v
             ui.postDelayed({ if (instantWin === v) { runCatching { wm.removeView(v) }; instantWin = null } }, ms.coerceAtLeast(500).toLong())
         }
+    }
+
+    /** Contagem do vídeo do base: dígito vermelho de 80sp com sombra, no centro, sem toque. O vídeo já está "running" aqui, então o ícone do painel troca. */
+    private fun showCountdown(n: String) {
+        if (::row1.isInitialized && !recording) fillRow1()
+        val v = label(n, 80f, Color.RED).apply { setShadowLayer(4f, 0f, 0f, Color.BLACK); gravity = Gravity.CENTER }
+        val lp = WindowManager.LayoutParams(-2, -2, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE, PixelFormat.TRANSLUCENT)
+            .apply { gravity = Gravity.CENTER }
+        runCatching { wm.addView(v, lp) }.onSuccess { instantWin = v; ui.postDelayed({ if (instantWin === v) { runCatching { wm.removeView(v) }; instantWin = null } }, 900) }
     }
 
     fun toast(msg: String) { ui.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() } }
@@ -295,6 +306,7 @@ class MacroService : AccessibilityService() {
     fun applyOptions() {
         ui.post {
             bubble?.alpha = store.opacity / 100f
+            awake(playing || recording || store.scheduleOn)
             if (::row1.isInitialized && !recording) { if (store.playMode || store.simpleView) { expanded = false; row2.visibility = View.GONE }; fillRow1() }
         }
     }
@@ -328,8 +340,8 @@ class MacroService : AccessibilityService() {
         Ic.FRAME to R.drawable.bp_ic_crop_free_24px, Ic.EYE to R.drawable.bp_ic_visibility_on, Ic.EYE_OFF to R.drawable.bp_ic_visibility_off, Ic.STOP to R.drawable.bp_play_stop, Ic.PLAY to R.drawable.bp_play_arrow, Ic.PAUSE to R.drawable.bp_ic_media_pause,
     )
 
-    /** Tamanhos do base (PN1): Play/Rec/Stop/Pause/Prev/Next 42 m1, Retomar 42x35, Olho 38 m2, Gravar tela 36 m4, Expandir 40 m2. */
-    private fun pbtn(ic: Ic, desc: String, w: Int = 42, h: Int = w, m: Int = 1, tint: Int = teal, click: () -> Unit) = pres(baseIcons[ic], ic, desc, w, h, m, tint, click)
+    /** Tamanhos do base (PN1): Play/Rec/Stop/Pause/Prev/Next 42 m0, Retomar 42x35, Olho 38 m2, Gravar tela 36 m4, Expandir 40 m2. */
+    private fun pbtn(ic: Ic, desc: String, w: Int = 42, h: Int = w, m: Int = 0, tint: Int = teal, click: () -> Unit) = pres(baseIcons[ic], ic, desc, w, h, m, tint, click)
 
     private fun pres(res: Int?, ic: Ic?, desc: String, w: Int, h: Int, m: Int, tint: Int = teal, click: () -> Unit) = ImageView(this).apply {
         if (res != null) { setImageResource(res); scaleType = ImageView.ScaleType.FIT_XY; setColorFilter(tint) }
@@ -348,35 +360,35 @@ class MacroService : AccessibilityService() {
             for (i in 1 until row2.childCount) row2.getChildAt(i).visibility = if (sched) View.GONE else View.VISIBLE
         }
         if (sched) { // estado "agendado" do base: linha 1 só com o próximo horário; linha 2 aberta só com o Agendar
-            row1.addView(label(scheduleText(), 12f, 0xFF607D8B.toInt()).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; maxWidth = dp(80); setPadding(dp(4), 0, dp(8), 0) })
+            row1.addView(label(scheduleText(), 12f, 0xFF607D8B.toInt()).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; maxWidth = dp(80); minHeight = dp(54); gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), 0, dp(8), 0) })
             expanded = true; if (::row2.isInitialized) row2.visibility = View.VISIBLE
             return
         }
         if (recording) {
             // Gravando (base): [Parar, Adicionar 38 m2, Alternar alvo 38 m2 só com o ícone do tipo, divisor, rótulo do tipo]. Parar age ao tocar (DOWN) e não espera o Adicionar.
             row1.addView(pbtn(Ic.STOP, "Encerrar a gravação") { }.also { b ->
-                b.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN) stopRecording(save = true); true }
+                b.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN && !adding) stopRecording(save = true); true }
             })
             row1.addView(pbtn(Ic.ADDLIST, "Adicionar o item na posição dos marcadores", 38, 38, 2) { addItem() })
             row1.addView(pres(recorder.mode.res, null, "Alternar alvo: ${recorder.mode.label}", 38, 38, 2) { recorder.cycle(); panelToFront(); fillRow1() })
-            row1.addView(android.view.View(this).apply { setBackgroundColor(0x1E000000) }, android.widget.LinearLayout.LayoutParams(dp(1), -1).also { it.setMargins(dp(4), dp(6), dp(4), dp(6)) })
+            row1.addView(android.view.View(this).apply { setBackgroundColor(0x1E000000) }, android.widget.LinearLayout.LayoutParams(dp(1), -1).also { it.setMargins(0, dp(6), 0, dp(6)) })
             row1.addView(label(recorder.mode.label, 14f, Color.BLACK, bold = true).apply { gravity = Gravity.CENTER; minWidth = dp(42); setPadding(dp(4), 0, dp(8), 0) })
         } else {
             val pb = pbtn(if (playing) Ic.STOP else Ic.PLAY, "Executar ou parar a macro") { togglePlay() }
             playBtn = pb
             if (!(playing && engine.paused)) row1.addView(pb) // pausado: sem o Parar (só Retomar, olho, Anterior e Próximo), como no base
-            if (playing && (store.simpleView || store.playMode)) return // visão simples / modo de reprodução: só o Parar, como no base
+            if (playing && !engine.paused) pb.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN) togglePlay(); true } // o Parar age no DOWN, como no base
             if (playing) { // reproduzindo: Parar + Pausar; pausado: Retomar + Anterior + Próximo (como no base), mais o feedback do passo
                 if (engine.paused) {
                     row1.addView(pbtn(Ic.PLAY, "Retomar", 42, 35) { ui.postDelayed({ engine.paused = false; fillRow1() }, 500) })
                     row1.addView(pbtn(if (listWin != null) Ic.EYE else Ic.EYE_OFF, "Lista da macro", 38, 38, 2, tint = if (listWin != null) 0xFF002626.toInt() else teal) { toggleList() })
-                    row1.addView(pres(R.drawable.bp_ic_media_previous, null, "Anterior", 42, 42, 1) { engine.jump = -1 })
-                    row1.addView(pres(R.drawable.bp_ic_media_next, null, "Próximo", 42, 42, 1) { engine.jump = 1 })
-                } else row1.addView(pbtn(Ic.PAUSE, "Pausar") { engine.paused = true; fillRow1() })
-                row1.addView(android.view.View(this).apply { setBackgroundColor(0x1E000000) }, android.widget.LinearLayout.LayoutParams(dp(1), -1).also { it.setMargins(dp(4), dp(6), dp(4), dp(6)) })
+                    row1.addView(pres(R.drawable.bp_ic_media_previous, null, "Anterior", 42, 42, 0) { engine.jump = -1 })
+                    row1.addView(pres(R.drawable.bp_ic_media_next, null, "Próximo", 42, 42, 0) { engine.jump = 1 })
+                } else if (!store.simpleView) row1.addView(pbtn(Ic.PAUSE, "Pausar") { engine.paused = true; fillRow1() }) // visão simples: só o Parar
+                row1.addView(android.view.View(this).apply { setBackgroundColor(0x1E000000) }, android.widget.LinearLayout.LayoutParams(dp(1), -1).also { it.setMargins(0, dp(6), 0, dp(6)) })
                 // ciclo (volta) e, ao lado, título (tempo restante ou %) e nome do item, como ll_control_cycle / ll_top do base
                 tvCycle = label(lastCycle, 12f, 0xFF607D8B.toInt()).apply { gravity = Gravity.CENTER }
-                row1.addView(android.widget.LinearLayout(this).apply {
+                if (!store.simpleView && !store.playMode) row1.addView(android.widget.LinearLayout(this).apply { // visão simples e modo de reprodução: sem o ciclo
                     orientation = android.widget.LinearLayout.VERTICAL; gravity = Gravity.CENTER; minimumWidth = dp(42)
                     addView(ImageView(this@MacroService).apply { setImageResource(R.drawable.bp_repeat); setColorFilter(teal) }, android.widget.LinearLayout.LayoutParams(dp(20), dp(20)))
                     addView(tvCycle)
@@ -393,7 +405,7 @@ class MacroService : AccessibilityService() {
             // "Modo de Reprodução": só o ▶. "Visualização Simples": sem enquadrar e sem a segunda linha.
             if (!store.playMode) row1.addView(pbtn(Ic.REC, "Gravar") { startRecording() })
             if (!store.playMode && !store.simpleView) row1.addView(pbtn(if (listWin != null) Ic.EYE else Ic.EYE_OFF, "Lista da macro", 38, 38, 2, tint = if (listWin != null) 0xFF002626.toInt() else teal) { toggleList() })
-            if (!store.playMode && !store.simpleView) row1.addView(pbtn(Ic.FRAME, if (ScreenRecordService.running) "Parar a gravação de tela" else "Gravar a tela", 36, 36, 4, tint = if (ScreenRecordService.running) 0xFF002626.toInt() else teal) { toggleVideo() })
+            if (!store.playMode && !store.simpleView) row1.addView(pres(if (ScreenRecordService.running) R.drawable.bp_ic_center_focus_strong_24px else R.drawable.bp_ic_crop_free_24px, null, if (ScreenRecordService.running) "Parar a gravação de tela" else "Gravar a tela", 36, 36, 4, if (ScreenRecordService.running) 0xFF002626.toInt() else teal) { toggleVideo() })
             if (!store.playMode && !store.simpleView) row1.addView(pres(if (expanded) R.drawable.bp_expand_less_24 else R.drawable.bp_expand_more_24, null, if (expanded) "Recolher" else "Mais opções", 40, 40, 2) { expanded = !expanded; row2.visibility = if (expanded) View.VISIBLE else View.GONE; fillRow1() })
         }
     }
@@ -576,7 +588,7 @@ class MacroService : AccessibilityService() {
     private fun openPanel(open: Boolean) {
         if (!::panel.isInitialized) return
         panel.visibility = if (open) View.VISIBLE else View.GONE
-        if (!open) awake(false) // "Manter tela ligada" só vale com o painel aberto
+        awake(playing || recording || store.scheduleOn) // "Manter tela ligada" vale já ao abrir o painel e só com ele aberto
         orbBtn.visibility = View.GONE // o base não tem orbe: PARAR/Fechar some com tudo
         bubble?.let { runCatching { wm.updateViewLayout(it, bubbleLp) } }
     }
@@ -612,9 +624,9 @@ class MacroService : AccessibilityService() {
         ).apply { gravity = Gravity.TOP or Gravity.START; x = 0; y = 0 } // canto superior esquerdo, como no base
         recorder = Recorder(this, wm)
 
-        row1 = android.widget.LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        row1 = android.widget.LinearLayout(this).apply { gravity = Gravity.CENTER }
         row2 = android.widget.LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER
             visibility = View.GONE
             addView(pbtn(Ic.ALARM, "Agendar", 38, 38, 2, tint = if (store.scheduleOn) 0xFF002626.toInt() else teal) { toggleSchedule() })
             addView(pbtn(Ic.EDIT, "Abrir o editor da macro", 38, 38, 2) {
@@ -627,9 +639,9 @@ class MacroService : AccessibilityService() {
         panel = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             background = rounded(0xFFFFFFFF.toInt(), 8, 0xFFE0E0E0.toInt()) // fundo branco, raio 8dp, traço 1dp, sem sombra
-            setPadding(dp(2), dp(2), dp(2), dp(2))
             visibility = View.GONE
-            addView(row1); addView(row2)
+            addView(row1, android.widget.LinearLayout.LayoutParams(-2, -2).also { it.marginStart = dp(1); it.marginEnd = dp(1) })
+            addView(row2, android.widget.LinearLayout.LayoutParams(-1, -2).also { it.marginStart = dp(1); it.marginEnd = dp(1) })
         }
         fillRow1()
         orbBtn = circleBtn(Ic.TAP, C.BLUE, 48, "Abrir o painel de controle") { openPanel(true) }.also { it.visibility = View.GONE }

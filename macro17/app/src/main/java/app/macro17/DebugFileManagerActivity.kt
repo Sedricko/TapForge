@@ -50,7 +50,6 @@ class DebugFileManagerActivity : Activity() {
         list.removeAllViews()
         val fs = files()
         if (marked !in fs) marked = null
-        if (fs.isEmpty()) list.addView(label("Nenhum arquivo de depuração.", 14f, B.TEXT2).apply { setPadding(dp(16), dp(16), dp(16), 0) })
         fs.forEach { f ->
             list.addView(RadioButton(this).apply {
                 text = "${f.name}  (${f.length() / 1024} KB)"; textSize = 16f; setTextColor(B.TEXT); isChecked = f == marked
@@ -63,7 +62,7 @@ class DebugFileManagerActivity : Activity() {
     }
 
     private fun menu(anchor: View) {
-        val acts = listOf<Pair<String, () -> Unit>>("Abrir" to { needMark { open(it) } }, "Compartilhar" to { needMark { share(it) } }, "Excluir" to { needMark { delete(it) } }, "Monitor ao vivo" to { startActivity(Intent(this, DiagActivity::class.java)) })
+        val acts = listOf<Pair<String, () -> Unit>>("Abrir" to { needMark { open(it) } }, "Excluir" to { needMark { delete(it) } }, "Compartilhar" to { needMark { share(it) } }, "Monitor ao vivo" to { startActivity(Intent(this, DiagActivity::class.java)) })
         val pm = android.widget.PopupMenu(this, anchor)
         acts.forEachIndexed { k, a -> pm.menu.add(0, k, k, a.first) }
         pm.setOnMenuItemClickListener { acts[it.itemId].second(); true }

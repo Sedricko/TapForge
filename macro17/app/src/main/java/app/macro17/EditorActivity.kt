@@ -41,6 +41,10 @@ class EditorActivity : Activity() {
     private lateinit var loops: EditText
     private lateinit var selAll: ImageView
     private lateinit var ungroupBtn: ImageView
+    private lateinit var saveBtn: ImageView
+    private lateinit var adp: BaseAdapter
+    private var groupIdx = -1 // >= 0: tela do grupo (cabeçalho em steps[groupIdx]); a lista é a mesma e volta inteira ao editor da raiz
+    private var vis: List<Int> = emptyList() // índices de steps mostrados nesta tela
     private lateinit var list: ListView
     private lateinit var emptyHint: TextView
     private var steps: List<Step> = emptyList()
@@ -102,6 +106,7 @@ class EditorActivity : Activity() {
 
     private val REQ_ITEM = 21
     private val REQ_ADD = 22
+    private val REQ_GROUP = 23
     private val selected = HashSet<Int>()
     private val thumbs = HashMap<String, Bitmap?>()
     private lateinit var existingId: String
@@ -113,35 +118,42 @@ class EditorActivity : Activity() {
         id = existing?.id ?: UUID.randomUUID().toString()
         existingId = id
         steps = existing?.steps.orEmpty()
+        groupIdx = intent.getIntExtra("group", -1)
+        if (groupIdx >= 0) {
+            val arr = runCatching { org.json.JSONArray(intent.getStringExtra("steps") ?: "[]") }.getOrNull()
+            steps = (0 until (arr?.length() ?: 0)).mapNotNull { runCatching { Step.fromJson(arr!!.getJSONObject(it)) }.getOrNull() }
+            if (steps.getOrNull(groupIdx)?.type != Type.GROUP) { finish(); return }
+        }
         // Vindo da lista flutuante (toque na linha): abre direto o item escolhido.
-        intent.getIntExtra("open", -1).takeIf { it >= 0 }?.let { k -> window.decorView.post { steps.getOrNull(k)?.let { openItem(it.type, it, k) } } }
+        intent.getIntExtra("open", -1).takeIf { it >= 0 && groupIdx < 0 }?.let { k -> window.decorView.post { steps.getOrNull(k)?.let { openItem(it.type, it, k) } } }
 
         // Como no editor do app base: barra verde, barra de ícones, nome com repetições, lista com seleção e botão + flutuante.
         name = EditText(this).apply {
             background = null; setTextColor(0xDE000000.toInt()); textSize = 20f; setSingleLine()
             isFocusable = false; isCursorVisible = false; keyListener = null // o nome muda na tela Arquivo (Renomear), como no base
-            setText(existing?.name ?: "Nova macro"); setPadding(dp(16), dp(6), dp(16), dp(6))
+            setText(if (groupIdx >= 0) "${intent.getStringExtra("macroName") ?: ""}/${steps[groupIdx].name.ifBlank { "Grupo" }}" else existing?.name ?: "Nova macro"); setPadding(dp(16), dp(6), dp(16), dp(6))
         }
         loops = EditText(this).apply {
             background = null; setTextColor(B.TEXT); textSize = 16f; inputType = InputType.TYPE_CLASS_NUMBER; setSingleLine()
-            setText((existing?.loops ?: 1).toString()); setPadding(dp(4), 0, dp(4), dp(8)); minWidth = dp(48); contentDescription = "Repetições (0 = infinito)"
+            setText((if (groupIdx >= 0) steps[groupIdx].rep else existing?.loops ?: 1).toString()); setPadding(dp(4), 0, dp(4), dp(8)); minWidth = dp(48); contentDescription = "Repetições (0 = infinito)"
             isFocusable = false; isCursorVisible = false; keyListener = null
             setOnClickListener { loopsDialog() }
         }
         emptyHint = label("Sem itens. Toque em + ou grave pelo painel.", 14f, B.TEXT2).apply { setPadding(dp(16), dp(16), dp(16), 0) }
         list = ListView(this).apply {
-            divider = ColorDrawable(0x1F000000); dividerHeight = 1
+            divider = null; dividerHeight = 0 // o divisor de 1dp é a View no topo de cada linha, como no base
             // Como no base: tocar em "Parar macro" não abre nada; toque longo só no "Arquivo de macro" (abre o arquivo alvo).
-            setOnItemClickListener { _, _, i, _ -> if (steps[i].type != Type.STOP) openItem(steps[i].type, steps[i], i) }
-            setOnItemLongClickListener { _, _, i, _ -> val t = steps[i]; if (t.type == Type.CALL && store.get(t.text) != null) { startActivity(android.content.Intent(this@EditorActivity, EditorActivity::class.java).putExtra("id", t.text)); true } else false }
+            setOnItemClickListener { _, _, p, _ -> val i = vis.getOrNull(p - headerViewsCount) ?: return@setOnItemClickListener; if (steps[i].type == Type.GROUP && !steps[i].mono) openGroup(i) else if (steps[i].type != Type.STOP) openItem(steps[i].type, steps[i], i) }
+            setOnItemLongClickListener { _, _, p, _ -> val t = steps[vis.getOrNull(p - headerViewsCount) ?: return@setOnItemLongClickListener false]; if (t.type == Type.CALL && store.get(t.text) != null) { startActivity(android.content.Intent(this@EditorActivity, EditorActivity::class.java).putExtra("id", t.text)); true } else false }
             clipToPadding = false; setPadding(0, 0, 0, dp(80))
-            adapter = object : BaseAdapter() {
-                override fun getCount() = steps.size
-                override fun getItem(i: Int) = steps[i]
-                override fun getItemId(i: Int) = i.toLong()
-                override fun getView(i: Int, v: View?, p: ViewGroup): View =
+            adp = object : BaseAdapter() {
+                override fun getCount() = vis.size
+                override fun getItem(i: Int) = steps[vis[i]]
+                override fun getItemId(i: Int) = vis[i].toLong()
+                override fun getView(p: Int, v: View?, parent: ViewGroup): View = vis[p].let { i ->
                     if (hiddenByGroup(i)) View(this@EditorActivity).apply { layoutParams = android.widget.AbsListView.LayoutParams(MATCH_PARENT, 1) } // filho de grupo recolhido
                     else stepRow(i, steps[i])
+                }
             }
         }
         val more = ImageView(this).apply {
@@ -161,8 +173,10 @@ class EditorActivity : Activity() {
             addView(tool(R.drawable.bp_arrow_downward, "Descer os selecionados") { moveSelected(up = false) })
             addView(tool(R.drawable.bp_icn_file_copy, "Duplicar os selecionados") { duplicateSelected() })
             addView(tool(R.drawable.bp_icn_delete, "Excluir os selecionados") { deleteSelected() })
-            addView(tool(R.drawable.bp_icn_save, "Salvar") { save() })
-            ungroupBtn = tool(R.drawable.bp_ic_ungroup, "Desagrupar") { ungroupSelected() }.apply { visibility = View.GONE }
+            saveBtn = tool(R.drawable.bp_icn_save, "Salvar") { save() }.apply { if (groupIdx >= 0) visibility = View.GONE } // sem Salvar na tela do grupo
+            addView(saveBtn)
+            // btnRevert do base: só na tela do grupo; tira os marcados do grupo.
+            ungroupBtn = tool(R.drawable.bp_ic_ungroup, "Reverter") { revertSelected() }.apply { if (groupIdx < 0) visibility = View.GONE }
             addView(ungroupBtn)
         }
         // Como no base (expandable_list_header): nome a 20sp e, embaixo, o ícone de repetição de 14sp com o número.
@@ -180,7 +194,7 @@ class EditorActivity : Activity() {
             showLoops()
             addView(LinearLayout(this@EditorActivity).apply {
                 gravity = Gravity.CENTER_VERTICAL
-                addView(ImageView(this@EditorActivity).apply { setImageResource(R.drawable.bp_repeat) }, LinearLayout.LayoutParams(dp(18), dp(18)))
+                addView(ImageView(this@EditorActivity).apply { setImageResource(R.drawable.bp_repeat) }, LinearLayout.LayoutParams(dp(14), dp(14)))
                 addView(loopsLabel)
             }, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.topMargin = dp(2) })
             setOnClickListener { loopsDialog() } // o cabeçalho inteiro abre o diálogo, como o addHeaderView do base
@@ -193,12 +207,14 @@ class EditorActivity : Activity() {
             layoutParams = FrameLayout.LayoutParams(dp(56), dp(56), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(16), dp(16)) }
             setOnApplyWindowInsetsListener { v, i -> (v.layoutParams as FrameLayout.LayoutParams).bottomMargin = dp(16) + i.getInsets(WindowInsets.Type.navigationBars()).bottom; v.requestLayout(); i }
         }
+        list.addHeaderView(head, null, false); list.headerDividersEnabled = false // o cabeçalho rola junto com a lista
+        list.adapter = adp
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(Color.WHITE)
             addView(LinearLayout(this@EditorActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 addView(appBar("Editor de Macro", Ic.BACK, { onBackPressed() }, more))
-                addView(tools); addView(head); addView(emptyHint)
+                addView(tools); addView(emptyHint)
                 addView(list, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
             }, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
             addView(fab)
@@ -207,18 +223,50 @@ class EditorActivity : Activity() {
         refresh()
     }
 
-    /** ✓ rosa com tudo marcado; o botão de desagrupar (btnRevert do base) só aparece com um cabeçalho de grupo marcado. */
+    /** ✓ rosa com qualquer item marcado (como o base). */
     private fun syncTools() {
-        selAll.setImageResource(if (steps.isNotEmpty() && selected.size == steps.size) R.drawable.bp_icn_check_circle_sel else R.drawable.bp_icn_check_circle)
-        ungroupBtn.visibility = if (selected.any { steps.getOrNull(it)?.type == Type.GROUP }) View.VISIBLE else View.GONE
+        selAll.setImageResource(if (selected.isNotEmpty()) R.drawable.bp_icn_check_circle_sel else R.drawable.bp_icn_check_circle)
     }
 
     private fun refresh() {
-        selected.retainAll(steps.indices.toSet())
+        vis = if (groupIdx >= 0) (groupIdx + 1..minOf(groupIdx + steps[groupIdx].grp, steps.lastIndex)).toList() else steps.indices.toList()
+        selected.retainAll(vis.filter { groupIdx >= 0 || !inGroup(it) }.toSet()) // na raiz os filhos de grupo não são selecionáveis
         collapsed.retainAll { steps.getOrNull(it)?.type == Type.GROUP }
         emptyHint.visibility = View.GONE // o base não mostra texto de ajuda com a lista vazia
         syncTools()
-        (list.adapter as BaseAdapter).notifyDataSetChanged()
+        adp.notifyDataSetChanged()
+    }
+
+    /** Posição de inserção de um item novo: fim da lista, ou fim do grupo na tela do grupo. */
+    private fun endPos() = if (groupIdx >= 0) minOf(groupIdx + steps[groupIdx].grp + 1, steps.size) else steps.size
+
+    /** Tocar numa linha de grupo abre a tela própria dele; o resultado é a lista inteira de volta. */
+    private fun openGroup(i: Int) {
+        val arr = org.json.JSONArray(); steps.forEach { arr.put(it.toJson()) }
+        startActivityForResult(Intent(this, EditorActivity::class.java).putExtra("id", id).putExtra("group", i).putExtra("steps", arr.toString()).putExtra("macroName", name.text.toString()), REQ_GROUP)
+    }
+
+    /** Reverter do base: os marcados saem do grupo e voltam ao nível do pai. */
+    private fun revertSelected() {
+        val idx = needSelection() ?: return
+        steps = steps.ungrouped(groupIdx, idx.toSet())
+        selected.clear(); refresh()
+    }
+
+    /** Diálogo "Grupo" (toque no cabeçalho da tela do grupo): nome e repetições. */
+    private fun groupDialog() {
+        val g = steps[groupIdx]
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), 0) }
+        col.addView(TextView(this).apply { text = "${g.name.ifBlank { "Grupo" }},${g.rep}" })
+        val en = EditText(this).apply { hint = "Nome"; setText(g.name); setSingleLine() }
+        val er = EditText(this).apply { hint = "Repetir reprodução"; inputType = InputType.TYPE_CLASS_NUMBER; setText(g.rep.toString()) }
+        col.addView(en); col.addView(er)
+        AlertDialog.Builder(this).setTitle("Grupo").setView(col).setPositiveButton("OK") { _, _ ->
+            val r = er.text.toString().toIntOrNull()?.takeIf { it in 0..MAX_LOOPS } ?: return@setPositiveButton toast("Número inválido")
+            val n = en.text.toString().trim().take(60)
+            steps = steps.toMutableList().also { it[groupIdx] = g.copy(name = n, rep = r) }
+            name.setText("${intent.getStringExtra("macroName") ?: ""}/${n.ifBlank { "Grupo" }}"); loops.setText(r.toString()); refresh()
+        }.setNegativeButton("Cancelar", null).show()
     }
 
     /** Toque e deslizar têm a tela própria no formato do base; os demais tipos seguem no diálogo até migrarem. */
@@ -229,17 +277,18 @@ class EditorActivity : Activity() {
                     .putExtra("step", step.toJson().toString()).putExtra("total", if (index >= 0) steps.size else steps.size + 1).putExtra("index", index).putExtra("self", id).putExtra("names", steps.mapIndexed { i, st -> st.name.ifBlank { titles.getValue(st.type) } }.toTypedArray()), REQ_ITEM,
             )
         } else if (index >= 0) editStep(type, step, steps.size) { replace(index, it) }
-        else editStep(type, step, steps.size + 1) { steps = steps.afterInsert(steps.size, it); refresh() }
+        else editStep(type, step, steps.size + 1) { steps = steps.afterInsert(endPos(), it); refresh() }
     }
 
     override fun onActivityResult(req: Int, res: Int, data: android.content.Intent?) {
         super.onActivityResult(req, res, data)
         if (req == REQ_ADD && res == RESULT_OK) { data?.getStringExtra("type")?.let { addOfType(Type.valueOf(it), data.getBooleanExtra("mono", false)) }; return }
+        if (req == REQ_GROUP) { if (res == RESULT_OK && data != null) runCatching { org.json.JSONArray(data.getStringExtra("steps") ?: return).let { a -> steps = (0 until a.length()).map { Step.fromJson(a.getJSONObject(it)) } } }; refresh(); return }
         if (req == 79) { if (res == RESULT_OK && data != null) data.getIntArrayExtra("v")?.let { applyBatchResult(data.getIntExtra("opt", 0), it) }; return }
         if (req != REQ_ITEM || res != RESULT_OK || data == null) return
         val st = runCatching { Step.fromJson(org.json.JSONObject(data.getStringExtra("step") ?: return)) }.getOrNull() ?: return
         val i = data.getIntExtra("index", -1)
-        if (i in steps.indices) replace(i, st) else { steps = steps.afterInsert(steps.size, st); refresh() }
+        if (i in steps.indices) replace(i, st) else { steps = steps.afterInsert(endPos(), st); refresh() }
     }
 
     private fun replace(i: Int, s: Step) { steps = steps.toMutableList().also { it[i] = s }; refresh() }
@@ -254,7 +303,7 @@ class EditorActivity : Activity() {
     } ?: run { toast("Nenhum item selecionado."); null }
 
     private fun toggleAll() {
-        if (selected.size == steps.size) selected.clear() else { selected.clear(); selected.addAll(steps.indices) }
+        if (selected.isNotEmpty()) selected.clear() else selected.addAll(vis.filter { groupIdx >= 0 || !inGroup(it) })
         refresh()
     }
 
@@ -294,7 +343,8 @@ class EditorActivity : Activity() {
     private fun overflow(anchor: View) {
         // Menu do base (menu_edit_macro_root): Grupos de Macros, Alternar Pular, Editar Itens Selecionados, Recarregar.
         val pm = android.widget.PopupMenu(this, anchor)
-        val acts = listOf<Pair<String, () -> Unit>>(
+        val acts = if (groupIdx >= 0) listOf<Pair<String, () -> Unit>>("Alternar Pular" to { toggleSkip() }, "Editar Itens Selecionados" to { batchEdit() }) // menu_edit_macro_sub
+        else listOf<Pair<String, () -> Unit>>(
             "Grupo de Macro" to { groupSelected() }, "Alternar Pular" to { toggleSkip() }, "Editar Itens Selecionados" to { batchEdit() },
             "Recarregar" to { reload() },
         )
@@ -312,7 +362,7 @@ class EditorActivity : Activity() {
         if (marked.isEmpty()) return toast("Nenhum item selecionado.")
         if (marked.any { steps[it].type == Type.GROUP }) return toast("Grupo selecionado.")
         val heads = steps.indices.filter { steps[it].type == Type.GROUP }.filter { it !in marked }
-        val names = (heads.map { "${it + 1}. ${steps[it].name.ifBlank { "Grupo" }}" } + "Criar um novo grupo").toTypedArray()
+        val names = (heads.map { steps[it].name.ifBlank { "Grupo" } } + "Criar um novo grupo").toTypedArray()
         AlertDialog.Builder(this).setTitle("Grupo de Macro").setItems(names) { _, w -> moveToGroup(marked, if (w < heads.size) heads[w] else -1) }
             .setNegativeButton("Cancelar", null).show()
     }
@@ -342,15 +392,6 @@ class EditorActivity : Activity() {
             }
         }
         steps = out; selected.clear(); refresh()
-    }
-
-    /** Desfaz o grupo marcado: some o cabeçalho e os itens continuam na lista. */
-    private fun ungroupSelected() {
-        val idx = needSelection() ?: return
-        val heads = idx.filter { steps[it].type == Type.GROUP }.sortedDescending()
-        if (heads.isEmpty()) return toast("Marque o cabeçalho de um grupo.")
-        steps = steps.deleted(heads.toSet())
-        selected.clear(); refresh()
     }
 
     /** Cabeçalhos de grupo recolhidos (botão expandir/recolher do base, expander_ic_*). */
@@ -402,12 +443,12 @@ class EditorActivity : Activity() {
     private fun reload() {
         val h = store.history(existingId)
         if (h.isEmpty()) return toast("Nenhuma edição salva no histórico.")
-        val fmt = java.text.SimpleDateFormat("yyyyMMddHHmmss", java.util.Locale.US); val out = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+        val fmt = java.text.SimpleDateFormat("yyyyMMddHHmmss", java.util.Locale.US); val out = java.text.SimpleDateFormat("yyyy-MM-dd hh:mm:ss", java.util.Locale.US)
         val names = h.map { runCatching { out.format(fmt.parse(it)!!) }.getOrDefault(it) }.toTypedArray()
         AlertDialog.Builder(this).setTitle("Selecionar Histórico de Edição").setItems(names) { _, w ->
             val m = store.loadHistory(existingId, h[w]) ?: return@setItems toast("Cópia ilegível")
-            steps = m.steps; name.setText(m.name); loops.setText(m.loops.toString()); selected.clear(); refresh()
-        }.setNegativeButton("Cancelar", null).show()
+            steps = m.steps; loops.setText(m.loops.toString()); selected.clear(); refresh()
+        }.show()
     }
 
     // --- linha da lista ----------------------------------------------------------------------
