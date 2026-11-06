@@ -223,7 +223,7 @@ class EditorActivity : Activity() {
 
     /** Toque e deslizar têm a tela própria no formato do base; os demais tipos seguem no diálogo até migrarem. */
     private fun openItem(type: Type, step: Step, index: Int) {
-        if (type == Type.TAP || type == Type.SWIPE || type in setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE, Type.IMAGE, Type.NUMBER, Type.CHANGE, Type.GESTURE, Type.GROUP)) {
+        if (type == Type.TAP || type == Type.SWIPE || type == Type.PINCH_IN || type == Type.PINCH_OUT || type in setOf(Type.WAIT, Type.KEY, Type.STATUS, Type.GOTO, Type.RESET, Type.CALL, Type.STOP, Type.COUNTER, Type.TEXT, Type.NODE, Type.IMAGE, Type.NUMBER, Type.CHANGE, Type.GESTURE, Type.GROUP)) {
             startActivityForResult(
                 android.content.Intent(this, ItemEditorActivity::class.java)
                     .putExtra("step", step.toJson().toString()).putExtra("total", if (index >= 0) steps.size else steps.size + 1).putExtra("index", index).putExtra("self", id).putExtra("names", steps.mapIndexed { i, st -> st.name.ifBlank { titles.getValue(st.type) } }.toTypedArray()), REQ_ITEM,
@@ -679,7 +679,7 @@ class EditorActivity : Activity() {
 
     override fun onBackPressed() {
         AlertDialog.Builder(this).setMessage("Deseja sair da edição?")
-            .setPositiveButton("OK") { _, _ -> finish() }.setNegativeButton("Cancelar", null).show()
+            .setPositiveButton("Sim") { _, _ -> finish() }.setNegativeButton("Não", null).show()
     }
 
     private fun loopsDialog() {

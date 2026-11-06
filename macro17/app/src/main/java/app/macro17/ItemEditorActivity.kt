@@ -65,7 +65,8 @@ class ItemEditorActivity : Activity() {
     private fun gotoLabel(n: Int) = if (n == 0) "0. Próximo" else "$n. ${names.getOrNull(n - 1).orEmpty()}".trim()
     private val speeds = listOf("Muito rápido" to 50, "Rápido" to 200, "1 Seg" to 1000, "2 Seg" to 2000, "3 Seg" to 3000)
 
-    private fun kind() = when { s.type == Type.SWIPE -> "Deslizar"; s.ms >= 500 -> "Pressionar"; else -> "Toque" }
+    private val twoPoint = setOf(Type.SWIPE, Type.PINCH_IN, Type.PINCH_OUT)
+    private fun kind() = when { s.type == Type.SWIPE -> "Deslizar"; s.type == Type.PINCH_OUT -> "Aumentar Zoom"; s.type == Type.PINCH_IN -> "Diminuir Zoom"; s.ms >= 500 -> "Pressionar"; else -> "Toque" }
 
     // --- tela --------------------------------------------------------------------------------
 
@@ -293,7 +294,7 @@ class ItemEditorActivity : Activity() {
 
     private fun build(p: Prefs) {
         if (s.type in simple) return buildSimple(p)
-        val swipe = s.type == Type.SWIPE
+        val swipe = s.type in twoPoint
         p.valueRow("Nome", s.name.ifBlank { kind() }) { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
 
         p.category(kind(), if (swipe) Ic.SWIPE else Ic.TAP)
@@ -487,7 +488,7 @@ class ItemEditorActivity : Activity() {
     }
 
     private fun positionDialog() {
-        val sw = s.type == Type.SWIPE
+        val sw = s.type in twoPoint
         pick(PositionPickerActivity.POS, intArrayOf(s.x1, s.y1, s.x2, s.y2), swipe = sw) { v ->
             s = if (sw) s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]) else s.copy(x1 = v[0], y1 = v[1], x2 = v[0], y2 = v[1])
         }

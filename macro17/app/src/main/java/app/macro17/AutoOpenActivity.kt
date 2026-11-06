@@ -51,17 +51,21 @@ class AutoOpenActivity : Activity() {
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE)
             addView(appBar("Início Automático", Ic.BACK, { finish() }))
-            addView(label("Selecione a macro padrão para usar com o programa.", 14f, B.TEXT2).apply { setPadding(dp(16), dp(10), dp(16), dp(10)) })
             addView(list, LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f))
         })
     }
 
     private fun choose(pkg: String) {
         val ms = store.list()
-        val names = (listOf("Nenhuma") + ms.map { it.name }).toTypedArray()
-        AlertDialog.Builder(this).setItems(names) { _, w ->
-            store.autoOpen = store.autoOpen.toMutableMap().also { if (w == 0) it.remove(pkg) else it[pkg] = ms[w - 1].id }
-            recreate()
-        }.show()
+        val names = (listOf("Nenhum") + ms.map { it.name }).toTypedArray()
+        var sel = ms.indexOfFirst { it.id == store.autoOpen[pkg] }.let { if (it < 0) 0 else it + 1 }
+        // Diálogo do base: título, mensagem, escolha única com a atual marcada e Cancelar/Salvar (só grava em Salvar).
+        AlertDialog.Builder(this).setTitle("Início Automático").setMessage("Selecione a macro padrão para usar com o programa.")
+            .setSingleChoiceItems(names, sel) { _, w -> sel = w }
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Salvar") { _, _ ->
+                store.autoOpen = store.autoOpen.toMutableMap().also { if (sel == 0) it.remove(pkg) else it[pkg] = ms[sel - 1].id }
+                recreate()
+            }.show()
     }
 }
