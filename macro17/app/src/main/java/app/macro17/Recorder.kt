@@ -2,6 +2,7 @@ package app.macro17
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.drawable.GradientDrawable
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PixelFormat
@@ -11,6 +12,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
+import kotlin.math.PI
+import kotlin.math.atan2
 
 /**
  * Gravação por marcadores, como no app base: pontos arrastáveis sobre o app (que continua usável por baixo) e o botão "+"
@@ -34,18 +37,19 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
 
     private fun params(w: Int, h: Int, touchable: Boolean) = WindowManager.LayoutParams(
         w, h, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
             (if (touchable) 0 else WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE),
         PixelFormat.TRANSLUCENT,
     ).apply { gravity = Gravity.TOP or Gravity.START }
 
     private fun add(v: View, lp: WindowManager.LayoutParams): Win { wm.addView(v, lp); return Win(v, lp).also { wins += it } }
 
-    private fun marker(ic: Ic, x: Int, y: Int, onMove: () -> Unit): Win {
+    /** Marcador do base: 40dp, oval #D81B60 com traço de 2dp (round_button), ícone esticado sem padding. */
+    private fun marker(res: Int, tint: Int, x: Int, y: Int, onMove: () -> Unit): Win {
         val v = ImageView(ctx).apply {
-            setImageDrawable(Icon(ic, 0xFFF5F5F5.toInt()))
-            setPadding(ctx.dp(6), ctx.dp(6), ctx.dp(6), ctx.dp(6))
-            background = ctx.rounded(0xFFD81B60.toInt(), 20, Color.WHITE)
+            setImageResource(res); scaleType = ImageView.ScaleType.FIT_XY; setColorFilter(tint)
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFFD81B60.toInt()); setStroke(ctx.dp(2), 0xFFD81B60.toInt()) }
+            setPadding(0, 0, 0, 0)
             alpha = 0.7f
         }
         val lp = params(dot, dot, true).apply { this.x = x - dot / 2; this.y = y - dot / 2 }
@@ -75,7 +79,7 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
 
     /** Linha entre o ponto inicial e a seta final; janela sem toque, só desenha. */
     private inner class LineView : View(ctx) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x1E000000; strokeWidth = 40f; strokeCap = Paint.Cap.ROUND }
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x1E000000; strokeWidth = 40f }
         override fun onDraw(c: Canvas) {
             val a = p1 ?: return; val b = p2 ?: return
             val (x1, y1) = center(a); val (x2, y2) = center(b)
@@ -92,17 +96,31 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
         }
     }
 
+    // Posições lembradas ao trocar de tipo (o base só alterna a visibilidade); hide() as descarta.
+    private var sp1: Pair<Int, Int>? = null; private var sp2: Pair<Int, Int>? = null; private var sbox: Rect? = null
+
+    /** A seta do fim gira para apontar na direção do traço, como no base. */
+    private fun rotateArrow() {
+        val a = p1 ?: return; val b = p2 ?: return
+        val (x1, y1) = center(a); val (x2, y2) = center(b)
+        b.view.rotation = (180 - atan2((x2 - x1).toDouble(), (y2 - y1).toDouble()) * 180 / PI).toFloat()
+    }
+
+    private fun clear() { wins.forEach { runCatching { wm.removeView(it.view) } }; wins.clear(); p1 = null; p2 = null; box = null; handle = null }
+
     fun show(m: Mode) {
-        hide()
+        clear()
         mode = m
-        val cx = screen.width() / 2; val cy = screen.height() / 2
+        val cx = sp1?.first ?: (screen.width() / 2); val cy = sp1?.second ?: (screen.height() / 2)
         when (m) {
-            Mode.TAP, Mode.PRESS -> p1 = marker(Ic.TARGET, cx, cy) {}
+            Mode.TAP, Mode.PRESS -> p1 = marker(R.drawable.bp_ic_target, 0xFFFAFAFA.toInt(), cx, cy) {}
             Mode.SWIPE -> {
-                val line = LineView().also { add(it, params(-1, -1, false)) }
-                p1 = marker(Ic.TARGET, cx, cy) { line.invalidate() }
-                p2 = marker(Ic.ARROW, cx + ctx.dp(40), cy) { line.invalidate() } // o fim nasce 40dp à direita do início
-                line.invalidate()
+                var line: LineView? = null
+                p1 = marker(R.drawable.bp_ic_target, 0xFFFAFAFA.toInt(), cx, cy) { line?.invalidate(); rotateArrow() }
+                val e = sp2 ?: ((cx + ctx.dp(40)) to cy) // o fim nasce 40dp à direita do início
+                p2 = marker(R.drawable.bp_ic_navigation, Color.WHITE, e.first, e.second) { line?.invalidate(); rotateArrow() }
+                line = LineView().also { add(it, params(-1, -1, false)) } // a linha vem depois: fica acima dos marcadores
+                rotateArrow(); line?.invalidate()
             }
             Mode.GESTURE -> {
                 // Camada de desenho: o dedo traça o gesto (fundo escuro leve, traço cinza); o + do painel grava o traço.
@@ -127,21 +145,26 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
                 add(v, params(-1, -1, true))
             }
             Mode.IMAGE -> {
-                val side = ctx.dp(140)
-                val b = add(BoxView(), params(side, side, true).apply { x = cx - side / 2; y = cy - side / 2 })
+                val side = ctx.dp(140); val hs = ctx.dp(38) // alça quadrada de 38dp no canto da caixa
+                val r0 = sbox
+                val b = add(BoxView(), params(r0?.width() ?: side, r0?.height() ?: side, true).apply { x = r0?.left ?: (cx - side / 2); y = r0?.top ?: (cy - side / 2) })
                 box = b
-                val h = marker(Ic.MOVE, 0, 0) {}
+                val hv = ImageView(ctx).apply {
+                    setImageResource(R.drawable.bp_ic_move_resize_variant); scaleType = ImageView.ScaleType.FIT_XY; setColorFilter(0xFFFAFAFA.toInt())
+                    setBackgroundColor(0xFFD81B60.toInt()); alpha = 0.7f
+                }
+                val h = add(hv, params(hs, hs, true))
                 handle = h
-                fun place() { h.lp.x = b.lp.x + b.lp.width; h.lp.y = b.lp.y + b.lp.height; runCatching { wm.updateViewLayout(h.view, h.lp) } }
+                fun place() { h.lp.x = b.lp.x + b.lp.width - hs / 2; h.lp.y = b.lp.y + b.lp.height - hs / 2; runCatching { wm.updateViewLayout(h.view, h.lp) } }
                 drag(b) { place() } // arrastar o corpo move a caixa e leva a alça junto
-                // A alça redimensiona: o canto da caixa acompanha a alça, com o mínimo de RegionPicker.MIN px.
+                // A alça redimensiona: o canto da caixa acompanha a alça, com o mínimo de 38 px do base.
                 var sx = 0f; var sy = 0f; var sw = 0; var sh = 0
                 h.view.setOnTouchListener { _, e ->
                     when (e.actionMasked) {
                         MotionEvent.ACTION_DOWN -> { sx = e.rawX; sy = e.rawY; sw = b.lp.width; sh = b.lp.height }
                         MotionEvent.ACTION_MOVE -> {
-                            b.lp.width = (sw + (e.rawX - sx).toInt()).coerceIn(RegionPicker.MIN * 2, maxOf(RegionPicker.MIN * 2, screen.width() - b.lp.x - dot))
-                            b.lp.height = (sh + (e.rawY - sy).toInt()).coerceIn(RegionPicker.MIN * 2, maxOf(RegionPicker.MIN * 2, screen.height() - b.lp.y - dot))
+                            b.lp.width = (sw + (e.rawX - sx).toInt()).coerceIn(38, maxOf(38, screen.width() - b.lp.x))
+                            b.lp.height = (sh + (e.rawY - sy).toInt()).coerceIn(38, maxOf(38, screen.height() - b.lp.y))
                             runCatching { wm.updateViewLayout(b.view, b.lp) }
                             place()
                         }
@@ -153,15 +176,15 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
         }
     }
 
-    fun hide() {
-        wins.forEach { runCatching { wm.removeView(it.view) } }
-        wins.clear(); p1 = null; p2 = null; box = null; handle = null
-    }
+    fun hide() { clear(); sp1 = null; sp2 = null; sbox = null }
 
     /** Esconde os marcadores um instante (captura de tela) sem perder as posições. */
     fun setVisible(v: Boolean) = wins.forEach { it.view.visibility = if (v) View.VISIBLE else View.INVISIBLE }
 
-    fun cycle() = show(mode.next())
+    fun cycle() {
+        p1?.let { sp1 = center(it) }; p2?.let { sp2 = center(it) }; box?.let { b -> sbox = Rect(b.lp.x, b.lp.y, b.lp.x + b.lp.width, b.lp.y + b.lp.height) }
+        show(mode.next())
+    }
 
     /** Item de toque ou deslize na posição atual dos marcadores; null no modo Imagem (ver [region]). */
     fun step(delay: Int): Step? {
@@ -170,7 +193,7 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
         val (x1, y1) = center(a)
         return when (mode) {
             Mode.TAP -> Step(Type.TAP, x1, y1, ms = 5, delay = delay)
-            Mode.PRESS -> Step(Type.TAP, x1, y1, ms = 1000, delay = delay)    // pressionar = toque longo, 1 s como no base
+            Mode.PRESS -> Step(Type.TAP, x1, y1, ms = 1000, delay = delay, name = "Pressionar")    // pressionar = toque longo, 1 s como no base
             Mode.SWIPE -> p2?.let { val (x2, y2) = center(it); Step(Type.SWIPE, x1, y1, x2, y2, ms = 1000, delay = delay) }
             Mode.GESTURE -> null
             Mode.IMAGE -> null

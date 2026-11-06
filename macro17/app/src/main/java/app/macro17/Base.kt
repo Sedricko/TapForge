@@ -78,7 +78,7 @@ class Drawer(private val a: Activity, private val items: List<Triple<Ic, String,
             setPadding(a.dp(16), a.dp(16), a.dp(16), a.dp(16))
             setOnApplyWindowInsetsListener { v, i -> v.setPadding(a.dp(16), a.dp(16) + i.getInsets(WindowInsets.Type.statusBars()).top, a.dp(16), a.dp(16)); i }
             addView(android.widget.ImageView(a).apply { setImageDrawable(a.packageManager.getApplicationIcon(a.packageName)) }, LinearLayout.LayoutParams(a.dp(72), a.dp(72)))
-            addView(a.label("Macro17", 14f, Color.WHITE).apply { setPadding(0, a.dp(8), 0, 0) })
+            addView(a.label("Macro17", 16f, Color.WHITE).apply { setPadding(0, a.dp(8), 0, 0) })
         }, LinearLayout.LayoutParams(MATCH_PARENT, a.dp(176)))
         items.forEachIndexed { n, (ic, text, go) ->
             addView(LinearLayout(a).apply {

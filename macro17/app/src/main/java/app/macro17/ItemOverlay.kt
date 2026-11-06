@@ -56,8 +56,8 @@ class ItemOverlay(private val svc: MacroService, private val wm: WindowManager) 
             })
         }
         fun accent(text: String, click: () -> Unit) = Button(svc, null, android.R.attr.borderlessButtonStyle).apply {
-            this.text = text; textSize = 12f; isAllCaps = false; setTextColor(pink); setBackgroundResource(R.drawable.bp_bg_outline_fill_gray)
-            setPadding(dp(12), dp(4), dp(12), dp(4)); minHeight = 0; minimumHeight = 0; minWidth = 0; minimumWidth = 0; setOnClickListener { click() }
+            this.text = "Mudar"; textSize = 12f; isAllCaps = false; setTextColor(pink); setBackgroundResource(R.drawable.bp_bg_outline_fill_gray) // rótulo único do base (name_change), h 30dp
+            setPadding(dp(12), dp(4), dp(12), dp(4)); minHeight = dp(30); minimumHeight = dp(30); minWidth = 0; minimumWidth = 0; setOnClickListener { click() }
         }
         fun sw(on: Boolean, change: (Boolean) -> Unit) = Switch(svc).apply {
             thumbTintList = android.content.res.ColorStateList.valueOf(pink); trackTintList = android.content.res.ColorStateList.valueOf(0xFFF8BBD0.toInt())
@@ -174,24 +174,27 @@ class ItemOverlay(private val svc: MacroService, private val wm: WindowManager) 
 
         fun btn(text: String, click: () -> Unit) = Button(svc, null, android.R.attr.borderlessButtonStyle).apply {
             this.text = text; isAllCaps = false; setTextColor(0xFFD32F2F.toInt()); setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setBackgroundResource(R.drawable.bp_bg_button_outline_pink); setOnClickListener { click() }
+            setBackgroundResource(R.drawable.bp_bg_button_outline_pink); minHeight = 0; minimumHeight = 0; setPadding(dp(4), 0, dp(4), 0); setOnClickListener { click() }
         }
         val buttons = LinearLayout(svc).apply {
             weightSum = 3f; layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(24) }
-            addView(btn("Excluir") { dismiss(); onDelete() }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).also { it.marginEnd = dp(8) })
-            addView(btn("Cancelar") { dismiss() }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).also { it.marginEnd = dp(8) })
+            addView(btn("Excluir") { dismiss(); onDelete() }, LinearLayout.LayoutParams(0, dp(36), 1f).also { it.marginEnd = dp(8) })
+            addView(btn("Cancelar") { dismiss() }, LinearLayout.LayoutParams(0, dp(36), 1f).also { it.marginEnd = dp(8) })
             addView(btn("Salvar") {
                 s.validate(total)?.let { return@btn svc.toast(it) }
                 dismiss(); onSave(s)
-            }, LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
+            }, LinearLayout.LayoutParams(0, dp(36), 1f))
         }
         val card = LinearLayout(svc).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(20)); elevation = dp(8).toFloat()
             background = svc.rounded(Color.WHITE, 24)
             addView(LinearLayout(svc).apply {
                 gravity = Gravity.CENTER_VERTICAL
-                if (s.type in setOf(Type.TAP, Type.SWIPE, Type.PINCH_IN, Type.PINCH_OUT)) addView(ImageView(svc).apply { setImageResource(R.drawable.bp_ic_tap) }, LinearLayout.LayoutParams(dp(24), dp(24)))
-                addView(svc.label(title, 20f, Color.BLACK, bold = true).apply { setPadding(dp(8), 0, 0, 0) })
+                // ícone de 32dp (imageClick): miniatura do item quando há, senão o toque, como no base
+                val thumb = if (s.img.isNotBlank()) svc.thumb(s.img, dp(32)) else if (s.type == Type.IMAGE && s.text.isNotBlank()) svc.thumb(s.text, dp(32)) else null
+                if (thumb != null) addView(ImageView(svc).apply { setImageBitmap(thumb) }, LinearLayout.LayoutParams(dp(32), dp(32)))
+                else if (s.type in setOf(Type.TAP, Type.SWIPE, Type.PINCH_IN, Type.PINCH_OUT)) addView(ImageView(svc).apply { setImageResource(R.drawable.bp_ic_tap) }, LinearLayout.LayoutParams(dp(32), dp(32)))
+                addView(svc.label(st.name.ifBlank { title }, 20f, Color.BLACK, bold = true).apply { setPadding(dp(8), 0, 0, 0) }) // título = nome do item
             })
             addView(body, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(16) })
             addView(buttons)

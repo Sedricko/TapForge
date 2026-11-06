@@ -42,7 +42,7 @@ class OptionsActivity : Activity() {
         p.switchRow("Manter Tela Ligada", "A tela permanecerá ligada enquanto o Macro17 estiver em execução.", store.keepOn) { store.keepOn = it }
         p.switchRow("Depurar", "Exibir informações de depuração na tela", store.debugOverlay) { store.debugOverlay = it }
         p.switchRow("Alarme", "Um alarme soará quando a macro terminar.", store.endAlarm) { store.endAlarm = it }
-        p.switchRow("Monitoramento contínuo da tela", "Mantém a captura de tela em ociosidade para reduzir o atraso de inicialização. (indisponível: o Macro17 captura sob demanda)", false, enabled = false)
+        p.switchRow("Monitoramento contínuo da tela", "Mantém a captura de tela em ociosidade para reduzir o atraso de inicialização. (Nenhum dado transmitido externamente)", false, enabled = false)
         battery = p.switchRow("Desativar otimização de bateria", "Permita o uso em segundo plano sem restrições para uma operação estável.", ignoringBattery()) {
             // Como no base: o toque não alterna; explica e leva às informações do app, onde está "Bateria". O switch reflete o estado real.
             if (resetting) return@switchRow
@@ -100,7 +100,7 @@ class OptionsActivity : Activity() {
             max = 50; progress = 100 - store.opacity; contentDescription = "Transparência da janela flutuante"
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(s: SeekBar, v: Int, fromUser: Boolean) {
-                    store.opacity = 100 - v; value.text = "$v %"; transparencyText?.text = "$v %"; pushOptions()
+                    store.opacity = 100 - v; value.text = "$v%"; transparencyText?.text = "$v%"; pushOptions()
                 }
                 override fun onStartTrackingTouch(s: SeekBar) {}
                 override fun onStopTrackingTouch(s: SeekBar) {}

@@ -33,11 +33,11 @@ class PanelSettingsActivity : Activity() {
 
     private fun row(title: String, value: String, enabled: Boolean = true, click: (() -> Unit)? = null) {
         col.addView(LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(12)); alpha = if (enabled) 1f else 0.45f
-            addView(label(title, 16f, Color.BLACK))
+            orientation = LinearLayout.VERTICAL; setPadding(dp(10), dp(10), dp(10), dp(10)); alpha = if (enabled) 1f else 0.45f
+            addView(label(title, 18f, Color.BLACK))
             addView(label(value, 14f, B.TEXT2))
             if (enabled && click != null) { foreground = ripple(0, 0x1F000000); setOnClickListener { click() } }
-        }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(10) })
     }
 
     private fun render() {
@@ -61,6 +61,6 @@ class PanelSettingsActivity : Activity() {
             AlertDialog.Builder(this).setTitle("Tamanho da imagem a salvar").setSingleChoiceItems(sizes.map { "$it Pixel" }.toTypedArray(), sizes.indexOf(store.thumbPx)) { d, w -> store.thumbPx = sizes[w]; d.dismiss(); render() }
                 .setNegativeButton("Cancelar", null).show()
         }
-        row("Monitoramento contínuo da tela", "Indisponível: o Macro17 captura sob demanda.", enabled = false)
+        row("Monitoramento contínuo da tela", "Mantém a captura de tela em ociosidade para reduzir o atraso de inicialização. (Nenhum dado transmitido externamente)", enabled = false)
     }
 }

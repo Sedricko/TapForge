@@ -139,6 +139,9 @@ class MacroService : AccessibilityService() {
 
     fun isRunning() = engine.running
 
+    /** Miniatura do modelo de imagem de um item (para a janela de edição). */
+    fun thumb(id: String, px: Int): Bitmap? = store.templateThumb(id, px)
+
     /** INICIAR da Home: mostra o painel de controle. */
     fun showControls() {
         Diag.d("serviço", "painel aberto pela Home")
