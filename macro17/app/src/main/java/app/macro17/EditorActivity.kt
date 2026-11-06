@@ -263,11 +263,17 @@ class EditorActivity : Activity() {
         val idx = needSelection() ?: return
         // Como no base: se o primeiro item do sentido do movimento já está na borda, nenhum se move.
         if (if (up) idx.first() == 0 else idx.last() == steps.lastIndex) return
-        val cur = idx.toMutableSet()
-        for (i in if (up) idx else idx.reversed()) {
-            val j = if (up) i - 1 else i + 1
-            if (j in steps.indices && j !in cur && steps[i].type != Type.GROUP && steps[j].type != Type.GROUP && steps.parentOf(i) == steps.parentOf(j)) { steps = steps.afterSwap(i, j); cur.remove(i); cur.add(j) }
+        val all = idx.toSet()
+        // Um grupo marcado anda inteiro; filhos de grupo marcado não andam sozinhos.
+        var roots = idx.filter { i -> generateSequence(steps.parentOf(i)) { steps.parentOf(it) }.takeWhile { it >= 0 }.none { it in all } }
+        var cur = all
+        var moved = false
+        for (n in (if (up) roots.indices else roots.indices.reversed())) {
+            val (out, order) = steps.movedBlock(roots[n], up, roots.toSet()) ?: continue
+            val inv = IntArray(steps.size); order.forEachIndexed { k, old -> inv[old] = k }
+            steps = out; cur = cur.map { inv[it] }.toSet(); roots = roots.map { inv[it] }; moved = true
         }
+        if (!moved) return toast("Não é possível mover nesse sentido.")
         selected.clear(); selected.addAll(cur)
         refresh()
     }

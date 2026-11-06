@@ -33,7 +33,8 @@ class AboutActivity : Activity() {
             }, LinearLayout.LayoutParams(MATCH_PARENT, dp(60)))
             col.addView(View(this).apply { setBackgroundColor(0x1E000000) }, LinearLayout.LayoutParams(MATCH_PARENT, 1)) // divisor só depois de cada linha
         }
-        row("O que é", "Automação de toques por acessibilidade: gravar, editar e repetir macros, com busca por imagem, texto e número na tela.\n\nPrivacidade: o app declara as permissões de rede do app base, mas não as usa para enviar nada. Macros, imagens e registros ficam no aparelho a menos que você compartilhe um relatório.")
+        row("Política de Privacidade", "Macros, imagens e registros ficam no aparelho; nada é enviado a servidores. O app declara permissões de rede herdadas do app base, mas não as usa para enviar dados. Só sai do aparelho o que você compartilhar (relatório, backup, exportação).")
+        row("Documentação do Touch Macro", "Automação de toques por acessibilidade: gravar, editar e repetir macros, com busca por imagem, texto e número na tela. Use Permissões para escolher o modo de controle e o editor para montar a sequência de itens.")
         row("Licenças de terceiros", "OpenCV 4.9.0 (Apache-2.0): casamento de imagem.\nML Kit Text Recognition 16.0.1 (termos do Google ML Kit): reconhecimento de texto no aparelho.\nKotlin stdlib 2.1.0 (Apache-2.0).\norg.json (JSON License).\nÍcones Material (Apache-2.0).")
         setContentView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

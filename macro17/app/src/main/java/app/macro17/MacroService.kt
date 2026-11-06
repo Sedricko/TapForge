@@ -342,10 +342,14 @@ class MacroService : AccessibilityService() {
 
     private fun fillRow1() {
         row1.removeAllViews()
-        if (store.scheduleOn && !recording && !playing) { // estado "agendado" do base: só o Agendar ligado e o próximo horário; linha 2 aberta
-            row1.addView(pbtn(Ic.ALARM, "Agendar", 38, 38, 2, tint = 0xFF002626.toInt()) { toggleSchedule() })
-            row1.addView(label(scheduleText(), 12f, 0xFF607D8B.toInt()).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; maxWidth = dp(150); setPadding(dp(4), 0, dp(8), 0) })
-            expanded = false; if (::row2.isInitialized) row2.visibility = View.GONE // base: agendado mostra só o Agendar e o horário
+        val sched = store.scheduleOn && !recording && !playing
+        if (::row2.isInitialized) { // linha 2: Agendar (cor segue o estado) + demais botões; agendado esconde os demais
+            row2.removeViewAt(0); row2.addView(pbtn(Ic.ALARM, "Agendar", 38, 38, 2, tint = if (store.scheduleOn) 0xFF002626.toInt() else teal) { toggleSchedule() }, 0)
+            for (i in 1 until row2.childCount) row2.getChildAt(i).visibility = if (sched) View.GONE else View.VISIBLE
+        }
+        if (sched) { // estado "agendado" do base: linha 1 só com o próximo horário; linha 2 aberta só com o Agendar
+            row1.addView(label(scheduleText(), 12f, 0xFF607D8B.toInt()).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; maxWidth = dp(80); setPadding(dp(4), 0, dp(8), 0) })
+            expanded = true; if (::row2.isInitialized) row2.visibility = View.VISIBLE
             return
         }
         if (recording) {

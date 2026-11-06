@@ -53,3 +53,35 @@ fun List<Step>.duplicated(idx: List<Int>, max: Int): List<Step> {
     }
     return head.take(at0).map { it.mapTargets(shift) } + copies + head.drop(at0).map { it.mapTargets(shift) }
 }
+
+/** Reordena: o novo passo k é o antigo order[k]; saltos acompanham. Só para blocos inteiros (tamanhos de grupo não mudam). */
+fun List<Step>.permuted(order: List<Int>): List<Step> {
+    val inv = IntArray(size); order.forEachIndexed { k, old -> inv[old] = k }
+    val f = { t: Int -> if (t <= 0 || t > size) t else inv[t - 1] + 1 }
+    return order.map { this[it].mapTargets(f) }
+}
+
+/**
+ * Move o bloco que começa em [i] (um passo, ou cabeçalho de grupo com seus filhos) uma posição, trocando com o bloco irmão vizinho
+ * dentro do mesmo grupo ([blocked] = inícios de bloco que não podem ser deslocados). Devolve a lista nova e a ordem usada (novo k = antigo order[k]), ou null se não há vizinho.
+ */
+fun List<Step>.movedBlock(i: Int, up: Boolean, blocked: Set<Int> = emptySet()): Pair<List<Step>, List<Int>>? {
+    fun end(k: Int) = if (this[k].type == Type.GROUP) minOf(k + this[k].grp, lastIndex) else k
+    val p = parentOf(i)
+    val e = end(i)
+    val order: List<Int>
+    if (up) {
+        if (i == 0 || i - 1 == p) return null
+        var start = i - 1
+        while (parentOf(start) != p) start = parentOf(start)
+        if (start in blocked) return null // bloco vizinho também marcado: fica onde está
+        order = (0 until start) + (i..e) + (start until i) + (e + 1..lastIndex)
+    } else {
+        val n = e + 1
+        if (n > lastIndex || (p >= 0 && n > p + this[p].grp)) return null
+        if (n in blocked) return null
+        val ne = end(n)
+        order = (0 until i) + (n..ne) + (i..e) + (ne + 1..lastIndex)
+    }
+    return permuted(order) to order
+}

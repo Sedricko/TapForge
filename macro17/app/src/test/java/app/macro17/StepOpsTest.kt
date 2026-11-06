@@ -47,3 +47,28 @@ class StepOpsTest {
         assertFalse(listOf(grp(2), grp(2), tap(), tap()).groupsConsistent())
     }
 }
+
+class MoveBlockTest {
+    private fun tap(goto: Int = 0) = Step(type = Type.TAP, goto = goto)
+    private fun grp(n: Int) = Step(type = Type.GROUP, grp = n, gms = 1000)
+
+    @Test fun groupMovesAsABlockAndJumpsFollow() {
+        val l = listOf(tap(goto = 2), grp(1), tap(), tap())
+        val (out, _) = l.movedBlock(1, up = true)!!
+        assertEquals(listOf(Type.GROUP, Type.TAP, Type.TAP, Type.TAP), out.map { it.type })
+        assertEquals(3, out[2].goto) // o passo 1 (goto 2 = o cabeçalho) agora aponta para onde o cabeçalho foi
+        assertTrue(out.groupsConsistent())
+    }
+
+    @Test fun childStaysInsideItsGroup() {
+        val l = listOf(grp(2), tap(), tap(), tap())
+        assertEquals(null, l.movedBlock(1, up = true))
+        assertEquals(null, l.movedBlock(2, up = false))
+        assertEquals(listOf(Type.GROUP, Type.TAP, Type.TAP, Type.TAP), l.movedBlock(2, up = true)!!.first.map { it.type })
+    }
+
+    @Test fun blockedNeighbourStays() {
+        val l = listOf(tap(), tap())
+        assertEquals(null, l.movedBlock(1, up = true, blocked = setOf(0)))
+    }
+}
