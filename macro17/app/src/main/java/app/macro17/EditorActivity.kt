@@ -509,11 +509,15 @@ class EditorActivity : Activity() {
             else if (search) listOfNotNull(s.goto.takeIf { it > 0 }?.let { it to 0xFF2121FF.toInt() }, s.fail.takeIf { it > 0 }?.let { it to 0xFFF44336.toInt() }) else emptyList()
         val delayText = if (s.rnd > 0) "${secs(s.rnd)}~" else secs(s.delay)
         val infoText = info(s)
-        return LinearLayout(this).apply {
+        val par = steps.parentOf(i)
+        val num = if (par >= 0) "${par + 1}-${i - par}" else "${i + 1}" // filhos: "pai-filho", como o base
+        val row = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(Color.WHITE)
-            setPadding(dp(6) + if (inGroup(i)) dp(24) else 0, dp(2), dp(6), dp(2))
-            addView(CheckBox(this@EditorActivity).apply {
+            setPadding(dp(6), dp(2), dp(6), dp(2))
+            // Filho de grupo na lista da raiz: sem caixa de seleção (marca-se na tela do grupo), com o espaço dela.
+            if (par >= 0 && groupIdx < 0) addView(View(this@EditorActivity), LinearLayout.LayoutParams(dp(42), 1))
+            else addView(CheckBox(this@EditorActivity).apply {
                 isChecked = i in selected; buttonTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFFD81B60.toInt(), 0x8A000000.toInt()))
                 setOnCheckedChangeListener { _, on -> if (on) selected.add(i) else selected.remove(i); syncTools() }
                 layoutParams = LinearLayout.LayoutParams(dp(42), WRAP_CONTENT)
@@ -522,7 +526,7 @@ class EditorActivity : Activity() {
             addView(LinearLayout(this@EditorActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f).also { it.setMargins(dp(16), dp(4), dp(16), dp(4)) }
-                addView(label("${i + 1}. ${s.name.ifBlank { if (s.type == Type.TAP && s.ms >= 500) "Press" else titles.getValue(s.type) }}", 18f, 0xFF607D8B.toInt()).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+                addView(label("$num. ${s.name.ifBlank { if (s.type == Type.TAP && s.ms >= 500) "Press" else titles.getValue(s.type) }}", 18f, 0xFF607D8B.toInt()).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
                 addView(LinearLayout(this@EditorActivity).apply {
                     gravity = Gravity.CENTER_VERTICAL
                     // Cada valor só aparece quando está ligado: busca (tempo ou Infinito), atraso, ação pulada e a informação do tipo.
@@ -537,11 +541,6 @@ class EditorActivity : Activity() {
                     if (infoText.isNotEmpty()) addView(label(infoText, 14f, 0xDE000000.toInt()).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
                 })
             })
-            if (s.type == Type.GROUP) addView(ImageView(this@EditorActivity).apply {
-                setImageResource(if (i in collapsed) R.drawable.bp_expander_ic_minimized else R.drawable.bp_expander_ic_maximized); setColorFilter(0xFF607D8B.toInt()); contentDescription = "Expandir ou recolher o grupo"
-                layoutParams = LinearLayout.LayoutParams(dp(40), dp(36)); setPadding(dp(8), dp(6), dp(8), dp(6))
-                setOnClickListener { if (i in collapsed) collapsed.remove(i) else collapsed.add(i); refresh() }
-            })
             if (s.off) addView(resIcon(R.drawable.bp_remove_circle, 24, 0xFFD81B60.toInt()).apply { (layoutParams as LinearLayout.LayoutParams).setMargins(dp(3), 0, dp(3), 0) })
             jumps.forEach { (to, color) ->
                 addView(LinearLayout(this@EditorActivity).apply {
@@ -551,6 +550,17 @@ class EditorActivity : Activity() {
                     addView(label(to.toString(), 16f, color, bold = true))
                 })
             }
+            if (s.type == Type.GROUP) addView(ImageView(this@EditorActivity).apply {
+                setImageResource(if (i in collapsed) R.drawable.bp_expander_ic_minimized else R.drawable.bp_expander_ic_maximized); setColorFilter(0xFF607D8B.toInt()); contentDescription = "Expandir ou recolher o grupo"
+                layoutParams = LinearLayout.LayoutParams(dp(40), dp(36)); setPadding(dp(8), dp(6), dp(8), dp(6))
+                setOnClickListener { if (i in collapsed) collapsed.remove(i) else collapsed.add(i); refresh() }
+            })
+        }
+        // Divisor de 1dp no topo de cada linha (Separator do base).
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(View(this@EditorActivity).apply { setBackgroundColor(0x1E000000) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)))
+            addView(row)
         }
     }
 
@@ -586,7 +596,7 @@ class EditorActivity : Activity() {
 
     private fun pickType() {
         if (steps.size >= MAX_STEPS) return toast("Limite de $MAX_STEPS passos")
-        startActivityForResult(android.content.Intent(this, AddItemsActivity::class.java), REQ_ADD)
+        startActivityForResult(android.content.Intent(this, AddItemsActivity::class.java).putExtra("depth", if (groupIdx >= 0) 1 else 0), REQ_ADD)
     }
 
     private fun addOfType(type: Type, mono: Boolean = false) {
@@ -599,7 +609,7 @@ class EditorActivity : Activity() {
             Type.CALL, Type.STOP -> Step(type)
             else -> null
         }
-        if (direct != null) { steps = steps.afterInsert(steps.size, direct); refresh(); list.setSelection(steps.size - 1); return }
+        if (direct != null) { steps = steps.afterInsert(endPos(), direct); refresh(); list.setSelection(list.headerViewsCount + vis.size - 1); return }
         run {
             // Padrões que já passam na validação; a tela mostra um centro razoável.
             val base = when (type) {
@@ -719,14 +729,20 @@ class EditorActivity : Activity() {
     private fun snapshot() = Macro(id, name.text.toString().trim(), loops.text.toString().toIntOrNull() ?: 1, steps).toJson().toString()
 
     override fun onBackPressed() {
+        if (groupIdx >= 0) { // sai sem perguntar e devolve a lista ao editor da raiz
+            val arr = org.json.JSONArray(); steps.forEach { arr.put(it.toJson()) }
+            setResult(RESULT_OK, Intent().putExtra("steps", arr.toString())); finish(); return
+        }
         AlertDialog.Builder(this).setMessage("Deseja sair da edição?")
             .setPositiveButton("Sim") { _, _ -> finish() }.setNegativeButton("Não", null).show()
     }
 
     private fun loopsDialog() {
-        val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER; setText(loops.text); setPadding(dp(24), dp(16), dp(24), dp(8)) }
+        if (groupIdx >= 0) return groupDialog()
+        val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER; setText(loops.text); setPadding(dp(16), dp(16), dp(16), dp(16)) }
         et.hint = "0 significa infinito"
-        AlertDialog.Builder(this).setTitle("Repetir reprodução").setView(et)
+        val box = FrameLayout(this).apply { addView(et, FrameLayout.LayoutParams(MATCH_PARENT, dp(48)).also { it.setMargins(dp(5), dp(5), dp(5), dp(5)) }) }
+        AlertDialog.Builder(this).setTitle("Repetir reprodução").setView(box)
             .setPositiveButton("OK") { _, _ -> et.text.toString().toIntOrNull()?.takeIf { it in 0..MAX_LOOPS }?.let { loops.setText(it.toString()) } ?: toast("Número inválido") }
             .setNegativeButton("Cancelar", null).show()
     }

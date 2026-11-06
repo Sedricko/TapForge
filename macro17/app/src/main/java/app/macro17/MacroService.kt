@@ -427,6 +427,7 @@ class MacroService : AccessibilityService() {
     private var listSv: android.widget.ScrollView? = null
     private var listMacroId: String? = null
     private var lastStepIdx = -1
+    private var listX: Int? = null // posição X da lista nesta sessão (o Store não guarda o X)
 
     private fun toggleList() {
         if (listWin != null) { hideList(); fillRow1(); return }
@@ -459,30 +460,41 @@ class MacroService : AccessibilityService() {
         m.steps.forEachIndexed { i, st ->
             val nm = "${i + 1}. ${st.name.ifBlank { st.type.name.lowercase().replaceFirstChar { it.uppercase() } }}"
             val search = st.type in Step.SEARCHES || st.useImg
+            val child = m.steps.indices.any { g -> m.steps[g].type == Type.GROUP && i > g && i <= g + m.steps[g].grp }
+            val typeIc = when (st.type) {
+                Type.TAP -> if (st.ms >= 500) R.drawable.bp_ic_tap_hold else R.drawable.bp_ic_tap
+                Type.SWIPE -> R.drawable.bp_ic_gesture_swipe; Type.PINCH_IN -> R.drawable.bp_ic_gesture_pinch_in; Type.PINCH_OUT -> R.drawable.bp_ic_gesture_pinch_out
+                Type.GESTURE -> R.drawable.bp_ic_gesture; Type.IMAGE -> R.drawable.bp_ic_image; Type.TEXT -> R.drawable.bp_ic_text_box_outline; Type.KEY -> R.drawable.bp_ic_keyboard_black_24dp
+                else -> 0
+            }
             col.addView(android.widget.LinearLayout(this).apply {
-                orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(8) + if (m.steps.indices.any { g -> m.steps[g].type == Type.GROUP && i > g && i <= g + m.steps[g].grp }) dp(12) else 0, dp(6), dp(6), dp(6))
+                orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(8) + if (child) dp(12) else 0, dp(6), dp(6), dp(6))
+                if (child) setBackgroundColor(0xFFD6D7D7.toInt()) // filho de grupo, como no base
                 addView(android.widget.LinearLayout(this@MacroService).apply {
                     gravity = Gravity.CENTER_VERTICAL
-                    addView(label(nm, 16f, B.TEXT).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
+                    addView(label(nm, 16f, if (child) 0xFF9E9E9E.toInt() else B.TEXT).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
                     // contadores do base: destino de sucesso (azul) e de falha (vermelho)
-                    if (search && st.goto > 0) addView(label("${st.goto}", 16f, 0xFF2121FF.toInt(), bold = true).apply { setPadding(dp(4), 0, 0, 0) })
+                    if (search && st.goto > 0) addView(label("${st.goto}", 16f, if (child) 0xFF2196F3.toInt() else 0xFF2121FF.toInt(), bold = true).apply { setPadding(dp(4), 0, 0, 0) })
                     if (search && st.fail > 0) addView(label("${st.fail}", 16f, 0xFFF44336.toInt(), bold = true).apply { setPadding(dp(4), 0, 0, 0) })
                 })
                 addView(android.widget.LinearLayout(this@MacroService).apply {
                     gravity = Gravity.CENTER_VERTICAL
+                    if (typeIc != 0) addView(chip(typeIc, ""))
                     if (st.type == Type.GROUP) addView(chip(R.drawable.bp_repeat, if (st.rep == 0) "Infinito" else "${st.rep}"))
                     if (search && st.ms > 0) addView(chip(R.drawable.bp_outline_image_search_24, "${st.ms / 1000f}s"))
                     if (st.delay > 0) addView(chip(R.drawable.bp_ic_timer, "${st.delay / 1000f}s"))
+                    if (st.type == Type.STATUS && st.vib) addView(chip(R.drawable.bp_vibrate, "${st.ms / 1000f}s"))
                     if (st.skip) addView(chip(R.drawable.bp_ic_do_not_touch_24px, ""))
                 })
                 // Como no base: toque curto edita o item numa janela por cima do app (só os tipos que o base permite; grupo recolhe/expande);
                 // toque longo testa o item (espera 500 ms, compara a imagem com a tela e mostra a semelhança).
                 setOnClickListener {
-                    if (st.type == Type.GROUP) { if (i in collapsed) collapsed.remove(i) else collapsed.add(i); applyCollapse() }
+                    if (recording) toast("A edição não é possível durante a gravação de uma macro.") // como no base
+                    else if (st.type == Type.GROUP) { if (i in collapsed) collapsed.remove(i) else collapsed.add(i); applyCollapse() }
                     else if (ItemOverlay.editable(st.type)) editFromList(m, i)
                 }
                 setOnLongClickListener {
-                    if (st.type != Type.GROUP) Thread { Thread.sleep(500); instant(runCatching { engine.probeItem(st) }.getOrElse { "Falha ao testar o item" }, 3000) }.start()
+                    if (st.type != Type.GROUP) Thread { Thread.sleep(500); instant(runCatching { engine.probeItem(st) }.getOrElse { "Falha ao testar o item" }, 2000) }.start()
                     true
                 }
             })
@@ -491,17 +503,17 @@ class MacroService : AccessibilityService() {
         // Como no base: título de 36dp verde com o nome da macro (arrasta a lista na vertical) e corpo branco de 170x240dp na borda direita.
         val lp = WindowManager.LayoutParams(-2, -2, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT)
-            .apply { gravity = Gravity.TOP or Gravity.START; x = resources.displayMetrics.widthPixels - dp(171); y = store.listY.coerceIn(0, resources.displayMetrics.heightPixels - dp(100)) }
+            .apply { gravity = Gravity.TOP or Gravity.START; x = listX ?: (resources.displayMetrics.widthPixels - dp(171)); y = store.listY.coerceIn(0, resources.displayMetrics.heightPixels - dp(100)) }
         val title = android.widget.LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(0xFF008577.toInt())
             addView(ImageView(this@MacroService).apply { setImageResource(R.drawable.bp_ic_move_resize_variant); setColorFilter(0xFFFAFAFA.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(24), dp(24)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) })
             addView(label(m.name, 18f, 0xFFFAFAFA.toInt(), bold = true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
-            var oy = 0f; var sy = 0
+            var oy = 0f; var sy = 0; var ox = 0f; var sx = 0
             setOnTouchListener { _, e ->
                 when (e.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> { oy = e.rawY; sy = lp.y }
-                    MotionEvent.ACTION_UP -> store.listY = lp.y
-                    MotionEvent.ACTION_MOVE -> { lp.y = (sy + (e.rawY - oy).toInt()).coerceIn(0, resources.displayMetrics.heightPixels - dp(100)); listWin?.let { v -> runCatching { wm.updateViewLayout(v, lp) } } }
+                    MotionEvent.ACTION_DOWN -> { oy = e.rawY; sy = lp.y; ox = e.rawX; sx = lp.x }
+                    MotionEvent.ACTION_UP -> { store.listY = lp.y; listX = lp.x }
+                    MotionEvent.ACTION_MOVE -> { lp.x = (sx + (e.rawX - ox).toInt()).coerceIn(0, resources.displayMetrics.widthPixels - dp(60)); lp.y = (sy + (e.rawY - oy).toInt()).coerceIn(0, resources.displayMetrics.heightPixels - dp(100)); listWin?.let { v -> runCatching { wm.updateViewLayout(v, lp) } } }
                 }
                 true
             }
@@ -535,10 +547,12 @@ class MacroService : AccessibilityService() {
 
     /** Lista de escolha em overlay (o diálogo comum não abre a partir de um serviço). */
     fun chooseOverlay(title: String, items: Array<String>, checked: Int, cb: (Int) -> Unit) {
-        val d = android.app.AlertDialog.Builder(android.view.ContextThemeWrapper(this, android.R.style.Theme_Material_Light_Dialog_Alert)).setTitle(title)
-            .setSingleChoiceItems(items, checked) { dlg, w -> dlg.dismiss(); cb(w) }.create()
-        d.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
-        runCatching { d.show() }
+        var close: () -> Unit = {}
+        val col = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            items.forEachIndexed { w, t -> addView(label(t, 16f, if (w == checked) 0xFFD81B60.toInt() else Color.BLACK, bold = w == checked).apply { setPadding(0, dp(10), 0, dp(10)); setOnClickListener { close(); cb(w) } }) }
+        }
+        ui.post { close = overlayCard(title, android.widget.ScrollView(this).apply { addView(col) }, listOf("Cancelar" to {})) }
     }
 
     private fun editFromList(m: Macro, i: Int) {
@@ -775,19 +789,19 @@ class MacroService : AccessibilityService() {
         if (guideWin != null) return
         fun row(res: Int, text: String) = android.widget.LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
-            addView(ImageView(this@MacroService).apply { setImageResource(res); setColorFilter(0xFF00574B.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(28), dp(28)).also { it.marginEnd = dp(8) })
-            addView(label(text, 15f, Color.BLACK))
+            addView(ImageView(this@MacroService).apply { setImageResource(res); setColorFilter(0xFF00574B.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(24), dp(24)).also { it.marginEnd = dp(4) })
+            addView(label(text, 14f, Color.BLACK))
             layoutParams = android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = dp(8) }
         }
-        val again = android.widget.CheckBox(this).apply { text = "Não mostrar novamente"; setTextColor(0xFF00574B.toInt()) }
+        val again = android.widget.CheckBox(this).apply { text = "Não mostrar novamente"; setTextColor(0xFF00574B.toInt()); buttonTintList = android.content.res.ColorStateList.valueOf(0xFF7F7F7F.toInt()) }
         val card = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL; background = rounded(Color.WHITE, 8, 0xFFE0E0E0.toInt()); setPadding(dp(24), dp(16), dp(24), dp(8))
-            addView(label("Guia para gravar locais de toque.", 18f, Color.BLACK, bold = true).apply { setPadding(0, 0, 0, dp(12)) })
+            addView(label("Guia para gravar locais de toque.", 20f, Color.BLACK, bold = true).apply { setPadding(0, 0, 0, dp(12)) })
             addView(row(R.drawable.bp_ic_target, "Mova o ícone para o local que deseja tocar."))
             addView(row(R.drawable.bp_playlist_add, "Guarda a localização selecionada."))
             addView(row(R.drawable.bp_ic_tap, "Muda o método de toque."))
             addView(again)
-            addView(label("OK", 15f, 0xFFD81B60.toInt(), bold = true).apply {
+            addView(label("OK", 14f, 0xFFD81B60.toInt(), bold = true).apply {
                 gravity = Gravity.CENTER; setPadding(dp(16), dp(12), dp(16), dp(12))
                 setOnClickListener {
                     if (again.isChecked) store.recGuide = false
@@ -796,7 +810,7 @@ class MacroService : AccessibilityService() {
                 }
             }, android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.WRAP_CONTENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT).also { it.gravity = Gravity.END })
         }
-        val lp = WindowManager.LayoutParams(minOf(dp(320), resources.displayMetrics.widthPixels - dp(32)), WindowManager.LayoutParams.WRAP_CONTENT,
+        val lp = WindowManager.LayoutParams(minOf(dp(280), resources.displayMetrics.widthPixels - dp(32)), WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT)
             .apply { gravity = Gravity.CENTER }
         runCatching { wm.addView(card, lp) }.onSuccess { guideWin = card }
@@ -818,7 +832,7 @@ class MacroService : AccessibilityService() {
         panelToFront()
         expanded = false; row2.visibility = View.GONE
         fillRow1()
-        toast(if (base != null) "Gravando em “${base.name}”: os itens entram no fim. Arraste o marcador e toque em +." else "Gravando: arraste o marcador e toque em +. Toque no tipo para trocar.")
+        // o base não mostra nenhum aviso durante a gravação (um toast entraria na miniatura do próximo item)
     }
 
     /** Atraso medido, como no base: tempo desde o último "+" menos 5 ms fixos, em passos de 0,1 s. */
@@ -827,8 +841,8 @@ class MacroService : AccessibilityService() {
 
     private fun addItem() {
         if (!recording || adding) return
-        if (rec.size >= MAX_STEPS) return toast("Limite de $MAX_STEPS passos")
-        if (recorder.mode == Recorder.Mode.IMAGE && recorder.region() == null) return toast("Marque a área da imagem")
+        if (rec.size >= MAX_STEPS) return Diag.e("gravação", "limite de $MAX_STEPS passos")
+        if (recorder.mode == Recorder.Mode.IMAGE && recorder.region() == null) return Diag.d("gravação", "marque a área da imagem")
         val pressedAt = SystemClock.elapsedRealtime()
         adding = true
         recorder.setVisible(false) // os marcadores não podem aparecer no recorte
@@ -850,20 +864,21 @@ class MacroService : AccessibilityService() {
         return if (x < 0 || y < 0 || x + side > bmp.width || y + side > bmp.height) null else Bitmap.createBitmap(bmp, x, y, side, side)
     }
 
-    private fun commitItem(pressedAt: Long, bmp: Bitmap?) {
+    private fun commitItem(@Suppress("UNUSED_PARAMETER") clickedAt: Long, bmp: Bitmap?) {
         if (!recording) return // Stop durante o Add: nada de gravar nem tocar depois de salvar
         bmp?.let { rememberShot(it) }
+        val pressedAt = SystemClock.elapsedRealtime() // o atraso conta a partir daqui (depois dos 500 ms e da captura), como no base
         var restoreAfter = 0L
         try {
             val mode = recorder.mode
             var st: Step? = null
             if (mode == Recorder.Mode.IMAGE) {
                 val r = recorder.region()
-                if (bmp == null) toast("Sem captura: o item de imagem não foi gravado")
+                if (bmp == null) Diag.e("gravação", "sem captura: o item de imagem não foi gravado")
                 else if (r != null) {
                     val x = r.left.coerceIn(0, bmp.width - 1); val y = r.top.coerceIn(0, bmp.height - 1)
                     val w = r.width().coerceAtMost(bmp.width - x); val h = r.height().coerceAtMost(bmp.height - y)
-                    if (w < RegionPicker.MIN || h < RegionPicker.MIN) toast("Área pequena demais (mínimo ${RegionPicker.MIN} px)")
+                    if (w < RegionPicker.MIN || h < RegionPicker.MIN) Diag.d("gravação", "área pequena demais (mínimo ${RegionPicker.MIN} px)")
                     else {
                         val tid = store.newTemplateId()
                         store.saveTemplate(tid, Bitmap.createBitmap(bmp, x, y, w, h))
@@ -882,16 +897,15 @@ class MacroService : AccessibilityService() {
                         // Como no base: a miniatura de 80 px só ilustra a lista; a busca por imagem fica desligada no item gravado.
                         useImg = false)
                     perform(st) // a ação roda no ponto; os marcadores voltam depois da duração
-                    restoreAfter = st.ms + 100L
-                } else if (mode == Recorder.Mode.GESTURE) toast("Desenhe o gesto antes de adicionar")
+                    restoreAfter = if (st.type == Type.GESTURE) st.ms + 100L else st.ms.toLong() // Gesto +100 ms; Toque/Pressionar/Deslizar a duração
+                } else if (mode == Recorder.Mode.GESTURE) Diag.d("gravação", "desenhe o gesto antes de adicionar")
             }
             if (st != null) {
                 rec += st; recLast = pressedAt
                 ui.post { if (listWin != null) { hideList(); showList() } } // a lista acompanha cada item adicionado
                 Diag.d("gravação", "item ${rec.size}: ${st.type} ${st.x1},${st.y1}" + (if (st.type == Type.SWIPE) ">${st.x2},${st.y2}" else "") + " ms=${st.ms} atraso=${st.delay}ms" + (if (st.img.isNotEmpty()) " miniatura" else ""))
-                toast("Item ${rec.size - recBaseCount} adicionado: ${recorder.mode.label}")
             }
-        } catch (e: Exception) { Diag.e("gravação", "falha ao gravar o item", e); toast("Falha: ${e.message}") }
+        } catch (e: Exception) { Diag.e("gravação", "falha ao gravar o item", e) }
         finally {
             bmp?.recycle()
             ui.postDelayed({ recorder.setVisible(true); adding = false }, restoreAfter)
@@ -916,7 +930,7 @@ class MacroService : AccessibilityService() {
         runCatching { recorder.hide() }
         if (::panel.isInitialized) fillRow1()
         if (!save) return
-        if (rec.size == recBaseCount) return toast("Nada gravado")
+        if (rec.size == recBaseCount) return askEditor(recBase?.id ?: "new") // o base pergunta sempre, mesmo sem itens
         val base = recBase
         // Se a macro foi editada durante a gravação, não sobrescreve: acrescenta só o que foi gravado agora.
         val fresh = base?.let { store.get(it.id) } ?: base
@@ -925,7 +939,7 @@ class MacroService : AccessibilityService() {
         val err = m.validate()
         if (err != null) return toast("Gravação inválida: $err")
         runCatching { store.save(m) }
-            .onSuccess { store.selected = m.id; askEditor(m) }
+            .onSuccess { store.selected = m.id; askEditor(m.id) }
             .onFailure { toast("Falha ao salvar: ${it.message}") }
     }
 
@@ -935,11 +949,27 @@ class MacroService : AccessibilityService() {
         return "${store.get(next.macroId)?.name ?: "Macro"} • " + SimpleDateFormat("MMM dd(E) HH:mm", Locale.getDefault()).format(Date(Alarms.nextStart(next.start)))
     }
 
+    /** Diálogo do base (b1.y2.a): 280dp, branco arredondado, título 20sp e botões de texto em #D81B60. Devolve a função que o fecha. */
+    private fun overlayCard(title: String, content: View, buttons: List<Pair<String, () -> Unit>>): () -> Unit {
+        var win: View? = null
+        val close = { win?.let { runCatching { wm.removeView(it) } }; win = null; Unit }
+        val card = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL; background = rounded(Color.WHITE, 8, 0xFFE0E0E0.toInt()); setPadding(dp(24), dp(20), dp(16), dp(8))
+            addView(label(title, 20f, Color.BLACK, bold = true))
+            addView(content, android.widget.LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(16) })
+            addView(android.widget.LinearLayout(this@MacroService).apply {
+                gravity = Gravity.END
+                buttons.forEach { (t, act) -> addView(label(t, 14f, 0xFFD81B60.toInt(), bold = true).apply { setPadding(dp(12), dp(12), dp(12), dp(12)); setOnClickListener { close(); act() } }) }
+            }, android.widget.LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(8) })
+        }
+        val lp = WindowManager.LayoutParams(dp(280), WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply { gravity = Gravity.CENTER }
+        runCatching { wm.addView(card, lp) }.onSuccess { win = card }.onFailure { Diag.e("painel", "não foi possível abrir o diálogo", it) }
+        return close
+    }
+
     private fun askOverlay(title: String, msg: String, ok: () -> Unit) {
-        val d = android.app.AlertDialog.Builder(android.view.ContextThemeWrapper(this, android.R.style.Theme_Material_Light_Dialog_Alert))
-            .setTitle(title).setMessage(msg).setPositiveButton("OK") { _, _ -> ok() }.setNegativeButton("Cancelar", null).create()
-        d.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
-        runCatching { d.show() }
+        ui.post { overlayCard(title, label(msg, 14f, 0xFF616161.toInt()), listOf("Cancelar" to {}, "OK" to ok)) }
     }
 
     /** Botão Agendar do painel (AU3): sem agenda pergunta se cria; com agenda confirma e entra no estado "agendado"; ligado, desliga e para. */
@@ -948,31 +978,33 @@ class MacroService : AccessibilityService() {
             store.scheduleOn = false; stopMacro(); ui.post { awake(false); fillRow1() }
             return
         }
-        if (!Alarms.canExact(this)) { openScreen(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:$packageName")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return }
+        if (!Alarms.canExact(this)) {
+            askOverlay("Permissão necessária", "O serviço de agendamento precisa ser executado em segundo plano quando a tela estiver desligada. Permita que o aplicativo use mais energia em segundo plano.") {
+                openScreen(Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:$packageName")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+            return
+        }
         val on = store.alarms().filter { it.enabled }
-        if (on.isEmpty()) askOverlay("Nenhum agendamento.", "Criar um novo agendamento?") { openScreen(Intent(this, AlarmListActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        if (on.isEmpty()) askOverlay("Agendamento", "Nenhum agendamento. Criar um novo?") { openScreen(Intent(this, AlarmListActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         else askOverlay("Iniciar o agendamento?", scheduleText()) { store.scheduleOn = true; Alarms.rearm(this); ui.post { awake(true); fillRow1() } }
     }
 
     /** Fim da gravação de tela: diálogo Reproduzir/Fechar como no base; Reproduzir abre a pré-visualização. */
     fun askPlay(uri: android.net.Uri) {
-        val d = android.app.AlertDialog.Builder(android.view.ContextThemeWrapper(this, android.R.style.Theme_Material_Light_Dialog_Alert))
-            .setTitle("Gravação de tela concluída").setMessage("Vídeo salvo na Galeria (Movies/Macro17).\nO que você gostaria de fazer?").setCancelable(false)
-            .setPositiveButton("Reproduzir") { _, _ -> openScreen(Intent(this, VideoPlayerActivity::class.java).setData(uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            .setNegativeButton("Fechar", null).create()
-        d.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
-        runCatching { d.show() }
+        val name = runCatching { contentResolver.query(uri, arrayOf(android.provider.MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } }.getOrNull() ?: "Movies/Macro17"
+        ui.post {
+            overlayCard("Gravação de tela concluída", label("Vídeo salvo na Galeria ($name).\nO que você gostaria de fazer?", 14f, 0xFF616161.toInt()),
+                listOf("Fechar" to {}, "Reproduzir" to { openScreen(Intent(this, VideoPlayerActivity::class.java).setData(uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }))
+            if (::row1.isInitialized && !recording) fillRow1() // o ícone de gravar tela volta ao normal
+        }
     }
 
-    /** Como no base: ao encerrar, pergunta se quer ir direto para o editor. */
-    private fun askEditor(m: Macro) {
-        val d = android.app.AlertDialog.Builder(android.view.ContextThemeWrapper(this, android.R.style.Theme_Material_Light_Dialog_Alert))
-            .setTitle("Gravação de macro encerrada.")
-            .setMessage("Ir para o Editor de Macro?\n(${m.steps.size} itens em “${m.name}”)")
-            .setPositiveButton("OK") { _, _ -> openScreen(Intent(this, EditorActivity::class.java).putExtra("id", m.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            .setNegativeButton("Cancelar", null).create()
-        d.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
-        d.show()
+    /** Como no base: ao encerrar (mesmo sem itens), pergunta se quer ir direto para o editor. */
+    private fun askEditor(id: String) {
+        ui.post {
+            overlayCard("Gravação de macro encerrada.", label("Ir para o Editor de Macro?", 14f, 0xFF616161.toInt()),
+                listOf("Cancelar" to {}, "OK" to { openScreen(Intent(this, EditorActivity::class.java).putExtra("id", id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }))
+        }
     }
 
 }
