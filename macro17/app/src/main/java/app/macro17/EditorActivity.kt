@@ -143,8 +143,8 @@ class EditorActivity : Activity() {
         list = ListView(this).apply {
             divider = null; dividerHeight = 0 // o divisor de 1dp é a View no topo de cada linha, como no base
             // Como no base: tocar em "Parar macro" não abre nada; toque longo só no "Arquivo de macro" (abre o arquivo alvo).
-            setOnItemClickListener { _, _, p, _ -> val i = vis.getOrNull(p - headerViewsCount) ?: return@setOnItemClickListener; if (steps[i].type == Type.GROUP && !steps[i].mono) openGroup(i) else if (steps[i].type != Type.STOP) openItem(steps[i].type, steps[i], i) }
-            setOnItemLongClickListener { _, _, p, _ -> val t = steps[vis.getOrNull(p - headerViewsCount) ?: return@setOnItemLongClickListener false]; if (t.type == Type.CALL && store.get(t.text) != null) { startActivity(android.content.Intent(this@EditorActivity, EditorActivity::class.java).putExtra("id", t.text)); true } else false }
+            setOnItemClickListener { _, _, p, _ -> vis.getOrNull(p - headerViewsCount)?.let { onRow(it) } }
+            setOnItemLongClickListener { _, _, p, _ -> vis.getOrNull(p - headerViewsCount)?.let { onRowLong(it) } ?: false }
             clipToPadding = false; setPadding(0, 0, 0, dp(80))
             adp = object : BaseAdapter() {
                 override fun getCount() = vis.size
@@ -275,6 +275,19 @@ class EditorActivity : Activity() {
     }
 
     /** Toque e deslizar têm a tela própria no formato do base; os demais tipos seguem no diálogo até migrarem. */
+    /** Toque numa linha: grupo abre a tela do grupo, os demais abrem a edição (Parar macro não abre nada). */
+    private fun onRow(i: Int) {
+        val st = steps.getOrNull(i) ?: return
+        Diag.d("editor", "toque no item ${i + 1} (${st.type.name})")
+        if (st.type == Type.GROUP && !st.mono) openGroup(i) else if (st.type != Type.STOP) openItem(st.type, st, i)
+    }
+
+    private fun onRowLong(i: Int): Boolean {
+        val t = steps.getOrNull(i) ?: return false
+        if (t.type == Type.CALL && store.get(t.text) != null) { startActivity(android.content.Intent(this, EditorActivity::class.java).putExtra("id", t.text)); return true }
+        return false
+    }
+
     private fun openItem(type: Type, step: Step, index: Int) {
         Diag.d("editor", "abrir item ${index + 1} (${type.name})")
         runCatching { openItemUnsafe(type, step, index) }.onFailure { Diag.e("editor", "não abriu o item ${index + 1}", it); toast("Não foi possível abrir o item: ${it.javaClass.simpleName} ${it.message.orEmpty().take(80)}") }
@@ -571,6 +584,9 @@ class EditorActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             addView(View(this@EditorActivity).apply { setBackgroundColor(0x1E000000) }, LinearLayout.LayoutParams(MATCH_PARENT, dp(1)))
             addView(row)
+
+            // clique na própria linha: não depende do clique de item do ListView (que não disparava com estas linhas)
+            isClickable = true; setOnClickListener { onRow(i) }; setOnLongClickListener { onRowLong(i) }
         }
     }
 
