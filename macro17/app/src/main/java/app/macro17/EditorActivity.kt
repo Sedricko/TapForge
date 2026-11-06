@@ -207,7 +207,7 @@ class EditorActivity : Activity() {
             layoutParams = FrameLayout.LayoutParams(dp(56), dp(56), Gravity.BOTTOM or Gravity.END).also { it.setMargins(0, 0, dp(16), dp(16)) }
             setOnApplyWindowInsetsListener { v, i -> (v.layoutParams as FrameLayout.LayoutParams).bottomMargin = dp(16) + i.getInsets(WindowInsets.Type.navigationBars()).bottom; v.requestLayout(); i }
         }
-        list.addHeaderView(head, null, false); list.headerDividersEnabled = false // o cabeçalho rola junto com a lista
+        list.addHeaderView(head, null, false); list.setHeaderDividersEnabled(false) // o cabeçalho rola junto com a lista
         list.adapter = adp
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(Color.WHITE)
