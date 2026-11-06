@@ -11,7 +11,7 @@ class StepOpsTest {
 
     @Test fun duplicatingAGroupKeepsItsSize() {
         val l = listOf(grp(2), tap(), tap(), tap()).duplicated(listOf(0, 1, 2), 5000)
-        assertEquals(6, l.size)
+        assertEquals(7, l.size)
         assertEquals(2, l[3].grp) // a cópia leva só os 2 filhos copiados
         assertEquals(2, l[0].grp)
         assertTrue(l.groupsConsistent())
