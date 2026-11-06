@@ -174,9 +174,9 @@ class PositionPickerActivity : Activity() {
 
     private fun refresh() {
         coords.text = when (mode) {
-            DEV -> "Desvio (X: %+d, Y: %+d)".format(v[0], v[1])
-            AREA -> "Início (X: ${v[0]}, Y: ${v[1]})   |   Fim (X: ${v[2]}, Y: ${v[3]})"
-            else -> if (swipe) "Início (X: ${v[0]}, Y: ${v[1]})   |   Fim (X: ${v[2]}, Y: ${v[3]})" else "Posição (X: ${v[0]}, Y: ${v[1]})"
+            DEV -> "Desvio (X: ${v[0]}, Y:${v[1]})"
+            AREA -> "X: ${v[0]}, Y:${v[1]}, W: ${v[2] - v[0]}, H: ${v[3] - v[1]}"
+            else -> if (swipe) "Start (X: ${v[0]}, Y:${v[1]})   |   End (X: ${v[2]}, Y: ${v[3]})" else "X: ${v[0]}, Y:${v[1]}"
         }
     }
 

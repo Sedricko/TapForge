@@ -66,7 +66,7 @@ class ModelTest {
         assertNotNull(Step(Type.NODE, ms = 50, text = "x").validate(1))                               // prazo curto
         assertNotNull(Step(Type.NODE, ms = 3000, text = "x", fail = 9).validate(2))                   // destino fora
         assertNotNull(Step(Type.IMAGE, ms = 3000, text = "").validate(1))                            // sem recorte
-        assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", thr = 10).validate(1))                // semelhança abaixo de 20%
+        assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", thr = 101).validate(1))               // semelhança acima de 100%
         assertNotNull(Step(Type.IMAGE, ms = 50, text = "i").validate(1))                             // prazo curto demais
         assertNotNull(Step(Type.IMAGE, ms = 3000, text = "i", cycle = 10).validate(1))              // intervalo curto demais
         assertNotNull(Step(Type.IMAGE, x1 = 50, y1 = 50, x2 = 10, y2 = 10, ms = 3000, text = "i").validate(1)) // área invertida
@@ -163,7 +163,7 @@ class ModelTest {
         t, 11, 22, 33, 44, ms = 555, delay = 3, rnd = 400, rndMin = 100, jitter = 7, skip = true, goto = 2, counter = 4,
         cases = listOf(Case(2, 1), Case(5, 2)), text = "texto ç ã", ret = false, thr = 77, cycle = 321, fail = 1, tap = false,
         exact = true, scales = true, cmp = 3, lo = 10, hi = 20, method = 1, mono = true, confirm = 3,
-        dbl = true, ox = 12, oy = -34, vib = true, snd = true, minConf = 65, img = "abc", useImg = true, sms = 3000, ax1 = 1, ay1 = 2, ax2 = 30, ay2 = 40,
+        dbl = true, ox = 12, oy = -34, vib = true, snd = true, minConf = 65, rot = 2, img = "abc", useImg = true, sms = 3000, ax1 = 1, ay1 = 2, ax2 = 30, ay2 = 40,
     )
 
     @Test fun everyTypeSurvivesAJsonRoundTrip() {
@@ -206,7 +206,7 @@ class ModelTest {
         for (t in listOf(Type.NODE, Type.IMAGE, Type.TEXT, Type.NUMBER)) {
             val ok = Step(t, 0, 0, 100, 100, ms = 0, text = "x", cycle = 500, cmp = 0, lo = 1)
             assertNull("$t sem limite e sem desvios é válido", ok.validate(3))
-            assertNotNull("$t sem limite com 'se achar' é inválido", ok.copy(goto = 2).validate(3))
+            assertNull("$t sem limite com 'se achar' é válido (só a falha exige tempo)", ok.copy(goto = 2).validate(3))
             assertNotNull("$t sem limite com 'se não achar' é inválido", ok.copy(fail = 2).validate(3))
             assertNotNull("$t com 50 ms continua curto demais", ok.copy(ms = 50).validate(3))
         }
@@ -222,8 +222,8 @@ class ModelTest {
     @Test fun tapOffsetAndConfidenceBounds() {
         assertNull(Step(Type.NODE, ms = 1000, text = "x", ox = -MAX_COORD, oy = MAX_COORD).validate(1))
         assertNotNull(Step(Type.NODE, ms = 1000, text = "x", ox = MAX_COORD + 1).validate(1))
-        assertNull(Step(Type.TEXT, ms = 1000, text = "x", cycle = 500, minConf = 100).validate(1))
-        assertNotNull(Step(Type.TEXT, ms = 1000, text = "x", cycle = 500, minConf = 101).validate(1))
+        assertNull(Step(Type.TEXT, ms = 1000, text = "x", cycle = 500, minConf = 90).validate(1))
+        assertNotNull(Step(Type.TEXT, ms = 1000, text = "x", cycle = 500, minConf = 91).validate(1))
         assertNotNull(Step(Type.TEXT, ms = 1000, text = "x", cycle = 500, minConf = -1).validate(1))
     }
 
@@ -239,7 +239,7 @@ class ModelTest {
         val on = off.copy(useImg = true, img = "x", sms = 5000, cycle = 1000, thr = 95)
         assertNull(on.validate(2))
         assertNotNull(on.copy(img = "").validate(2))                              // sem imagem
-        assertNotNull(on.copy(thr = 10).validate(2))
+        assertNotNull(on.copy(thr = 101).validate(2))
         assertNotNull(on.copy(sms = 50).validate(2))
         assertNotNull(on.copy(ax1 = 10, ax2 = 5, ay2 = 9).validate(2))
         assertNotNull(on.copy(sms = 0, fail = 2).validate(2))                    // sem limite não tem "se não achar"
@@ -261,5 +261,15 @@ class GroupFailRemapTest {
         val g = Step(type = Type.GROUP, grp = 1, gms = 1000, gfail = 3)
         val l = listOf(g, Step(type = Type.TAP), Step(type = Type.TAP), Step(type = Type.TAP)).afterDelete(1)
         org.junit.Assert.assertEquals(2, l[0].gfail)
+    }
+
+    @Test fun catalogDefaultsAreValidAndExtrasOpenTheEditor() {
+        for (t in Type.values()) for (mono in listOf(false, true)) {
+            val d = catalogDefault(t, mono, 1080, 2400)
+            if (d != null) assertNull("$t/$mono", d.validate(1))
+        }
+        assertNull(catalogDefault(Type.TAP, false, 1080, 2400))              // extra do Macro17: abre a edição
+        assertEquals(5000, catalogDefault(Type.GROUP, true, 1080, 2400)!!.gms)
+        assertEquals(95, catalogDefault(Type.CHANGE, false, 1080, 2400)!!.thr)
     }
 }

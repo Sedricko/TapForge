@@ -139,7 +139,7 @@ object TmcImport {
                     val texts = f(c, 33).split('|', ',').map { it.trim() }.filter { it.isNotEmpty() }
                     if (texts.isEmpty() || f(c, 38) == "2") return@map placeholder("reconhecimento de texto numérico ou sem texto não é importado")
                     common.copy(
-                        type = Type.TEXT, text = texts.joinToString(","), dbl = f(c, 46) == "1", ms = searchMs, cycle = maxOf(cycle, 200), minConf = (f(c, 42).toDoubleOrNull() ?: 0.0).toInt().coerceIn(0, 100),
+                        type = Type.TEXT, text = texts.joinToString(","), dbl = f(c, 46) == "1", ms = searchMs, cycle = maxOf(cycle, 200), minConf = (f(c, 42).toDoubleOrNull() ?: 0.0).toInt().coerceIn(0, 90),
                         x1 = if (custom) area!![0] else 0, y1 = if (custom) area!![1] else 0, x2 = if (custom) area!![2] else 0, y2 = if (custom) area!![3] else 0,
                         goto = if (searchMs > 0) goto else 0, fail = if (searchMs > 0) fail else 0, tap = (f(c, 20).toIntOrNull() ?: 1) == 0, // "Saltar" desliga o toque
                     )

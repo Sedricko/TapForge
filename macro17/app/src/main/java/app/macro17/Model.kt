@@ -80,6 +80,7 @@ data class Step(
     val off: Boolean = false, // item desabilitado ("Alternar Pular" do base): o executor passa direto, sem atraso nem ação
     val snu: String = "", // STATUS: URI do som escolhido ("Selecionar Som"); vazio = som padrão de notificação
     val pop: Boolean = false, // STATUS: "Mostrar pop-up" (mensagem em janela); desligado = só aviso curto
+    val rot: Int = 0, // orientação da tela na gravação: 0 Retrato 0°, 1 Paisagem 90°, 2 Retrato 180°, 3 Paisagem 270° (só no resumo "Posição do Toque")
 ) {
     /** [size] é o total de passos da macro, para validar os alvos de salto. */
     fun validate(size: Int): String? = when {
@@ -92,15 +93,16 @@ data class Step(
         (type == Type.PINCH_IN || type == Type.PINCH_OUT) && x1 == x2 && y1 == y2 -> "a pinça precisa de dois pontos diferentes"
         type == Type.STATUS && (text.isBlank() || text.length > 200) -> "mensagem vazia ou maior que 200 caracteres"
         (ox !in -MAX_COORD..MAX_COORD || oy !in -MAX_COORD..MAX_COORD) -> "deslocamento do toque fora de ±$MAX_COORD px"
-        type == Type.TEXT && minConf !in 0..100 -> "confiança mínima deve ser de 0 a 100%"
-        // Como no base: tempo máximo 0 = busca sem limite, e então não existe "falhou"; os saltos "se achar / se não achar" exigem tempo > 0.
-        type in SEARCHES && ms == 0 && (goto != 0 || fail != 0) -> "com tempo máximo 0 (sem limite) não há “se achar / se não achar”: use um tempo maior que 0 ou zere os destinos"
+        type == Type.TEXT && minConf !in 0..90 -> "limiar de confiança deve ser de 0 a 90"
+        rot !in 0..3 -> "orientação deve ser 0 a 3"
+        // Como no base: tempo máximo 0 = busca sem limite, e então não existe "falhou" (só "Mover em Caso de Sucesso" vale).
+        type in SEARCHES && ms == 0 && fail != 0 -> "com tempo máximo 0 (sem limite) não há “se não achar”: use um tempo maior que 0 ou zere o destino de falha"
         type in GESTURES && useImg && img.isBlank() -> "correspondência de imagem sem imagem: grave o item pelo painel"
-        type in GESTURES && useImg && thr !in 20..100 -> "semelhança deve ser de 20 a 100%"
+        type in GESTURES && useImg && thr !in 0..100 -> "semelhança deve ser de 0 a 100%"
         type in GESTURES && useImg && (cycle !in 50..MAX_MS || sms !in 0..MAX_MS || (sms != 0 && sms < 100)) -> "intervalo de 50 ms a $MAX_MS e tempo da busca 0 (sem limite) ou de 100 ms a $MAX_MS"
         type in GESTURES && useImg && !(listOf(ax1, ay1, ax2, ay2).all { it == 0 } || (ax2 > ax1 && ay2 > ay1)) -> "área de busca inválida: use tudo 0 ou X/Y finais maiores que os iniciais"
         type in GESTURES && useImg && (goto !in 0..size || fail !in 0..size) -> "destinos fora de 0..$size"
-        type in GESTURES && useImg && sms == 0 && (goto != 0 || fail != 0) -> "com tempo da busca 0 (sem limite) não há “se achar / se não achar”"
+        type in GESTURES && useImg && sms == 0 && fail != 0 -> "com tempo da busca 0 (sem limite) não há “se não achar”"
         name.length > 60 || name.contains('\n') -> "nome do item com mais de 60 caracteres ou com quebra de linha"
         type == Type.GOTO && goto !in 0..size -> "destino fora de 0..$size (0 = próximo)"
         type == Type.COUNTER && !validCounter() -> "contador deve ser 1 a $MAX_COUNTERS"
@@ -115,7 +117,7 @@ data class Step(
         type == Type.GROUP && (gms !in 0..MAX_DELAY_MS || gfail !in 0..size) -> "grupo: duração ou destino de estouro fora dos limites"
         type == Type.CALL && text.length > 64 -> "id de macro inválido" // vazio é permitido (o base cria "Arquivo de macro" sem arquivo); o executor ignora
         type == Type.IMAGE && text.isBlank() -> "passo sem imagem: capture pelo orbe"
-        type == Type.IMAGE && thr !in 20..100 -> "semelhança deve ser de 20 a 100%"
+        type == Type.IMAGE && thr !in 0..100 -> "semelhança deve ser de 0 a 100%"
         type == Type.IMAGE && confirm !in 1..5 -> "confirmações seguidas devem ser de 1 a 5"
         type == Type.IMAGE && method !in 0..1 -> "método deve ser 0 (correlação, como o app original) ou 1 (diferença de pixels)"
         type == Type.IMAGE && (cycle !in 50..MAX_MS || (ms != 0 && ms < 100)) -> "intervalo de 50 ms a $MAX_MS e tempo máximo de 0 (sem limite) ou pelo menos 100 ms"
@@ -143,7 +145,7 @@ data class Step(
         .put("g", goto).put("c", counter).put("tx", text).put("rt", ret)
         .put("th", thr).put("cy", cycle).put("fl", fail).put("tp", tap).put("ex", exact).put("sl", scales).put("cm", cmp).put("lo", lo).put("hi", hi).put("mt", method).put("mo", mono).put("cf", confirm)
         .put("db", dbl).put("ox", ox).put("oy", oy).put("vb", vib).put("sn", snd).put("mc", minConf).put("im", img)
-        .put("ui", useImg).put("sm", sms).put("a1", ax1).put("b1", ay1).put("a2", ax2).put("b2", ay2).put("nm", name).put("of", off).put("fx", fx).put("gp", grp).put("rp", rep).put("gm", gms).put("gf", gfail).put("su", snu).put("pp", pop)
+        .put("ui", useImg).put("sm", sms).put("a1", ax1).put("b1", ay1).put("a2", ax2).put("b2", ay2).put("nm", name).put("of", off).put("fx", fx).put("gp", grp).put("rp", rep).put("gm", gms).put("gf", gfail).put("su", snu).put("pp", pop).put("ro", rot)
         .put("cs", JSONArray().also { a -> cases.forEach { a.put(JSONObject().put("n", it.n).put("to", it.to)) } })
 
     companion object {
@@ -162,7 +164,7 @@ data class Step(
                 o.optInt("th", 90), o.optInt("cy", 200), o.optInt("fl"), o.optBoolean("tp", true), o.optBoolean("ex"), o.optBoolean("sl"), o.optInt("cm"), o.optInt("lo"), o.optInt("hi"), o.optInt("mt"), o.optBoolean("mo"), o.optInt("cf", 1),
                 o.optBoolean("db"), o.optInt("ox"), o.optInt("oy"), o.optBoolean("vb"), o.optBoolean("sn"), o.optInt("mc"), o.optString("im"),
                 o.optBoolean("ui"), o.optInt("sm", 5000), o.optInt("a1"), o.optInt("b1"), o.optInt("a2"), o.optInt("b2"), o.optString("nm"), o.optBoolean("fx"), o.optInt("gp"), o.optInt("rp", 1), o.optInt("gm"), o.optInt("gf"), o.optBoolean("of"),
-                snu = o.optString("su"), pop = o.optBoolean("pp"),
+                snu = o.optString("su"), pop = o.optBoolean("pp"), rot = o.optInt("ro"),
             )
         }
     }

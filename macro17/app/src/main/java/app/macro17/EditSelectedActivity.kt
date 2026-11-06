@@ -20,13 +20,16 @@ class EditSelectedActivity : Activity() {
         val OPTIONS = arrayOf("Tempo de atraso", "Pesquisa de imagem", "Pesquisa de imagem/Área de pesquisa", "Pesquisa de imagem/Taxa de correspondência",
             "Pesquisa de imagem/Velocidade de pesquisa", "Pesquisa de imagem/Duração da pesquisa", "Pesquisa de imagem/Mover", "Ação")
         val SPEEDS = listOf("Muito rápido" to 50, "Rápido" to 200, "1 Seg" to 1000, "2 Seg" to 2000, "3 Seg" to 3000)
-        val AREAS = arrayOf("Posição Fixa", "Tela Cheia", "Tela Cheia (Escala de Cinza)", "Área Personalizada", "Área Personalizada (Escala de Cinza)")
+        // 4 áreas, cada uma com a 2ª linha de descrição (search_area_*_info do base)
+        val AREAS = arrayOf("Posição Fixa", "Tela Cheia", "Tela Cheia (Escala de Cinza)", "Área Personalizada")
+        val AREA_INFO = arrayOf("Compara imagens em uma posição fixa.", "Procura imagens na tela cheia.", "Procura imagens na tela cheia. A velocidade de pesquisa de imagem é mais rápida.", "Pesquisa de imagem em área personalizada.")
     }
 
     private var opt = 0
-    private var delayOn = true; private var delayMs = 3000
+    private var delayOn = true; private var delayMs = 3000 // atraso nasce ligado com 3,0 s, como no base
     private var matchOn = true
-    private var area = 0; private val ca = intArrayOf(0, 0, 500, 500)
+    private var area = 0 // Posição Fixa
+    private val ca = intArrayOf(0, 0, 500, 500)
     private var thr = 100; private var cycle = 200; private var sms = 10_000
     private var fail = 0; private var ok = 0
     private var skipOn = false
@@ -39,6 +42,8 @@ class EditSelectedActivity : Activity() {
     }
 
     private fun secs(ms: Int) = "%.1f Sec".format(java.util.Locale.US, ms / 1000.0)
+    /** "N" quando inteiro em segundos, senão "N.N" (resumo "N Segundos" do base). */
+    private fun trim(ms: Int) = if (ms % 1000 == 0) "${ms / 1000}" else "${ms / 1000.0}"
     private var names: Array<String> = emptyArray()
     private fun goLabel(n: Int) = if (n == 0) "0. Próximo" else "$n. ${names.getOrNull(n - 1).orEmpty()}".trim()
 
@@ -46,11 +51,11 @@ class EditSelectedActivity : Activity() {
         val p = Prefs(this)
         p.category("Editar Itens Selecionados", iconRes = R.drawable.bp_ic_menu_edit)
         p.valueRow("Selecione o que editar.", OPTIONS[opt]) {
-            AlertDialog.Builder(this).setSingleChoiceItems(OPTIONS, opt) { d, w -> opt = w; d.dismiss(); render() }.show()
+            AlertDialog.Builder(this).setTitle("Selecione o que editar.").setNegativeButton("Cancelar", null).setSingleChoiceItems(OPTIONS, opt) { d, w -> opt = w; d.dismiss(); render() }.show()
         }
         when (opt) {
             0 -> {
-                p.category("Atraso", iconRes = R.drawable.bp_schedule_fill)
+                p.category("Atraso", iconRes = R.drawable.bp_alarm)
                 p.switchRow("Atraso", "Tocar/Deslizar será processado após o tempo de atraso.", delayOn) { delayOn = it; render() }
                 p.valueRow("Tempo de Atraso", secs(delayMs), delayOn) { numDialog("Tempo de Atraso (segundos)", delayMs / 1000.0) { delayMs = (it * 1000).toInt().coerceIn(0, MAX_DELAY_MS); render() } }
             }
@@ -60,15 +65,21 @@ class EditSelectedActivity : Activity() {
             }
             2 -> {
                 p.category("Correspondência de Imagem", iconRes = R.drawable.bp_outline_image_search_24)
-                p.valueRow("Área de Pesquisa", AREAS[area]) {
-                    AlertDialog.Builder(this).setTitle("Área de Pesquisa").setSingleChoiceItems(AREAS, area) { d, w -> area = w; d.dismiss(); render() }.show()
+                p.valueRow("Área de Pesquisa", AREAS[area] + "\n" + AREA_INFO[area]) {
+                    // lista de 2 linhas (título + descrição), sem botões, como no base
+                    val adapter = object : android.widget.ArrayAdapter<String>(this, android.R.layout.simple_list_item_single_choice, AREAS.toList()) {
+                        override fun getView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View =
+                            (super.getView(position, convertView, parent) as android.widget.CheckedTextView).also { it.text = AREAS[position] + "\n" + AREA_INFO[position] }
+                    }
+                    AlertDialog.Builder(this).setTitle("Área de Pesquisa").setSingleChoiceItems(adapter, area) { d, w -> area = w; d.dismiss(); render() }.show()
                 }
-                if (area >= 3) p.valueRow("Área Personalizada", ca.joinToString(",")) {
+                if (area == 3) p.valueRow("Área Personalizada", "X:${ca[0]} Y:${ca[1]} W:${ca[2] - ca[0]} H:${ca[3] - ca[1]}") {
                     startActivityForResult(Intent(this, PositionPickerActivity::class.java).putExtra("mode", PositionPickerActivity.AREA).putExtra("v", ca), 78)
                 }
             }
             3 -> {
                 p.category("Correspondência de Imagem", iconRes = R.drawable.bp_outline_image_search_24)
+                p.switchRow("Correspondência de Imagem", "Tocar/Deslizar será processado se a imagem corresponder.", true) // exibido como no base; o valor não é aplicado
                 p.valueRow("Taxa de correspondência de imagem (%)", "$thr%") { numDialog("Taxa de correspondência de imagem (%)", thr.toDouble()) { thr = it.toInt().coerceIn(0, 100); render() } }
             }
             4 -> {
@@ -80,7 +91,7 @@ class EditSelectedActivity : Activity() {
             }
             5 -> {
                 p.category("Correspondência de Imagem", iconRes = R.drawable.bp_outline_image_search_24)
-                p.valueRow("Tempo de Pesquisa", if (sms == 0) "Infinito" else secs(sms)) { numDialog("Tempo de Pesquisa (segundos)", sms / 1000.0) { sms = (it * 1000).toInt().coerceIn(0, MAX_DELAY_MS); render() } }
+                p.valueRow("Tempo de Pesquisa", if (sms == 0) "Infinito" else "${trim(sms)} Segundos") { numDialog("Tempo de Pesquisa (segundos)", sms / 1000.0) { sms = (it * 1000).toInt().coerceIn(0, MAX_DELAY_MS); render() } }
             }
             6 -> {
                 p.category("Correspondência de Imagem", iconRes = R.drawable.bp_outline_image_search_24)
@@ -88,8 +99,8 @@ class EditSelectedActivity : Activity() {
                 p.valueRow("Mover em Caso de Sucesso", goLabel(ok)) { pickStep("Mover em Caso de Sucesso") { ok = it; render() } }
             }
             else -> {
-                p.category("Ação de Toque", iconRes = R.drawable.bp_ic_tap)
-                p.switchRow("Pular", "Tocar/Deslizar/Pressionar não funcionará. Usado para atraso e comparação de imagens.", skipOn) { skipOn = it }
+                p.category("Ação de Toque", iconRes = R.drawable.bp_click_traffic)
+                p.switchRow("Tocar/Deslizar/Pressionar não funcionará. Usado para atraso e comparação de imagens.", "", skipOn) { skipOn = it }
             }
         }
         val page = p.page("Editor de Macro", Ic.BACK, { finish() })
@@ -123,7 +134,7 @@ class EditSelectedActivity : Activity() {
 
     private fun pickStep(title: String, then: (Int) -> Unit) {
         val items = Array(total + 1) { goLabel(if (it < total) it + 1 else 0) }
-        AlertDialog.Builder(this).setTitle(title).setItems(items) { _, w -> then(if (w < total) w + 1 else 0) }.setNegativeButton("Cancelar", null).show()
+        AlertDialog.Builder(this).setTitle(title).setItems(items) { _, w -> then(if (w < total) w + 1 else 0) }.show()
     }
 
     private fun numDialog(title: String, init: Double, then: (Double) -> Unit) {

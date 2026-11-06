@@ -601,14 +601,7 @@ class EditorActivity : Activity() {
 
     private fun addOfType(type: Type, mono: Boolean = false) {
         // Como no base, estes itens do catálogo entram direto na lista, com os padrões dele; o toque na linha abre a edição.
-        val direct = when (type) {
-            Type.KEY -> Step(type, x1 = 1, delay = 5000)
-            Type.STATUS -> Step(type, ms = 5000, snd = true, text = "Alerta de status")
-            Type.GOTO -> Step(type, goto = 0)
-            Type.RESET, Type.COUNTER -> Step(type, counter = 1)
-            Type.CALL, Type.STOP -> Step(type)
-            else -> null
-        }
+        val direct = catalogDefault(type, mono, resources.displayMetrics.widthPixels, resources.displayMetrics.heightPixels)
         if (direct != null) { steps = steps.afterInsert(endPos(), direct); refresh(); list.setSelection(list.headerViewsCount + vis.size - 1); return }
         run {
             // Padrões que já passam na validação; a tela mostra um centro razoável.
