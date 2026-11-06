@@ -81,14 +81,14 @@ class ItemEditorActivity : Activity() {
     private fun kind() = when { s.type == Type.SWIPE -> "Deslizar"; s.type == Type.PINCH_OUT -> "Aumentar Zoom"; s.type == Type.PINCH_IN -> "Diminuir Zoom"; s.ms >= 500 -> "Pressionar"; else -> "Tocar" }
 
     /** Linha com ícone de 24dp na coluna da esquerda (o "Nome" de Gesto/Tecla/Texto/Grupo de imagem e o "Adicionar" do contador, como no base). */
-    private fun iconRow(p: Prefs, icon: Int, title: String, summary: String, enabled: Boolean = true, click: (() -> Unit)? = null) {
+    private fun iconRow(p: Prefs, icon: Int, title: String, summary: String, enabled: Boolean = true, thumb: android.graphics.Bitmap? = null, click: (() -> Unit)? = null) {
         val r = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
             if (enabled && click != null) { foreground = ripple(0, 0x1F00897B); setOnClickListener { click() } }
             alpha = if (enabled) 1f else 0.45f
             addView(FrameLayout(this@ItemEditorActivity).apply {
-                addView(ImageView(this@ItemEditorActivity).apply { setImageResource(icon) }, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER_VERTICAL))
+                addView(ImageView(this@ItemEditorActivity).apply { if (thumb != null) setImageBitmap(thumb) else setImageResource(icon) }, FrameLayout.LayoutParams(if (thumb != null) dp(40) else dp(24), if (thumb != null) dp(40) else dp(24), Gravity.CENTER_VERTICAL))
             }, LinearLayout.LayoutParams(dp(56), WRAP_CONTENT))
             addView(LinearLayout(this@ItemEditorActivity).apply {
                 orientation = LinearLayout.VERTICAL
@@ -102,7 +102,7 @@ class ItemEditorActivity : Activity() {
     private fun nameRow(p: Prefs, title: String, icon: Int? = null) {
         val click = { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
         val shown = s.name.ifBlank { title }
-        if (icon != null) iconRow(p, icon, "Nome", shown, true, click) else p.valueRow("Nome", shown) { click() }
+        if (icon != null) iconRow(p, icon, "Nome", shown, true, click = click) else p.valueRow("Nome", shown) { click() }
     }
 
     /** Lista de velocidades sem botões: tocar escolhe e fecha, como as ListPreference do base. */
@@ -239,13 +239,20 @@ class ItemEditorActivity : Activity() {
         delayBlock(p)
     }
 
-    /** Pesquisa de Imagem: a estrutura do item Tocar com imagem do base (Correspondência de Imagem + Ação de Toque), com os extras do Macro17 no fim da categoria. */
+    /**
+     * Pesquisa de Imagem = o item Tocar com imagem do base (pref_touch_pos_config, p=6): Nome com miniatura, Atraso, Correspondência de Imagem
+     * (ligada e fixa), Ação de Toque (Pular, Clique Duplo, Desvio) e Evasão de Detecção. Posição/Duração do Toque não existem aqui: o ponto é o achado.
+     */
     private fun buildImage(p: Prefs) {
-        nameRow(p, "Pesquisa de Imagem")
+        val th = if (s.text.isBlank()) null else store.templateThumb(s.text, dp(80))
+        val shown = s.name.ifBlank { "Pesquisa de Imagem" }
+        iconRow(p, R.drawable.bp_outline_image_search_24, "Nome", shown, true, th) { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
+        val delayOn = touchDelay(p)
+
         p.category("Correspondência de Imagem", iconRes = R.drawable.bp_outline_image_search_24)
-        p.valueRow("Imagem", if (s.text.isBlank()) "Sem imagem: capture pelo painel." else "Imagem capturada (não editável aqui).")
+        p.switchRow("Correspondência de Imagem", "Tocar/Deslizar será processado se a imagem corresponder.", true, false)
         val whole = listOf(s.x1, s.y1, s.x2, s.y2).all { it == 0 }
-        val names4 = arrayOf("Tela Cheia", "Tela Cheia (Escala de Cinza)", "Área Personalizada", "Área Personalizada (Escala de Cinza)")
+        val names4 = arrayOf("Tela Cheia", "Tela Cheia (Escala de Cinza)", "Área Personalizada", "Área Personalizada (Escala de Cinza)") // sem "Posição Fixa": o passo IMAGE sempre procura numa área
         val info4 = arrayOf("Procura imagens na tela cheia.", "Procura imagens na tela cheia. A velocidade de pesquisa de imagem é mais rápida.", "Pesquisa de imagem em área personalizada.", "Pesquisa de imagem em área personalizada. A velocidade de pesquisa de imagem é mais rápida.")
         val idx = (if (whole) 0 else 2) + (if (s.mono) 1 else 0)
         p.valueRow("Área de Pesquisa", names4[idx] + "\n" + info4[idx]) {
@@ -266,13 +273,16 @@ class ItemEditorActivity : Activity() {
         speedRow(p, "Velocidade de Pesquisa de Imagem", speeds, speedMsg)
         timeRow(p)
         moveRows(p, s.ms)
+        // extras do Macro17 (o base não tem), no fim da categoria
         p.switchRow("Várias escalas", "Procura também a imagem maior ou menor.", s.scales) { v -> s = s.copy(scales = v); render() }
-        p.valueRow("Confirmações seguidas", "${s.confirm}") { numDialog("Confirmações seguidas", "De 1 a 5 quadros seguidos com a imagem.", s.confirm) { v -> s = s.copy(confirm = v); render() } }
+        p.valueRow("Confirmações seguidas", "${s.confirm}") { numDialog("Confirmações seguidas", "De 1 a 5 quadros seguidos com a imagem.", s.confirm.coerceIn(1, 5)) { v -> s = s.copy(confirm = v.coerceIn(1, 5)); render() } }
+
         p.category("Ação de Toque", iconRes = R.drawable.bp_click_traffic)
         p.switchRow("Pular", "Tocar/Deslizar/Pressionar não funcionará. Usado para atraso e comparação de imagens.", !s.tap) { v -> s = s.copy(tap = !v); render() }
-        p.valueRow("Desvio de Coordenadas", devSum()) {
-            devDialog(s.text)
-        }
+        p.switchRow("Clique Duplo", "Clica no mesmo lugar duas vezes.", s.dbl, s.tap) { v -> s = s.copy(dbl = v); render() }
+        p.valueRow("Desvio de Coordenadas", devSum(), s.tap) { devDialog(s.text) }
+
+        evasionBlock(p, delayOn)
     }
 
     /**
@@ -364,6 +374,45 @@ class ItemEditorActivity : Activity() {
         p.valueRow("Tempo de Atraso", secs(s.delay), s.type == Type.KEY || s.type == Type.GESTURE || delayOn) { secDialog("Tempo de Atraso (segundos)", null, s.delay) { v -> s = s.copy(delay = v); render() } }
     }
 
+    /** Categoria "Atraso" do Toque/Imagem; devolve se o atraso está ligado. */
+    private fun touchDelay(p: Prefs): Boolean {
+        p.category("Atraso", Ic.WAIT)
+        val delayOn = s.delay > 0 || s.rnd > 0
+        p.switchRow("Atraso", "Tocar/Deslizar será processado após o tempo de atraso.", delayOn) { on ->
+            s = if (on) s.copy(delay = if (s.delay > 0) s.delay else 1000) else s.copy(delay = 0, rnd = 0, rndMin = 0); render()
+        }
+        p.valueRow("Tempo de Atraso", secs(s.delay), delayOn) {
+            secDialog("Tempo de Atraso (segundos)", null, s.delay) { v -> s = s.copy(delay = v); render() }
+        }
+        return delayOn
+    }
+
+    /** Categoria "Evasão de Detecção" (coordenadas aleatórias e atraso aleatório). */
+    private fun evasionBlock(p: Prefs, delayOn: Boolean) {
+        p.category("Evasão de Detecção", iconRes = R.drawable.bp_icn_hide_source_24px)
+        p.valueRow("Coordenadas Aleatórias (Coordenadas ± Valor de Pixel Aleatório)", "${s.jitter} pixels") {
+            // pref_pixel_range_slider_dialog: texto + controle deslizante de 0 a 100 px
+            val vt = TextView(this).apply { text = "${s.jitter.coerceIn(0, 100)} px"; textSize = 16f; gravity = android.view.Gravity.END }
+            val sb = android.widget.SeekBar(this).apply {
+                max = 100; progress = s.jitter.coerceIn(0, 100)
+                setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(b: android.widget.SeekBar, v: Int, u: Boolean) { vt.text = "$v px" }
+                    override fun onStartTrackingTouch(b: android.widget.SeekBar) {}
+                    override fun onStopTrackingTouch(b: android.widget.SeekBar) {}
+                })
+            }
+            AlertDialog.Builder(this).setTitle("Coordenadas Aleatórias").setView(column("Raio para clicar aleatoriamente. Defina como 0 para desativar.", sb, vt))
+                .setPositiveButton("OK") { _, _ -> s = s.copy(jitter = sb.progress); render() }.setNegativeButton("Cancelar", null).show()
+        }
+        p.valueRow("Atraso Aleatório", if (s.rnd > 0) "${secs(s.rndMin)} a ${secs(s.rnd)}" else "Desligado", delayOn) {
+            fieldsDialog(
+                "Atraso Aleatório (segundos)",
+                "A ação será realizada após o atraso aleatório especificado. O atraso acima será ignorado.",
+                listOf("Atraso Mínimo", "Atraso Máximo"), listOf(s.rndMin, s.rnd), signed = false, decimal = true,
+            ) { v -> s = if (v[1] == 0) s.copy(rnd = 0, rndMin = 0) else s.copy(rndMin = v[0], rnd = v[1]); render() }
+        }
+    }
+
     private fun build(p: Prefs) {
         if (s.type in simple) return buildSimple(p)
         val swipe = s.type in twoPoint
@@ -376,14 +425,7 @@ class ItemEditorActivity : Activity() {
             secDialog("Duração do Gesto (segundos)", "De 0,1 a 30 s.", s.ms) { v -> s = s.copy(ms = v.coerceIn(100, 30_000)); render() }
         }
 
-        p.category("Atraso", Ic.WAIT)
-        val delayOn = s.delay > 0 || s.rnd > 0
-        p.switchRow("Atraso", "Tocar/Deslizar será processado após o tempo de atraso.", delayOn) { on ->
-            s = if (on) s.copy(delay = if (s.delay > 0) s.delay else 1000) else s.copy(delay = 0, rnd = 0, rndMin = 0); render()
-        }
-        p.valueRow("Tempo de Atraso", secs(s.delay), delayOn) {
-            secDialog("Tempo de Atraso (segundos)", null, s.delay) { v -> s = s.copy(delay = v); render() }
-        }
+        val delayOn = touchDelay(p)
 
         p.category("Correspondência de Imagem", Ic.IMAGE_SEARCH)
         val on = s.useImg
@@ -423,28 +465,7 @@ class ItemEditorActivity : Activity() {
             devDialog(s.img.ifBlank { null })
         }
 
-        p.category("Evasão de Detecção", iconRes = R.drawable.bp_icn_hide_source_24px)
-        p.valueRow("Coordenadas Aleatórias (Coordenadas ± Valor de Pixel Aleatório)", "${s.jitter} pixels") {
-            // pref_pixel_range_slider_dialog: texto + controle deslizante de 0 a 100 px
-            val vt = TextView(this).apply { text = "${s.jitter.coerceIn(0, 100)} px"; textSize = 16f; gravity = android.view.Gravity.END }
-            val sb = android.widget.SeekBar(this).apply {
-                max = 100; progress = s.jitter.coerceIn(0, 100)
-                setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(b: android.widget.SeekBar, v: Int, u: Boolean) { vt.text = "$v px" }
-                    override fun onStartTrackingTouch(b: android.widget.SeekBar) {}
-                    override fun onStopTrackingTouch(b: android.widget.SeekBar) {}
-                })
-            }
-            AlertDialog.Builder(this).setTitle("Coordenadas Aleatórias").setView(column("Raio para clicar aleatoriamente. Defina como 0 para desativar.", sb, vt))
-                .setPositiveButton("OK") { _, _ -> s = s.copy(jitter = sb.progress); render() }.setNegativeButton("Cancelar", null).show()
-        }
-        p.valueRow("Atraso Aleatório", if (s.rnd > 0) "${secs(s.rndMin)} a ${secs(s.rnd)}" else "Desligado", delayOn) {
-            fieldsDialog(
-                "Atraso Aleatório (segundos)",
-                "A ação será realizada após o atraso aleatório especificado. O atraso acima será ignorado.",
-                listOf("Atraso Mínimo", "Atraso Máximo"), listOf(s.rndMin, s.rnd), signed = false, decimal = true,
-            ) { v -> s = if (v[1] == 0) s.copy(rnd = 0, rndMin = 0) else s.copy(rndMin = v[0], rnd = v[1]); render() }
-        }
+        evasionBlock(p, delayOn)
     }
 
     // --- diálogos ----------------------------------------------------------------------------

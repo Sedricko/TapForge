@@ -164,7 +164,7 @@ class ItemOverlay(private val svc: MacroService, private val wm: WindowManager) 
                         if (!whole) addView(row("${s.x1},${s.y1},${s.x2},${s.y2}", accent("Área Personalizada") { areaPick(s.x1, s.y1, s.x2, s.y2) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]); render() } }))
                         addView(divider())
                         addView(row("Tempo de Pesquisa", field(secs(s.ms), true) { t -> ms(t)?.let { s = s.copy(ms = it.coerceIn(0, MAX_DELAY_MS)) } }, Color.BLACK))
-                        if (s.type == Type.IMAGE) { addView(divider()); addView(rateBar(s.thr, { v -> s = s.copy(thr = v.coerceIn(20, 100)) }, "Taxa de correspondência de imagem (%)")) }
+                        if (s.type == Type.IMAGE) { addView(divider()); addView(rateBar(s.thr, { v -> s = s.copy(thr = v.coerceIn(0, 100)) }, "Taxa de correspondência de imagem (%)")) }
                     })
                 }
             }
