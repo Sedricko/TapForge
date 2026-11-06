@@ -61,9 +61,9 @@ object BackupZip {
     fun read(input: InputStream, root: File): Result {
         var ok = 0; var total = 0L; var seen = 0
         val skipped = ArrayList<String>()
-        val staged = ArrayList<Pair<File, ByteArray>>() // nada é gravado até o ZIP inteiro ser lido: um ZIP truncado não deixa dados pela metade
+        val tmps = ArrayList<Pair<File, File>>() // lê tudo para .tmp e só renomeia no fim: um ZIP truncado não deixa dados pela metade, sem segurar o ZIP na memória
         val rootPath = root.canonicalPath + File.separator
-        ZipInputStream(input).use { z ->
+        try { ZipInputStream(input).use { z ->
             while (true) {
                 val e = z.nextEntry ?: break
                 if (++seen > MAX_ENTRIES) throw IOException("backup com arquivos demais")
@@ -78,13 +78,10 @@ object BackupZip {
                 if (why != null) { skipped += "$name: $why"; continue }
                 val dest = File(root, name)
                 if (!dest.canonicalPath.startsWith(rootPath)) { skipped += "$name: fora da pasta do app"; continue }
-                staged += dest to data
+                dest.parentFile?.mkdirs()
+                val tmp = File(dest.path + ".tmp"); tmp.writeBytes(data); tmps += tmp to dest
             }
-        }
-        val tmps = ArrayList<Pair<File, File>>()
-        try {
-            for ((dest, data) in staged) { dest.parentFile?.mkdirs(); val tmp = File(dest.path + ".tmp"); tmp.writeBytes(data); tmps += tmp to dest }
-        } catch (e: IOException) { tmps.forEach { it.first.delete() }; throw e }
+        } } catch (t: Throwable) { tmps.forEach { it.first.delete() }; throw t }
         for ((tmp, dest) in tmps) { if (tmp.renameTo(dest)) ok++ else { tmp.delete(); skipped += "${dest.name}: não foi possível gravar" } }
         return Result(ok, skipped)
     }

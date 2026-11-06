@@ -200,7 +200,7 @@ class ScreenRecordService : Service() {
         val ui = Handler(Looper.getMainLooper())
         fun say(t: String) = ui.post { Toast.makeText(this, t, Toast.LENGTH_LONG).show() }
         // Junção e cópia fora da thread principal: vídeo grande não congela o app (ANR).
-        Thread({
+        Thread({ try {
             at?.join(4000)
             var src = f
             if (f != null && af != null && af.exists() && af.length() > 0) {
@@ -223,7 +223,7 @@ class ScreenRecordService : Service() {
                 }.onFailure { Diag.e("vídeo", "falha ao salvar o vídeo", it); say("Falha ao salvar o vídeo") }
                 src.delete()
             }
-            ui.post { finishing = false; stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
+        } finally { ui.post { finishing = false; stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() } } // mesmo se salvar falhar, libera novas gravações
         }, "macro17-rec-save").start()
     }
 
