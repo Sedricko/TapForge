@@ -351,7 +351,7 @@ class MacroService : AccessibilityService() {
         if (recording) {
             // Gravando (base): [Parar, Adicionar 38 m2, Alternar alvo 38 m2 só com o ícone do tipo, divisor, rótulo do tipo]. Parar age ao tocar (DOWN) e não espera o Adicionar.
             row1.addView(pbtn(Ic.STOP, "Encerrar a gravação") { }.also { b ->
-                b.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN && !adding) stopRecording(save = true); true }
+                b.setOnTouchListener { _, e -> if (e.actionMasked == MotionEvent.ACTION_DOWN) stopRecording(save = true); true }
             })
             row1.addView(pbtn(Ic.ADDLIST, "Adicionar o item na posição dos marcadores", 38, 38, 2) { addItem() })
             row1.addView(pres(recorder.mode.res, null, "Alternar alvo: ${recorder.mode.label}", 38, 38, 2) { recorder.cycle(); panelToFront(); fillRow1() })

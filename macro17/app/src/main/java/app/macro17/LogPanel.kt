@@ -53,8 +53,8 @@ class LogPanel(private val svc: AccessibilityService, private val wm: WindowMana
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.BOTTOM }
         val v = build()
-        root = v
         wm.addView(v, lp)
+        root = v // só depois do addView: se ele falhar, o painel pode abrir de novo
         Diag.feed.addListener(onFeed)
         Diag.d("painel", "registro ao vivo aberto")
         render()

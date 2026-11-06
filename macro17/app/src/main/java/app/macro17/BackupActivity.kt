@@ -93,7 +93,13 @@ class BackupActivity : Activity() {
         runBackup(req, uri)
     }
 
+    @Volatile private var busy = false
+    override fun onSaveInstanceState(o: android.os.Bundle) { super.onSaveInstanceState(o); o.putStringArray("chosen", chosen?.toTypedArray()); o.putBoolean("samples", withSamples) }
+    override fun onRestoreInstanceState(b: android.os.Bundle) { super.onRestoreInstanceState(b); chosen = b.getStringArray("chosen")?.toSet(); withSamples = b.getBoolean("samples", false) }
+
     private fun runBackup(req: Int, uri: android.net.Uri) {
+        if (busy) return Toast.makeText(this, "Aguarde, operação em andamento…", Toast.LENGTH_SHORT).show()
+        busy = true
         Toast.makeText(this, if (req == SAVE) "Gerando o backup…" else "Restaurando…", Toast.LENGTH_SHORT).show()
         Thread({
             val msg = try {
@@ -114,7 +120,8 @@ class BackupActivity : Activity() {
                     }
                 }
             } catch (e: Throwable) { Diag.e("backup", "falhou", e); "Falhou: ${e.message ?: e.javaClass.simpleName}" }
-            runOnUiThread { Toast.makeText(this, msg, Toast.LENGTH_LONG).show() }
+            busy = false
+            runOnUiThread { Toast.makeText(applicationContext, msg, Toast.LENGTH_LONG).show() }
         }, "macro17-backup").start()
     }
 

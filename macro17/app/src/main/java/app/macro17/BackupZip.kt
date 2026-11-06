@@ -61,6 +61,7 @@ object BackupZip {
     fun read(input: InputStream, root: File): Result {
         var ok = 0; var total = 0L; var seen = 0
         val skipped = ArrayList<String>()
+        val staged = ArrayList<Pair<File, ByteArray>>() // nada é gravado até o ZIP inteiro ser lido: um ZIP truncado não deixa dados pela metade
         val rootPath = root.canonicalPath + File.separator
         ZipInputStream(input).use { z ->
             while (true) {
@@ -77,13 +78,14 @@ object BackupZip {
                 if (why != null) { skipped += "$name: $why"; continue }
                 val dest = File(root, name)
                 if (!dest.canonicalPath.startsWith(rootPath)) { skipped += "$name: fora da pasta do app"; continue }
-                dest.parentFile?.mkdirs()
-                val tmp = File(dest.path + ".tmp")
-                tmp.writeBytes(data)
-                if (!tmp.renameTo(dest)) { tmp.delete(); skipped += "$name: não foi possível gravar"; continue }
-                ok++
+                staged += dest to data
             }
         }
+        val tmps = ArrayList<Pair<File, File>>()
+        try {
+            for ((dest, data) in staged) { dest.parentFile?.mkdirs(); val tmp = File(dest.path + ".tmp"); tmp.writeBytes(data); tmps += tmp to dest }
+        } catch (e: IOException) { tmps.forEach { it.first.delete() }; throw e }
+        for ((tmp, dest) in tmps) { if (tmp.renameTo(dest)) ok++ else { tmp.delete(); skipped += "${dest.name}: não foi possível gravar" } }
         return Result(ok, skipped)
     }
 

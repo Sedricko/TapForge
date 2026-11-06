@@ -37,9 +37,11 @@ class ScreenRecordService : Service() {
     private var recorder: MediaRecorder? = null
     private var display: VirtualDisplay? = null
     private var file: File? = null
-    private var audioThread: Thread? = null
+    @Volatile private var audioThread: Thread? = null
+    @Volatile private var recStarted = false
+    @Volatile private var session = 0
     @Volatile private var audioStop = false
-    private var audioFile: File? = null
+    @Volatile private var audioFile: File? = null
     @Volatile private var finishing = false
 
     companion object {
@@ -54,8 +56,8 @@ class ScreenRecordService : Service() {
     override fun onStartCommand(i: Intent?, flags: Int, id: Int): Int {
         val intent = i ?: return START_NOT_STICKY
         if (intent.action == ACTION_STOP) { finish(); return START_NOT_STICKY }
-        if (running) return START_NOT_STICKY
-        finishing = false
+        if (running || finishing) return START_NOT_STICKY // salvando a gravação anterior: um novo início não pode ser derrubado pelo stopSelf dela
+        val my = ++session; recStarted = false
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CH, "Gravação de tela", NotificationManager.IMPORTANCE_LOW))
         val stopPi = android.app.PendingIntent.getService(this, 1, Intent(this, ScreenRecordService::class.java).setAction(ACTION_STOP), android.app.PendingIntent.FLAG_IMMUTABLE)
@@ -91,10 +93,10 @@ class ScreenRecordService : Service() {
             running = true
             // Contagem 3-2-1 antes de gravar (como no base); a gravação só começa depois, então os números não entram no vídeo.
             Thread({
-                for (n in 3 downTo 1) { MacroService.instance?.instant("$n", 900); Thread.sleep(1000); if (!running) return@Thread }
+                for (n in 3 downTo 1) { MacroService.instance?.instant("$n", 900); Thread.sleep(1000); if (!running || session != my || finishing) return@Thread }
                 runCatching {
-                    r.start()
-                    if (audioMode == 2) runCatching { startInternalAudio(mp) }.onFailure { Diag.e("vídeo", "áudio interno indisponível", it); Handler(Looper.getMainLooper()).post { Toast.makeText(this, "A gravação de áudio interno não é suportada nesta versão do Android.", Toast.LENGTH_LONG).show() } }
+                    r.start(); recStarted = true
+                    if (audioMode == 2 && !finishing) runCatching { startInternalAudio(mp) }.onFailure { Diag.e("vídeo", "áudio interno indisponível", it); Handler(Looper.getMainLooper()).post { Toast.makeText(this, "A gravação de áudio interno não é suportada nesta versão do Android.", Toast.LENGTH_LONG).show() } }
                 }.onFailure { Diag.e("vídeo", "não foi possível iniciar a gravação", it); Handler(Looper.getMainLooper()).post { finish() } }
             }, "macro17-rec-start").start()
             Diag.d("vídeo", "gravação de tela iniciada ${w}x$h, áudio=$audio")
@@ -107,7 +109,9 @@ class ScreenRecordService : Service() {
     }
 
     private fun release() {
-        runCatching { recorder?.stop() }; runCatching { recorder?.release() }; recorder = null
+        // stop() sem start() não grava o "moov": o MP4 sairia corrompido
+        if (recStarted) runCatching { recorder?.stop() } else file?.delete()
+        runCatching { recorder?.release() }; recorder = null
         runCatching { display?.release() }; display = null
         runCatching { projection?.stop() }; projection = null
         running = false
@@ -204,7 +208,7 @@ class ScreenRecordService : Service() {
                 if (mergeAv(f, af, merged)) { f.delete(); src = merged } else Diag.d("vídeo", "não foi possível juntar o áudio; salvando só o vídeo")
             }
             af?.delete()
-            if (src != null && src.exists() && src.length() > 0) {
+            if (recStarted && src != null && src.exists() && src.length() > 0) {
                 val v = ContentValues().apply {
                     put(MediaStore.Video.Media.DISPLAY_NAME, "Macro17_${java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())}.mp4")
                     put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
@@ -219,9 +223,9 @@ class ScreenRecordService : Service() {
                 }.onFailure { Diag.e("vídeo", "falha ao salvar o vídeo", it); say("Falha ao salvar o vídeo") }
                 src.delete()
             }
-            ui.post { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
+            ui.post { finishing = false; stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
         }, "macro17-rec-save").start()
     }
 
-    override fun onDestroy() { release(); super.onDestroy() }
+    override fun onDestroy() { audioStop = true; release(); super.onDestroy() }
 }
