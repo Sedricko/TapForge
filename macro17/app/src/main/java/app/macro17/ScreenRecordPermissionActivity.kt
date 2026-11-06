@@ -25,7 +25,7 @@ class ScreenRecordPermissionActivity : Activity() {
     private fun ask() = startActivityForResult(getSystemService(MediaProjectionManager::class.java).createScreenCaptureIntent(), 8)
 
     override fun onRequestPermissionsResult(req: Int, p: Array<out String>, r: IntArray) {
-        if (req == 7) { if (r.firstOrNull() != PackageManager.PERMISSION_GRANTED) noAudio = true; ask() } // vale só nesta gravação: a opção salva não muda
+        if (req == 7) { if (r.firstOrNull() != PackageManager.PERMISSION_GRANTED) { noAudio = true; android.widget.Toast.makeText(this, "A permissão do microfone é necessária para gravar áudio.", android.widget.Toast.LENGTH_LONG).show() }; ask() } // vale só nesta gravação: a opção salva não muda
     }
 
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {

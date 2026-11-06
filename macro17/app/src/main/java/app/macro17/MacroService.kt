@@ -941,7 +941,7 @@ class MacroService : AccessibilityService() {
     /** Fim da gravação de tela: diálogo Reproduzir/Fechar como no base; Reproduzir abre a pré-visualização. */
     fun askPlay(uri: android.net.Uri) {
         val d = android.app.AlertDialog.Builder(android.view.ContextThemeWrapper(this, android.R.style.Theme_Material_Light_Dialog_Alert))
-            .setTitle("Gravação de tela salva.").setMessage("Gravação salva em Filmes/Macro17.")
+            .setTitle("Gravação de tela concluída").setMessage("Vídeo salvo na Galeria (Movies/Macro17).\nO que você gostaria de fazer?").setCancelable(false)
             .setPositiveButton("Reproduzir") { _, _ -> openScreen(Intent(this, VideoPlayerActivity::class.java).setData(uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             .setNegativeButton("Fechar", null).create()
         d.window?.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
