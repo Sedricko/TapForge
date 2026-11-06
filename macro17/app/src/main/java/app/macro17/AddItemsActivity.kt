@@ -13,21 +13,21 @@ import android.widget.ScrollView
 
 /** "Adicionar Itens" do base: linhas com ícone, título e descrição; devolve o tipo escolhido em "type". */
 class AddItemsActivity : Activity() {
-    private class Entry(val type: Type, val ic: Ic, val title: String, val desc: String, val mono: Boolean = false)
+    private class Entry(val type: Type, val ic: Ic, val title: String, val desc: String, val mono: Boolean = false, val res: Int = 0)
 
     // Ordem do base para o que o Macro17 já executa; os extras do Macro17 ficam no fim. Faltam (ainda sem executor): Grupo,
     // Grupo de Pesquisa de Imagem, Detecção de Mudança de Imagem e Parar Macro.
     private val entries = listOf(
-        Entry(Type.GROUP, Ic.REPEAT, "Grupo", "Agrupa itens para repeti-los juntos."),
-        Entry(Type.GROUP, Ic.IMAGE_SEARCH, "Grupo de Pesquisa de Imagem", "Procura várias imagens ou textos no mesmo quadro capturado.", mono = true),
-        Entry(Type.TEXT, Ic.NUM, "Reconhecimento de Texto", "Reconhece texto na tela e encontra o mesmo texto."),
-        Entry(Type.CHANGE, Ic.IMAGE_SEARCH, "Detecção de Mudança de Imagem", "Captura uma imagem na primeira execução e verifica continuamente se ela mudou da imagem previamente capturada."),
-        Entry(Type.GOTO, Ic.JUMP, "Ir para", "Ir para uma macro específica"),
-        Entry(Type.COUNTER, Ic.REPEAT, "Contador de Execuções", "Conta as execuções da macro e aciona ações específicas quando a contagem de execuções excede um número definido."),
-        Entry(Type.RESET, Ic.REPEAT, "Redefinir Contador de Execuções", "Selecione o contador de execuções para redefinir."),
-        Entry(Type.STOP, Ic.STOP, "Parar Macro", "Parar reprodução da macro"),
-        Entry(Type.CALL, Ic.ARCHIVE, "Arquivo de Macro", "Abrir e reproduzir novo arquivo"),
-        Entry(Type.STATUS, Ic.WARN, "Alertas de status", "Progresso da macro de alerta via som, vibração ou caixa de diálogo pop-up."),
+        Entry(Type.GROUP, Ic.REPEAT, "Grupo", "Agrupa itens para repeti-los juntos.", res = R.drawable.bp_ic_loop),
+        Entry(Type.GROUP, Ic.IMAGE_SEARCH, "Grupo de Pesquisa de Imagem", "Procura várias imagens ou textos no mesmo quadro capturado.", mono = true, res = R.drawable.bp_ic_loop_image),
+        Entry(Type.TEXT, Ic.NUM, "Reconhecimento de Texto", "Reconhece texto na tela e encontra o mesmo texto.", res = R.drawable.bp_format_text),
+        Entry(Type.CHANGE, Ic.IMAGE_SEARCH, "Detecção de Mudança de Imagem", "Captura uma imagem na primeira execução e verifica continuamente se ela mudou da imagem previamente capturada.", res = R.drawable.bp_image_compare),
+        Entry(Type.GOTO, Ic.JUMP, "Ir para", "Ir para uma macro específica", res = R.drawable.bp_action_goto),
+        Entry(Type.COUNTER, Ic.REPEAT, "Contador de Execuções", "Conta as execuções da macro e aciona ações específicas quando a contagem de execuções excede um número definido.", res = R.drawable.bp_action_repeat_count),
+        Entry(Type.RESET, Ic.REPEAT, "Redefinir Contador de Execuções", "Selecione o contador de execuções para redefinir.", res = R.drawable.bp_action_repeat_counter_zero),
+        Entry(Type.STOP, Ic.STOP, "Parar Macro", "Parar reprodução da macro", res = R.drawable.bp_stop_macro),
+        Entry(Type.CALL, Ic.ARCHIVE, "Arquivo de Macro", "Abrir e reproduzir novo arquivo", res = R.drawable.bp_file_replace_outline),
+        Entry(Type.STATUS, Ic.WARN, "Alertas de status", "Progresso da macro de alerta via som, vibração ou caixa de diálogo pop-up.", res = R.drawable.bp_outline_notifications_active),
         Entry(Type.KEY, Ic.KEY, "Evento de Teclado", "Realiza ações de captura de tela, tecla de voltar, tecla home e tecla de recentes."),
         Entry(Type.TAP, Ic.TAP, "Toque", "Toca em um ponto da tela."),
         Entry(Type.SWIPE, Ic.SWIPE, "Deslizar", "Desliza de um ponto a outro."),
@@ -47,7 +47,7 @@ class AddItemsActivity : Activity() {
                 foreground = ripple(0, 0x1F000000)
                 addView(LinearLayout(this@AddItemsActivity).apply {
                     setPadding(dp(16), dp(16), dp(16), dp(16))
-                    addView(glyph(e.ic, 0xFF607D8B.toInt(), 24))
+                    addView(if (e.res != 0) android.widget.ImageView(this@AddItemsActivity).apply { setImageResource(e.res); setColorFilter(0xFF607D8B.toInt()); layoutParams = LinearLayout.LayoutParams(dp(24), dp(24)) } else glyph(e.ic, 0xFF607D8B.toInt(), 24))
                     addView(LinearLayout(this@AddItemsActivity).apply {
                         orientation = LinearLayout.VERTICAL
                         setPadding(dp(32), 0, 0, 0)
