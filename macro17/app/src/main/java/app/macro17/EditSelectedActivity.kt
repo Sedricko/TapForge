@@ -34,12 +34,13 @@ class EditSelectedActivity : Activity() {
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
-        total = intent.getIntExtra("total", 1)
+        total = intent.getIntExtra("total", 1); names = intent.getStringArrayExtra("names") ?: emptyArray()
         render()
     }
 
     private fun secs(ms: Int) = "%.1f Sec".format(java.util.Locale.US, ms / 1000.0)
-    private fun goLabel(n: Int) = if (n == 0) "Seguir para o próximo" else "Passo $n"
+    private var names: Array<String> = emptyArray()
+    private fun goLabel(n: Int) = if (n == 0) "0. Próximo" else "$n. ${names.getOrNull(n - 1).orEmpty()}".trim()
 
     private fun render() {
         val p = Prefs(this)
@@ -121,8 +122,8 @@ class EditSelectedActivity : Activity() {
     }
 
     private fun pickStep(title: String, then: (Int) -> Unit) {
-        val items = Array(total + 1) { if (it == 0) "Seguir para o próximo" else "Passo $it" }
-        AlertDialog.Builder(this).setTitle(title).setItems(items) { _, w -> then(w) }.show()
+        val items = Array(total + 1) { goLabel(if (it < total) it + 1 else 0) }
+        AlertDialog.Builder(this).setTitle(title).setItems(items) { _, w -> then(if (w < total) w + 1 else 0) }.setNegativeButton("Cancelar", null).show()
     }
 
     private fun numDialog(title: String, init: Double, then: (Double) -> Unit) {

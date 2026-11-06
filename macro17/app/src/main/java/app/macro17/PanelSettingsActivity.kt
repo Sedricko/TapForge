@@ -20,7 +20,11 @@ class PanelSettingsActivity : Activity() {
         super.onCreate(b)
         store = Store(this)
         col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(8), dp(8), dp(8), dp(8)) }
-        setContentView(col)
+        setContentView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setBackgroundColor(B.BG)
+            addView(appBar("Configurações", Ic.BACK, { finish() })) // overlay_settings_activity do base: seta de voltar + título
+            addView(col)
+        })
         render()
     }
 

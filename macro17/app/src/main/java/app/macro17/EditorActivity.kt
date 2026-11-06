@@ -369,7 +369,7 @@ class EditorActivity : Activity() {
     private fun batchEdit() {
         val idx = needSelection() ?: return
         batchIdx = idx
-        startActivityForResult(Intent(this, EditSelectedActivity::class.java).putExtra("total", steps.size), 79)
+        startActivityForResult(Intent(this, EditSelectedActivity::class.java).putExtra("total", steps.size).putExtra("names", steps.map { st -> st.name.ifBlank { titles.getValue(st.type) } }.toTypedArray()), 79)
     }
     private var batchIdx: List<Int> = emptyList()
 

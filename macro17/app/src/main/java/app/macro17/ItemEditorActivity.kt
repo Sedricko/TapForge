@@ -507,8 +507,9 @@ class ItemEditorActivity : Activity() {
 
     /** 0 = seguir para o próximo; 1..total = ir para esse passo. */
     private fun gotoDialog(title: String, current: Int, ok: (Int) -> Unit) {
-        val items = Array(total + 1) { gotoLabel(it) }
-        AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(items, current.coerceIn(0, total)) { d, w -> ok(w); d.dismiss() }.show()
+        // Como no base: "1. nome" … "N. nome" e, por último, "0. Próximo".
+        val items = Array(total + 1) { gotoLabel(if (it < total) it + 1 else 0) }
+        AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(items, if (current.coerceIn(0, total) == 0) total else current - 1) { d, w -> ok(if (w < total) w + 1 else 0); d.dismiss() }.show()
     }
 
     private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_LONG).show()
