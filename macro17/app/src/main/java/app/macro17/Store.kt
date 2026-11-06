@@ -188,9 +188,14 @@ class Store(ctx: Context) {
     private fun file(id: String) = if (ID.matches(id)) File(dir, "$id.json") else null
 
     // Arquivo corrompido ou inválido é ignorado em vez de derrubar a lista.
-    fun get(id: String): Macro? = runCatching {
-        Macro.fromJson(JSONObject(file(id)!!.readText()), id).takeIf { it.validate() == null }
-    }.getOrNull()
+    /** A macro como está no arquivo, sem validar (para o editor abrir e dizer o que está errado, em vez de sumir). */
+    fun getRaw(id: String): Macro? = runCatching { Macro.fromJson(JSONObject(file(id)!!.readText()), id) }.getOrNull()
+
+    fun get(id: String): Macro? = getRaw(id)?.let { m ->
+        val why = m.validate()
+        if (why != null) Diag.e("dados", "macro $id inválida (fica fora da lista): $why")
+        m.takeIf { why == null }
+    }
 
     fun list(): List<Macro> =
         dir.listFiles().orEmpty().filter { it.extension == "json" }.mapNotNull { get(it.nameWithoutExtension) }.sortedBy { it.name.lowercase() }

@@ -72,7 +72,7 @@ class MainActivity : Activity() {
 
     /** Macro atual; sem seleção válida, assume a primeira (o orbe lê a mesma seleção). */
     private fun current(): Macro? {
-        val m = store.selected?.let { store.get(it) } ?: macros.firstOrNull()
+        val m = store.selected?.let { store.get(it) ?: store.getRaw(it) } ?: macros.firstOrNull()
         if (m != null && store.selected != m.id) store.selected = m.id
         return m
     }

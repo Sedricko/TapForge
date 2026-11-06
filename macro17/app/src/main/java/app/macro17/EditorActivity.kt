@@ -114,7 +114,7 @@ class EditorActivity : Activity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         store = Store(this)
-        val existing = intent.getStringExtra("id")?.let { store.get(it) }
+        val existing = intent.getStringExtra("id")?.let { store.get(it) ?: store.getRaw(it) }
         id = existing?.id ?: UUID.randomUUID().toString()
         existingId = id
         steps = existing?.steps.orEmpty()
