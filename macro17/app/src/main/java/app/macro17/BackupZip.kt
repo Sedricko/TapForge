@@ -101,7 +101,7 @@ object BackupZip {
             }
             else -> { JSONObject(String(data)); null } // glyphs.json
         }
-    } catch (e: Exception) { "conteúdo inválido (${e.javaClass.simpleName})" }
+    } catch (e: Exception) { "conteúdo inválido (${e.javaClass.simpleName})" } catch (e: StackOverflowError) { "conteúdo inválido (aninhamento)" }
 
     /** Lê até [max] bytes; null se passar do limite (o resto do arquivo é descartado). */
     private fun readLimited(z: InputStream, max: Long): ByteArray? {

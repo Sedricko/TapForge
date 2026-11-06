@@ -145,7 +145,7 @@ class Engine(
         }
 
         override fun key(code: Int) {
-            sh()?.let { s -> runCatching { s.run(ShellInput.key(code)) }.onFailure { Diag.e("tecla", "shell recusou", it) }; return }
+            sh()?.let { s -> runCatching { s.run(ShellInput.key(code)) }.onFailure { if (it is InterruptedException) Thread.currentThread().interrupt() else Diag.e("tecla", "shell recusou", it) }; return }
             if (!svc.performGlobalAction(code)) Diag.e("tecla", "ação global $code recusada pelo sistema") }
 
         override fun alert(vib: Boolean, snd: Boolean) {
@@ -217,7 +217,7 @@ class Engine(
         }
 
         private fun captureRaw(): Bitmap? {
-            sh()?.let { s -> return runCatching { ShellInput.screenshot(s) }.onFailure { Diag.e("captura", "shell recusou", it) }.getOrNull() }
+            sh()?.let { s -> return runCatching { ShellInput.screenshot(s) }.onFailure { if (it is InterruptedException) Thread.currentThread().interrupt() else Diag.e("captura", "shell recusou", it) }.getOrNull() }
             val t0 = SystemClock.elapsedRealtime()
             val latch = CountDownLatch(1)
             var shot: AccessibilityService.ScreenshotResult? = null

@@ -694,11 +694,11 @@ class EditorActivity : Activity() {
         val n = loops.text.toString().toIntOrNull() ?: return toast("Repetições deve ser um número inteiro")
         val m = Macro(id, name.text.toString().trim(), n, steps)
         m.validate()?.let { return toast(it) }
+        val pd = AlertDialog.Builder(this).setTitle("Aguarde").setView(android.widget.ProgressBar(this).apply { setPadding(dp(24), dp(24), dp(24), dp(24)) }).setCancelable(false).show()
         try {
-            val pd = AlertDialog.Builder(this).setTitle("Aguarde").setView(android.widget.ProgressBar(this).apply { setPadding(dp(24), dp(24), dp(24), dp(24)) }).setCancelable(false).show()
             store.save(m); store.saveHistory(m); saved = snapshot()
-            Handler(Looper.getMainLooper()).postDelayed({ pd.dismiss(); toast("Salvo.") }, 400)
-        } catch (e: Exception) { toast("Falha ao salvar: ${e.message}") }
+            toast("Salvo.")
+        } catch (e: Exception) { toast("Falha ao salvar: ${e.message}") } finally { pd.dismiss() }
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()

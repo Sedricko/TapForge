@@ -255,3 +255,11 @@ class ModelTest {
         assertEquals(2, base.afterDelete(3)[0].grp)                            // apagar item de fora: igual
     }
 }
+
+class GroupFailRemapTest {
+    @org.junit.Test fun gfailFollowsDelete() {
+        val g = Step(type = Type.GROUP, grp = 1, gms = 1000, gfail = 3)
+        val l = listOf(g, Step(type = Type.TAP), Step(type = Type.TAP), Step(type = Type.TAP)).afterDelete(1)
+        org.junit.Assert.assertEquals(2, l[0].gfail)
+    }
+}
