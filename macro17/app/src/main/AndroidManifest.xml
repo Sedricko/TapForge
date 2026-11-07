@@ -91,6 +91,13 @@
         <service android:name=".ScreenRecordService" android:exported="false" android:foregroundServiceType="mediaProjection|microphone" />
         <activity android:name=".ScreenRecordPermissionActivity" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" android:exported="false" />
 
+        <!-- "Enviar tudo" (Monitor e logs): serve só o ZIP de diagnóstico do cache, somente leitura, por permissão temporária do seletor de compartilhamento. -->
+        <provider
+            android:name=".ReportProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <receiver android:name=".AlarmReceiver" android:exported="false" />
         <receiver android:name=".BootReceiver" android:exported="false">
             <intent-filter>

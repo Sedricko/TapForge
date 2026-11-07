@@ -7,10 +7,12 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.View
 import android.view.WindowInsets
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
@@ -19,6 +21,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.io.File
 
 /**
  * Aba de monitoramento: contadores ao vivo (serviço, macro, memória, erros, avisos), registro ao vivo com filtros,
@@ -32,6 +35,9 @@ class DiagActivity : Activity() {
     private lateinit var chipRow: LinearLayout
     private lateinit var stats: Map<String, TextView>
     private lateinit var health: TextView
+    private lateinit var sendBtn: TextView
+    private lateinit var sendStatus: TextView
+    @Volatile private var zipBusy = false
     private val ui = Handler(Looper.getMainLooper())
     private var cat = Cat.ALL
     private var scheduled = false
@@ -62,14 +68,17 @@ class DiagActivity : Activity() {
             setPadding(dp(10), dp(8), dp(10), dp(8)); background = rounded(Color.WHITE, 4, 0xFFE0E0E0.toInt()); elevation = dp(1).toFloat()
             setOnClickListener { cat = Cat.ERRORS; chips(); render() } // toque leva direto aos erros
         }
+        sendBtn = pillBtn("Enviar tudo", B.PRIMARY) { sendAll() }
+        sendStatus = label("", 12f, B.TEXT2).apply { visibility = View.GONE; setPadding(dp(4), dp(2), dp(4), dp(2)) }
         val actions = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             addView(LinearLayout(this@DiagActivity).apply {
                 setPadding(0, dp(4), 0, dp(4))
+                addView(sendBtn)
+                addView(pillBtn("Salvar relatório", B.PRIMARY) { saveReport() })
+                addView(pillBtn("Relatório", B.PRIMARY) { reportMenu() })
                 addView(pillBtn("Copiar", B.PRIMARY) { copy(visibleText()) })
                 addView(pillBtn("Compartilhar", B.PRIMARY) { share(visibleText()) })
-                addView(pillBtn("Salvar relatório", B.PRIMARY) { saveReport() })
-                addView(pillBtn("Enviar tudo", B.PRIMARY) { reportMenu() })
                 addView(pillBtn("Limpar", B.PINK) { Diag.feed.clear(); Diag.clear() })
                 addView(pillBtn("Autoteste", B.PRIMARY) { selfTest() })
                 addView(pillBtn("Arquivo do log", B.PRIMARY) { showFileLog() })
@@ -87,7 +96,7 @@ class DiagActivity : Activity() {
             addView(LinearLayout(this@DiagActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(8), 0, dp(8), 0)
-                addView(statRow); addView(health, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(2), dp(4), dp(2), dp(4)) }); addView(actions)
+                addView(statRow); addView(health, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(2), dp(4), dp(2), dp(4)) }); addView(actions); addView(sendStatus)
                 addView(HorizontalScrollView(this@DiagActivity).apply { isHorizontalScrollBarEnabled = false; addView(chipRow) })
             })
             addView(ScrollView(this@DiagActivity).apply {
@@ -228,6 +237,69 @@ class DiagActivity : Activity() {
             "Copiar relatório completo" to { build { copy(it) } },
         )
         AlertDialog.Builder(this).setTitle("Relatório completo").setItems(acts.map { it.first }.toTypedArray()) { _, w -> acts[w].second() }.show()
+    }
+
+    /** Confirma o que vai no ZIP antes de montar (privacidade: sem imagens, capturas nem vídeos). */
+    private fun sendAll() {
+        if (zipBusy) return
+        AlertDialog.Builder(this).setTitle("Enviar tudo")
+            .setMessage(
+                "Cria um arquivo ZIP e abre o seletor de compartilhamento do Android. Nada é enviado sozinho: você escolhe o destino.\n\n" +
+                    "Dentro do ZIP:\n• relatorio.txt: resumo, execuções, uso do app, aparelho e logcat filtrado\n• registro-completo.txt: o arquivo do log inteiro\n" +
+                    "• macros/*.json: todas as suas macros como estão salvas\n• info.txt: versão, aparelho e opções\n\n" +
+                    "Não vão imagens, capturas de tela nem vídeos.",
+            )
+            .setPositiveButton("Preparar") { _, _ -> buildZip() }.setNegativeButton("Cancelar", null).show()
+    }
+
+    private fun buildZip() {
+        if (zipBusy) return
+        zipBusy = true
+        sendBtn.isEnabled = false; sendBtn.text = "Preparando…"
+        sendStatus.visibility = View.VISIBLE; sendStatus.text = "Preparando o ZIP (relatório, registro e macros)…"
+        Thread({
+            var err: String? = null
+            val zip: File? = try { makeZip() } catch (t: Throwable) { err = t.javaClass.simpleName + ": " + (t.message ?: ""); null }
+            runOnUiThread {
+                zipBusy = false
+                if (isFinishing || isDestroyed) return@runOnUiThread // tela fechada ou girada: o ZIP fica no cache e é apagado no próximo envio
+                sendBtn.isEnabled = true; sendBtn.text = "Enviar tudo"
+                if (zip == null) { sendStatus.text = "Falhou ao preparar o ZIP: $err"; return@runOnUiThread }
+                val uri = Uri.Builder().scheme("content").authority(packageName + ".fileprovider").appendPath(zip.name).build()
+                val send = Intent(Intent.ACTION_SEND).setType("application/zip").putExtra(Intent.EXTRA_STREAM, uri)
+                    .putExtra(Intent.EXTRA_SUBJECT, "Diagnóstico Macro17").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                send.clipData = ClipData.newRawUri(zip.name, uri)
+                try {
+                    startActivity(Intent.createChooser(send, "Enviar diagnóstico").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                    sendStatus.text = "ZIP pronto (${zip.length() / 1024} KB): ${zip.name}. Escolha onde enviar."
+                } catch (e: Exception) { sendStatus.text = "O ZIP foi criado, mas não consegui abrir o seletor: ${e.message ?: e.javaClass.simpleName}" }
+            }
+        }, "macro17-zip").start()
+    }
+
+    /** Monta o ZIP no cache (fora da thread principal) e apaga os anteriores. */
+    private fun makeZip(): File {
+        val report = Diag.report(this)
+        val raw = Diag.rawLog().ifEmpty { "vazio (o diagnóstico estava desligado?)" }
+        val macros = File(filesDir, "macros").listFiles { f -> f.extension == "json" }.orEmpty().sortedBy { it.name }.map { it.name to it.readText() }
+        val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+        val out = File(cacheDir, "macro17-diagnostico-$stamp.zip")
+        val tmp = File(cacheDir, out.name + ".tmp")
+        ReportBuilder.writeZip(tmp, report, raw, macros, infoText(stamp, macros.size))
+        out.delete()
+        if (!tmp.renameTo(out)) throw java.io.IOException("não consegui gravar ${out.name}")
+        cacheDir.listFiles().orEmpty().forEach { if (it != out && it.name.startsWith("macro17-diagnostico-")) it.delete() }
+        return out
+    }
+
+    private fun infoText(stamp: String, macroCount: Int): String {
+        val pi = packageManager.getPackageInfo(packageName, 0)
+        return "Macro17 · diagnóstico $stamp\n" +
+            "app $packageName ${pi.versionName} (${pi.longVersionCode})\n" +
+            "${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE}) · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · patch ${Build.VERSION.SECURITY_PATCH}\n" +
+            "opções: registrar eventos em arquivo ${store.diag} · log do sistema (root) ${store.diagRoot} · manter tela ligada ${store.keepOn} · parar ao bloquear ${store.stopOnLock} · opacidade ${store.opacity}%\n" +
+            "macros no ZIP: $macroCount (sem imagens)\n" +
+            "conteúdo: relatorio.txt, registro-completo.txt, macros/*.json, info.txt\n"
     }
 
     /** Monta o relatório fora da thread principal e entrega o texto a [then] na principal. */

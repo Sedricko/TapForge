@@ -55,6 +55,9 @@ object Diag {
     }
 
     fun tail(maxChars: Int = 60_000) = log?.tail(maxChars) ?: ""
+
+    /** Arquivo do log inteiro (atual + rotacionado), sem corte. */
+    fun rawLog(): String = log?.readAll().orEmpty()
     fun clear() { log?.clear() }
 
     /** Relatório completo; chame fora da thread principal (lê arquivo e roda `logcat`). */
@@ -66,6 +69,10 @@ object Diag {
             sb.append(runCatching(body).getOrElse { "indisponível: ${it.javaClass.simpleName}: ${it.message}" }).append('\n')
         }
         sb.append("Relatório Macro17 · ").append(fmt.format(LocalDateTime.now())).append('\n')
+        // Eventos analisados uma vez: o resumo vai ao topo; execuções, uso do app e demais eventos ficam no lugar de "Eventos do app".
+        val rawEvents = runCatching { rawLog() }.getOrDefault("")
+        val parts = if (rawEvents.isEmpty()) null else runCatching { ReportBuilder.analyze(rawEvents, c.packageName) }.getOrNull()
+        section("Resumo") { parts?.summary ?: if (rawEvents.isEmpty()) "sem eventos (o diagnóstico estava desligado?)" else "análise indisponível; os eventos aparecem sem tratamento abaixo" }
         section("App e aparelho") {
             val pi = c.packageManager.getPackageInfo(c.packageName, 0)
             "app ${c.packageName} ${pi.versionName} (${pi.longVersionCode})\n" +
@@ -98,7 +105,8 @@ object Diag {
                     " status=${it.status} · ${it.description.orEmpty()} · importância ${it.importance}"
             }.ifEmpty { "nenhuma" }
         }
-        section("Eventos do app") { log?.readAll()?.takeLast(400_000).orEmpty().ifEmpty { "vazio (o diagnóstico estava desligado?)" } }
+        if (parts != null) parts.sections().forEach { (title, body) -> section(title) { body } }
+        else section("Eventos do app") { rawEvents.takeLast(400_000).ifEmpty { "vazio (o diagnóstico estava desligado?)" } }
         section("logcat visível ao app, filtrado (sem READ_LOGS: só os logs do próprio app; avisos e erros sempre ficam)") { logcat() }
         if (Store(c).diagRoot) {
             section("ROOT: logcat do sistema inteiro (todos os buffers)") { su("logcat -d -b all -v threadtime -t 8000", 300_000) }
