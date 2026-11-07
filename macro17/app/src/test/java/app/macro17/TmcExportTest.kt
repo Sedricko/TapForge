@@ -28,7 +28,7 @@ class TmcExportTest {
         assertEquals(null, m.validate())
         val r = back(m, images = mapOf("t1" to "t1.png"), tids = mapOf("t1.png" to "novo"))
         val s = r.macro.steps
-        assertEquals(4, r.macro.loops); assertEquals(8, s.size); assertEquals(r.notes.toString(), 1, r.notes.size) // só o aviso do Esperar
+        assertEquals(4, r.macro.loops); assertEquals(8, s.size); assertEquals(r.notes.toString(), 0, r.notes.size) // o aviso do Esperar é do export (Out.notes), o import não gera nenhum
         assertEquals(listOf(Type.TAP, Type.SWIPE, Type.IMAGE, Type.TAP, Type.GOTO, Type.GROUP, Type.TAP, Type.TAP), s.map { it.type })
         assertEquals(290, s[0].delay); assertEquals(100, s[0].x1); assertEquals("Toca", s[0].name)
         assertEquals(500, s[1].rndMin); assertEquals(1500, s[1].rnd); assertEquals(7, s[1].jitter); assertEquals(400, s[1].y2)
