@@ -13,6 +13,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Toast
+import java.io.IOException
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -33,6 +34,8 @@ class BackupActivity : Activity() {
                 addView(label("O local de armazenamento de dados foi alterado. Se você excluir o aplicativo, os dados da macro também serão excluídos. Faça um backup dos seus dados agora.", 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(0, dp(8), 0, 0); gravity = Gravity.CENTER })
             })
             addView(bigText("Backup de Dados") { chooseMacros() })
+            addView(note("Formato Macro17 (ZIP com macros, imagens e capturas): restaura aqui. Para levar uma macro ao app base, use Arquivo → Exportar."))
+            addView(note("Restaura o ZIP do Macro17 e também o ZIP do app base (TouchMacroPro/*.tmc)."))
             addView(bigText("Restaurar Dados") {
                 // Como no base: primeiro o seletor (application/zip); o aviso vem depois de escolher o arquivo.
                 startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip"), LOAD)
@@ -70,6 +73,8 @@ class BackupActivity : Activity() {
         Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
             .putExtra(Intent.EXTRA_TITLE, "macro17-backup-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")) + ".zip"), SAVE)
 
+    private fun note(t: String) = label(t, 12f, 0xFF616161.toInt()).apply { setPadding(dp(10), 0, dp(10), dp(6)); gravity = Gravity.CENTER }
+
     private fun bigText(text: String, click: () -> Unit) = label(text, 20f, B.BLUE, bold = true).apply {
         gravity = Gravity.CENTER
         background = rounded(Color.WHITE, 2); elevation = dp(2).toFloat()
@@ -81,7 +86,11 @@ class BackupActivity : Activity() {
 
     override fun onActivityResult(req: Int, res: Int, data: Intent?) {
         super.onActivityResult(req, res, data)
-        if (req == PICK) { if (res == RESULT_OK) { chosen = data?.getStringArrayExtra("ids")?.toSet(); askSamples() }; return }
+        if (req == PICK) { if (res == RESULT_OK) {
+                chosen = data?.getStringArrayExtra("ids")?.toSet()
+                // Sem seleção não há o que gravar (antes, chosen nulo exportava TUDO sem avisar).
+                if (chosen.isNullOrEmpty()) Toast.makeText(this, "Por favor, selecione um arquivo.", Toast.LENGTH_LONG).show() else askSamples()
+            }; return }
         val uri = data?.data ?: return
         if (res != RESULT_OK) return
         if (req == LOAD) {
@@ -90,6 +99,7 @@ class BackupActivity : Activity() {
                 .setPositiveButton("Continuar") { _, _ -> runBackup(req, uri) }.setNegativeButton("Cancelar", null).show()
             return
         }
+        if (req == SAVE && chosen.isNullOrEmpty()) return Toast.makeText(this, "Seleção perdida; escolha as macros de novo.", Toast.LENGTH_LONG).show()
         runBackup(req, uri)
     }
 
@@ -100,13 +110,17 @@ class BackupActivity : Activity() {
     private fun runBackup(req: Int, uri: android.net.Uri) {
         if (busy) return Toast.makeText(this, "Aguarde, operação em andamento…", Toast.LENGTH_SHORT).show()
         busy = true
+        val sel = chosen; val samples = withSamples // cópias: a Activity pode mudar enquanto o thread grava
         Toast.makeText(this, if (req == SAVE) "Gerando o backup…" else "Restaurando…", Toast.LENGTH_SHORT).show()
         Thread({
             val msg = try {
                 if (req == SAVE) {
-                    val n = contentResolver.openOutputStream(uri, "wt")!!.use { BackupZip.write(it, filesDir, chosen, withSamples) }
+                    val n = try {
+                        (contentResolver.openOutputStream(uri, "wt") ?: throw IOException("não foi possível abrir o arquivo de destino")).use { BackupZip.write(it, filesDir, sel, samples) }
+                    } catch (e: Throwable) { runCatching { android.provider.DocumentsContract.deleteDocument(contentResolver, uri) }; throw e } // não deixa ZIP vazio/pela metade
                     Diag.d("backup", "gravou $n arquivos")
-                    "Backup salvo ($n arquivos)"
+                    if (n == 0) { runCatching { android.provider.DocumentsContract.deleteDocument(contentResolver, uri) }; "Nada para salvar: as macros escolhidas não foram encontradas" }
+                    else "Backup do Macro17 salvo ($n arquivos)"
                 } else {
                     // Backup do app base (.tmc)? Importa convertendo; senão é backup do Macro17.
                     val base = contentResolver.openInputStream(uri)!!.use { TmcZip.import(it, Store(this)) }

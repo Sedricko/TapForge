@@ -17,6 +17,7 @@ import android.widget.RadioButton
 import android.widget.ScrollView
 import android.widget.Toast
 import org.json.JSONObject
+import java.io.File
 import java.util.UUID
 
 /** Tela "Arquivo" do base: lista de macros com rádio e menu ⋮ (Criar, Excluir, Copiar para, Copiar (Mesclar), Renomear, Editar, Exportar). */
@@ -144,15 +145,47 @@ class FileManagerActivity : Activity() {
     }
 
     private var exportSamples = false
+    private var exportBase = true // padrão: formato do app base (TouchMacroPro/<nome>.tmc + imagens); false = ZIP do Macro17
 
-    private fun exportM(m: Macro) = AlertDialog.Builder(this).setTitle("Backup da Captura de Tela")
-        .setMessage("Você quer incluir os dados da captura de tela no backup? As capturas de tela podem conter informações pessoais sensíveis.")
-        .setPositiveButton("Sim") { _, _ -> exportSamples = true; exportPick(m) }
-        .setNegativeButton("Não") { _, _ -> exportSamples = false; exportPick(m) }.show()
+    /** Dois formatos: o do app base (o outro app lê) e o do Macro17 (restaura em Backup e Restauração, leva as capturas de tela). */
+    private fun exportM(m: Macro) = AlertDialog.Builder(this).setTitle("Exportar")
+        .setItems(arrayOf("Formato do app base (.tmc + imagens)", "Formato Macro17 (macro, imagens e capturas)")) { _, w ->
+            if (w == 0) { exportBase = true; exportSamples = false; exportPick(m) }
+            else AlertDialog.Builder(this).setTitle("Backup da Captura de Tela")
+                .setMessage("Você quer incluir os dados da captura de tela no backup? As capturas de tela podem conter informações pessoais sensíveis.")
+                .setPositiveButton("Sim") { _, _ -> exportBase = false; exportSamples = true; exportPick(m) }
+                .setNegativeButton("Não") { _, _ -> exportBase = false; exportSamples = false; exportPick(m) }.show()
+        }.setNegativeButton("Cancelar", null).show()
 
     private fun exportPick(m: Macro) {
         store.pendingExport = m.id
-        startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip").putExtra(Intent.EXTRA_TITLE, "${m.name}.zip"), EXPORT)
+        val safe = TmcExport.fileName(m.name, HashSet()) // sem / \ : etc. no nome do arquivo
+        startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip").putExtra(Intent.EXTRA_TITLE, (if (exportBase) safe else "$safe-macro17") + ".zip"), EXPORT)
+    }
+
+    private val uuid = Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
+    /** Grava fora da thread principal; o toast diz o formato e o que foi de fato gravado. */
+    private fun doExport(uri: android.net.Uri, m: Macro, base: Boolean, samples: Boolean) {
+        val app = applicationContext
+        Thread({
+            val msg = try {
+                val out = contentResolver.openOutputStream(uri, "wt") ?: throw java.io.IOException("não foi possível abrir o arquivo de destino")
+                try {
+                    out.use {
+                        if (base) {
+                            val b = TmcExport.zip(it, listOf(m), { id -> store.get(id) }, { t -> File(filesDir, "templates/$t.png").takeIf { f -> uuid.matches(t) && f.isFile }?.readBytes() })
+                            if (b.notes.isNotEmpty()) Diag.d("backup", "export base: ${b.notes.take(8)}")
+                            "Exportada no formato do app base: ${b.macros} macro(s), ${b.images} imagem(ns)" + if (b.notes.isEmpty()) "" else "; ${b.notes.size} avisos (veja Monitor e logs)"
+                        } else {
+                            val n = BackupZip.write(it, filesDir, setOf(m.id), samples)
+                            "Exportada no formato Macro17 ($n arquivos)"
+                        }
+                    }
+                } catch (e: Throwable) { runCatching { android.provider.DocumentsContract.deleteDocument(contentResolver, uri) }; throw e }
+            } catch (e: Throwable) { Diag.e("backup", "exportar falhou", e); "Falhou: ${e.message ?: e.javaClass.simpleName}" }
+            runOnUiThread { Toast.makeText(app, msg, Toast.LENGTH_LONG).show() }
+        }, "macro17-export").start()
     }
 
     private fun importJson() =
@@ -166,9 +199,7 @@ class FileManagerActivity : Activity() {
             when (req) {
                 EXPORT -> {
                     val m = store.pendingExport?.let { store.get(it) } ?: throw IllegalStateException("macro não encontrada")
-                    // ZIP no formato do Backup (macro + imagens citadas): a tela Backup e Restauração lê de volta com as imagens.
-                    contentResolver.openOutputStream(uri, "wt")!!.use { BackupZip.write(it, filesDir, setOf(m.id), samples = exportSamples) }
-                    toast("Exportada com as imagens")
+                    doExport(uri, m, exportBase, exportSamples)
                 }
                 IMPORT -> {
                     val raw = contentResolver.openInputStream(uri)!!.use { Store.readLimited(it) }

@@ -30,8 +30,16 @@ object BackupZip {
      * Grava o ZIP com o que há em [root]; devolve quantos arquivos entraram. Com [only] (ids de macro), leva só essas macros
      * e as imagens que elas citam; [samples] decide se as capturas de tela entram (podem ter dados pessoais).
      */
-    fun write(out: OutputStream, root: File, only: Set<String>? = null, samples: Boolean = true): Int {
+    fun write(out: OutputStream, root: File, only0: Set<String>? = null, samples: Boolean = true): Int {
         var n = 0
+        // Macros chamadas por CALL (recursivo) entram junto; sem elas o item chamaria uma macro que não está no backup.
+        val sel = only0?.toMutableSet()
+        if (sel != null) {
+            val all = File(root, "macros").listFiles().orEmpty().filter { it.isFile && it.extension == "json" }.associate { it.nameWithoutExtension to it.readText() }
+            var grew = true
+            while (grew) { grew = false; for (id in sel.toList()) for ((o, _) in all) if (o !in sel && all[id]?.contains(o) == true) { sel.add(o); grew = true } }
+        }
+        val only = sel
         val cited = only?.let { ids -> ids.joinToString(" ") { File(root, "macros/$it.json").takeIf { f -> f.isFile }?.readText().orEmpty() } }
         ZipOutputStream(out).use { z ->
             for (dir in listOf("macros", "templates", "samples")) {

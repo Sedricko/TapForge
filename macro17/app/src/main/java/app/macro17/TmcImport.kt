@@ -66,7 +66,7 @@ object TmcImport {
             (counterSlot.size % MAX_COUNTERS) + 1
         }
 
-        fun sec(s: String, max: Int = MAX_DELAY_MS) = ((s.trim().toDoubleOrNull() ?: 0.0) * 1000).toInt().coerceIn(0, max)
+        fun sec(s: String, max: Int = MAX_DELAY_MS) = Math.round((s.trim().toDoubleOrNull() ?: 0.0) * 1000).toInt().coerceIn(0, max)
         fun f(c: List<String>, n: Int) = c[n].trim()
         val steps = flat.map { (c, pos, depth, grp) ->
             if (depth == -1) return@map Step(Type.GROUP, grp = childCount[pos], rep = (f(c, 14).toIntOrNull() ?: 1).coerceIn(0, MAX_LOOPS), mono = grp == 2, gms = if (grp == 2) sec(f(c, 16)) else 0, gfail = if (grp == 2) target(f(c, 17)) else 0, name = f(c, 0).trim('\t').take(60), off = (f(c, 15).toIntOrNull() ?: 0) > 0)
