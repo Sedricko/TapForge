@@ -40,7 +40,7 @@ class VideoPlayerActivity : Activity() {
             if (video.isPlaying) { video.pause(); play.setImageResource(android.R.drawable.ic_media_play) }
             else { video.start(); play.setImageResource(android.R.drawable.ic_media_pause); h.post(tick) }
         }
-        video.setOnPreparedListener { bar.max = it.duration; total.text = fmt(it.duration) }
+        video.setOnPreparedListener { bar.max = it.duration; total.text = fmt(it.duration); video.start(); play.setImageResource(android.R.drawable.ic_media_pause); h.post(tick) } // começa sozinho, como no base
         video.setOnCompletionListener { play.setImageResource(android.R.drawable.ic_media_play); bar.progress = bar.max }
         video.setVideoURI(uri)
         val close = ImageButton(this).apply { setImageResource(android.R.drawable.ic_menu_close_clear_cancel); setBackgroundColor(0); contentDescription = "Fechar"; setColorFilter(0xFF616161.toInt()); setOnClickListener { finish() } }

@@ -31,35 +31,45 @@ object TmcExport {
     }.filter { it.isNotEmpty() }.toSet()
 
     /** [images]: id do recorte -> nome do PNG. [macroFiles]: id da macro -> nome do arquivo (sem .tmc), para o item CALL. */
-    fun write(m: Macro, images: Map<String, String>, macroFiles: Map<String, String>): Out {
+    fun write(m: Macro, images: Map<String, String>, macroFiles: Map<String, String>, soundTitle: (String) -> String = { "0" }): Out {
         val notes = ArrayList<String>()
         val n = m.steps.size
         fun tgt(g: Int) = if (g <= 0 || g > n) "0" else (ID_BIT or (g - 1)).toString()
         val depth = IntArray(n)
-        m.steps.forEachIndexed { k, s -> if (s.type == Type.GROUP) for (j in k + 1..minOf(k + s.grp, n - 1)) depth[j] = 1 }
+        val childMono = BooleanArray(n) // filho de grupo de imagens (mono): código de coluna 13 "12" em vez de "11"
+        m.steps.forEachIndexed { k, s -> if (s.type == Type.GROUP) for (j in k + 1..minOf(k + s.grp, n - 1)) { depth[j] = 1; childMono[j] = s.mono } }
+        var waitNoted = false
         // Contador do base = o próprio item; o primeiro COUNTER de cada número é o que o RESET aponta.
         val counterItem = HashMap<Int, Int>()
         m.steps.forEachIndexed { k, s -> if (s.type == Type.COUNTER) { if (counterItem.containsKey(s.counter)) notes.add("Item ${k + 1}: o contador ${s.counter} é compartilhado; no base cada item é um contador próprio") else counterItem[s.counter] = k } }
         val sb = StringBuilder()
         sb.append("Title,Touch Macro\nReplay,${m.loops}\n").append(",\n".repeat(7)).append(HEADER).append('\n')
-        m.steps.forEachIndexed { k, s ->
+        fun blank(id: Int): MutableList<String> {
             val c = MutableList(47) { "" }
-            fun set(i: Int, v: Any) { c[i] = v.toString() }
             for (i in listOf(1, 2, 3, 4, 8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 22, 38, 42, 46)) c[i] = "0"
-            c[6] = "N"; c[11] = "1"; c[19] = "100"; c[28] = "1"; c[30] = "0"; c[31] = "1"; c[40] = "200"; c[41] = "0|0"; c[24] = k.toString()
-            set(0, s.name.replace('\n', ' ').take(60)); set(15, if (s.off) 1 else 0)
-            if (depth[k] == 1) c[13] = "11"
+            c[6] = "N"; c[11] = "1"; c[19] = "100"; c[28] = "1"; c[30] = "0"; c[31] = "1"; c[40] = "200"; c[41] = "0|0"; c[24] = id.toString()
+            return c
+        }
+        m.steps.forEachIndexed { k, s ->
+            var c = blank(k)
+            fun set(i: Int, v: Any) { c[i] = v.toString() }
+            // O base só aninha filhos de grupo pelo primeiro byte TAB do nome (coluna 0).
+            fun head() { set(0, (if (depth[k] == 1) "\t" else "") + s.name.replace('\n', ' ').take(60)); set(15, if (s.off) 1 else 0); if (depth[k] == 1) c[13] = if (childMono[k]) "12" else "11" }
+            if (depth[k] == 1 && k > 0 && m.steps[k - 1].let { it.type == Type.GROUP && it.mono && depth[k - 1] == 0 }) {
+                // Grupo de imagens: o base cria antes dos filhos um item de captura (tipo 16, "12"); id fora da faixa dos itens.
+                val cap = blank(n + k); cap[0] = "\t"; cap[7] = "16"; cap[13] = "12"; cap[16] = "1.0"
+                sb.append(csv(cap)).append('\n')
+            }
+            head()
             fun placeholder(why: String) {
-                notes.add("Item ${k + 1} “${s.name}”: $why"); c.fill(""); // recomeça como item de espera
-                for (i in listOf(1, 2, 3, 4, 8, 9, 10, 14, 15, 16, 17, 18, 20, 21, 22, 38, 42, 46)) c[i] = "0"
-                c[6] = "N"; c[11] = "1"; c[19] = "100"; c[28] = "1"; c[30] = "0"; c[31] = "1"; c[40] = "200"; c[41] = "0|0"; c[24] = k.toString()
-                set(0, s.name.replace('\n', ' ').take(60)); set(15, if (s.off) 1 else 0); if (depth[k] == 1) c[13] = "11"
+                notes.add("Item ${k + 1} “${s.name}”: $why"); c = blank(k) // recomeça como item de espera
+                head()
                 set(7, 0); set(10, 5); set(20, 1); set(3, sec(s.delay.coerceIn(0, MAX_DELAY_MS)))
             }
             fun area(): String = if (s.x2 > s.x1 && s.y2 > s.y1) "${s.x1},${s.y1},${s.x2},${s.y2}" else ""
             fun delay(extra: Int = 0) {
-                if (s.rnd > 0) { set(21, (c[21].toInt() or 1)); set(37, sec((s.rndMin + extra).coerceAtMost(MAX_DELAY_MS)) + "~" + sec((s.rnd + extra).coerceAtMost(MAX_DELAY_MS))) }
-                else set(3, sec((s.delay + extra).coerceAtMost(MAX_DELAY_MS)))
+                if (s.rnd > 0 && s.rndMin < s.rnd) { set(21, (c[21].toInt() or 1)); set(37, sec((s.rndMin + extra).coerceAtMost(MAX_DELAY_MS)) + "~" + sec((s.rnd + extra).coerceAtMost(MAX_DELAY_MS))) }
+                else set(3, sec(((if (s.rnd > 0) s.rnd else s.delay) + extra).coerceAtMost(MAX_DELAY_MS))) // mín==máx: o base usa a coluna 3
                 if (s.jitter > 0) { set(21, (c[21].toInt() or 2)); set(22, s.jitter) }
             }
             when (s.type) {
@@ -84,10 +94,11 @@ object TmcExport {
                 }
                 Type.WAIT -> { // item de toque "pular": só o atraso roda; o tempo da espera soma ao atraso
                     set(7, 0); set(10, 5); set(20, 1); delay(s.ms)
+                    if (!waitNoted) { waitNoted = true; notes.add("Esperar sai como toque “pulado”: no base a opção de pular só vale após uma busca, então ele pode tocar em (0,0) por 5 ms (não verificado no app base)") }
                 }
                 Type.IMAGE -> {
                     val file = images[s.text] ?: return@forEachIndexed placeholder("imagem sem arquivo; vira espera").also { sb.append(csv(c)).append('\n') }
-                    set(7, 6); set(12, file); set(46, if (s.dbl) 1 else 0); set(16, sec(s.ms)); set(40, s.cycle); set(19, s.thr); set(20, if (s.tap) 0 else 1)
+                    set(7, 6); set(11, 3); set(12, file); set(46, if (s.dbl) 1 else 0); set(16, sec(s.ms)); set(40, s.cycle); set(19, s.thr); set(20, if (s.tap) 0 else 1)
                     val custom = s.x2 > s.x1 && s.y2 > s.y1
                     set(28, if (s.mono) (if (custom) 4 else 2) else if (custom) 3 else 1); if (custom) set(36, area())
                     set(41, "${s.ox}|${s.oy}"); set(18, tgt(s.goto)); set(17, tgt(s.fail)); delay()
@@ -108,19 +119,19 @@ object TmcExport {
                 }
                 Type.STATUS -> {
                     set(7, 14); set(45, s.text); set(10, s.ms.coerceAtLeast(1)); set(31, (if (s.snd) 1 else 0) or (if (s.vib) 2 else 0) or (if (s.pop) 4 else 0))
-                    if (s.snu.isNotBlank()) set(43, "0|" + s.snu); delay()
+                    if (s.snu.isNotBlank()) set(43, soundTitle(s.snu) + "|" + s.snu); delay()
                 }
                 Type.KEY -> {
                     val code = when (s.x1) { 1 -> 4; 2 -> 3; 3 -> 187; KEY_SCREENSHOT -> 120; else -> { notes.add("Item ${k + 1}: tecla ${s.x1} sem equivalente; exportada como Voltar"); 4 } }
                     set(7, 15); set(32, code); set(10, s.ms); delay()
                 }
                 Type.TEXT -> {
-                    set(7, 17); set(33, s.text); set(46, if (s.dbl) 1 else 0); set(16, sec(s.ms)); set(40, s.cycle); set(42, s.minConf); set(20, if (s.tap) 0 else 1)
+                    set(7, 17); set(11, 3); set(38, 1); set(33, s.text); set(46, if (s.dbl) 1 else 0); set(16, sec(s.ms)); set(40, s.cycle); set(42, s.minConf); set(20, if (s.tap) 0 else 1)
                     if (s.x2 > s.x1 && s.y2 > s.y1) { set(28, 3); set(36, area()) }
                     set(18, tgt(s.goto)); set(17, tgt(s.fail)); delay()
                 }
                 Type.CHANGE -> {
-                    set(7, 19); set(16, sec(s.ms)); set(40, s.cycle); set(19, s.thr); if (s.x2 > s.x1 && s.y2 > s.y1) set(36, area())
+                    set(7, 19); set(11, 3); set(16, sec(s.ms)); set(40, s.cycle); set(19, s.thr); if (s.x2 > s.x1 && s.y2 > s.y1) set(36, area())
                     set(18, tgt(s.goto)); set(17, tgt(s.fail)); delay()
                 }
                 Type.NODE -> placeholder("“Achar por texto” não existe no base; vira espera")
@@ -146,7 +157,7 @@ object TmcExport {
      * Grava o ZIP do base. Junta as macros chamadas por CALL (recursivamente, via [byId]) para o item não ficar sem destino.
      * [template] devolve os bytes PNG de um recorte (ou null se não existir).
      */
-    fun zip(out: OutputStream, macros: List<Macro>, byId: (String) -> Macro?, template: (String) -> ByteArray?): Bundle {
+    fun zip(out: OutputStream, macros: List<Macro>, byId: (String) -> Macro?, template: (String) -> ByteArray?, soundTitle: (String) -> String = { "0" }): Bundle {
         val all = LinkedHashMap<String, Macro>()
         val queue = ArrayDeque(macros)
         while (queue.isNotEmpty()) {
@@ -162,7 +173,7 @@ object TmcExport {
                 val dir = files.getValue(id)
                 val names = HashMap<String, String>()
                 for (t in imageIds(m)) { val b = template(t) ?: continue; names[t] = "$t.png"; z.putNextEntry(ZipEntry("TouchMacroPro/image/$dir/$t.png")); z.write(b); z.closeEntry(); imgs++ }
-                val r = write(m, names, files)
+                val r = write(m, names, files, soundTitle)
                 notes += r.notes.map { "${m.name}: $it" }
                 z.putNextEntry(ZipEntry("TouchMacroPro/$dir.tmc")); z.write(r.text.toByteArray(Charsets.UTF_8)); z.closeEntry()
             }

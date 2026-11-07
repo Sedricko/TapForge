@@ -40,6 +40,7 @@ class LogPanel(private val svc: AccessibilityService, private val wm: WindowMana
     private var paused = false
     private var mini = false
     @Volatile private var hideOnShot = true
+    @Volatile private var through = false // guardado aqui: setThrough pode chegar antes de a janela existir
     private var scheduled = false
     private val onFeed: () -> Unit = { schedule() }
 
@@ -50,9 +51,10 @@ class LogPanel(private val svc: AccessibilityService, private val wm: WindowMana
         val h = wm.maximumWindowMetrics.bounds.height()
         lp = WindowManager.LayoutParams(
             MATCH_PARENT, (h * 0.55).toInt(), WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or (if (through) WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else 0), PixelFormat.TRANSLUCENT,
         ).apply { gravity = Gravity.BOTTOM }
         val v = build()
+        v.alpha = if (through) 0.8f else 1f
         wm.addView(v, lp)
         root = v // só depois do addView: se ele falhar, o painel pode abrir de novo
         Diag.feed.addListener(onFeed)
@@ -64,11 +66,15 @@ class LogPanel(private val svc: AccessibilityService, private val wm: WindowMana
         Diag.feed.removeListener(onFeed)
         root?.let { runCatching { wm.removeView(it) } }
         root = null; list = null; body = null; chipRow = null
+        paused = false; mini = false; hideOnShot = true
     }
 
     /** Com [on], os toques atravessam o painel (para os gestos da macro caírem no app de baixo). */
-    fun setThrough(on: Boolean) = ui.post {
-        val r = root ?: return@post
+    fun setThrough(on: Boolean) { through = on; ui.post { applyThrough() } }
+
+    private fun applyThrough() {
+        val on = through
+        val r = root ?: return
         lp.flags = if (on) lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         r.alpha = if (on) 0.8f else 1f
         runCatching { wm.updateViewLayout(r, lp) }
