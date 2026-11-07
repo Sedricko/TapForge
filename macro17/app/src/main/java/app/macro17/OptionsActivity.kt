@@ -47,15 +47,15 @@ class OptionsActivity : Activity() {
             // Como no base: o toque não alterna; explica e leva às informações do app, onde está "Bateria". O switch reflete o estado real.
             if (resetting) return@switchRow
             resetting = true; battery?.isChecked = ignoringBattery(); resetting = false
-            AlertDialog.Builder(this).setTitle("Garantir a operação estável")
-                .setMessage("Para executar macros de forma estável em segundo plano, você precisa alterar as configurações de bateria. Permita o uso em segundo plano sem restrições.\n\n" +
+            AlertDialog.Builder(this).setTitle("Desativar otimização de bateria")
+                .setMessage(
                     if (ignoringBattery()) "Na próxima tela, toque em Bateria e escolha Otimizado ou Restrito." else "Na próxima tela, toque em Bateria e escolha Sem restrições.")
                 .setPositiveButton("Ir para Configurações") { _, _ -> startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
-                .setNegativeButton("Agora não", null).show()
+                .setNegativeButton("Cancelar", null).show()
         }
 
         p.category("Janela Pop-up")
-        val tr = p.valueRow("Transparência da janela flutuante (%)", "${100 - store.opacity}%") { transparencyDialog() }
+        val tr = p.valueRow("Transparência da janela flutuante (%)", "${100 - store.opacity} %") { transparencyDialog() }
         transparencyText = tr
         p.switchRow("Ocultar janela pop-up durante a reprodução", "Pressione a tecla de volume para parar a reprodução da macro.", store.hidePopup) { store.hidePopup = it; pushOptions() }
         // Exclusivos, como no base: ligar um desliga o outro.
@@ -66,8 +66,10 @@ class OptionsActivity : Activity() {
         p.category("Gravação de tela", iconRes = R.drawable.bp_new_icon)
         var audioTxt: TextView? = null; var bitTxt: TextView? = null; var fpsTxt: TextView? = null
         val audioNames = arrayOf("Sem áudio", "Gravar áudio externo (Microfone)", "Gravar áudio interno")
-        audioTxt = p.valueRow("Configurações de gravação de áudio", audioNames[store.recAudio.coerceIn(0, 2)]) {
-            AlertDialog.Builder(this).setTitle("Configurações de gravação de áudio").setSingleChoiceItems(audioNames, store.recAudio.coerceIn(0, 2)) { d, w -> store.recAudio = w; if (w == 2) android.widget.Toast.makeText(this, "Devido às políticas do Google, o áudio de alguns apps (como o YouTube) pode não ser gravado.", android.widget.Toast.LENGTH_LONG).show(); audioTxt?.text = audioNames[w]; d.dismiss() }.setNegativeButton("Cancelar", null).show()
+        val audioPolicy = "Devido às políticas do Google, o áudio de alguns apps (como o YouTube) pode não ser gravado."
+        fun audioSummary(i: Int) = audioNames[i] + if (i == 2) "\n" + audioPolicy else "" // base: o aviso é a 2ª linha do resumo
+        audioTxt = p.valueRow("Configurações de gravação de áudio", audioSummary(store.recAudio.coerceIn(0, 2))) {
+            AlertDialog.Builder(this).setTitle("Configurações de gravação de áudio").setSingleChoiceItems(audioNames, store.recAudio.coerceIn(0, 2)) { d, w -> store.recAudio = w; audioTxt?.text = audioSummary(w); d.dismiss() }.setNegativeButton("Cancelar", null).show()
         }
         val bits = intArrayOf(10_485_760, 5_242_880, 2_097_152); val bitNames = arrayOf("Alta (10 Mbps)", "Média (5 Mbps)", "Baixa (2 Mbps)")
         bitTxt = p.valueRow("Taxa de bits de vídeo", "Defina a qualidade visual da gravação. Valores mais altos evitam a pixelização, mas aumentam o tamanho do arquivo.\n\n" + bitNames[bits.indexOf(store.recBitrate).let { if (it < 0) 1 else it }]) {
@@ -80,7 +82,7 @@ class OptionsActivity : Activity() {
 
         p.category("Macro17")
         p.switchRow("Parar ao bloquear a tela", "Encerra a macro quando a tela apaga.", store.stopOnLock) { store.stopOnLock = it }
-        p.valueRow("Início Automático", "Selecione a macro padrão para usar com o programa.") { if (Store(this).list().isEmpty()) android.widget.Toast.makeText(this, "Nenhum arquivo de macro.", android.widget.Toast.LENGTH_LONG).show() else startActivity(android.content.Intent(this, AutoOpenActivity::class.java)) }
+        p.valueRow("Início Automático", "Selecione a macro padrão para usar com o programa.") { startActivity(android.content.Intent(this, AutoOpenActivity::class.java)) }
         p.valueRow("Leitor de números", "Ensine os dígitos de um jogo ou contador para o passo “Ler número”.") { startActivity(Intent(this, ReaderActivity::class.java)) }
         p.valueRow("Monitor e logs", "Registro de eventos, relatório do sistema e exportação para quem corrige.") { startActivity(Intent(this, DiagActivity::class.java)) }
 
@@ -93,21 +95,24 @@ class OptionsActivity : Activity() {
 
     private fun ignoringBattery() = getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
 
-    /** 0 a 50%, como no base: mais transparente que isso o painel some e não dá para tocar nele. */
+    /** 0 a 50%, como no base: mais transparente que isso o painel some e não dá para tocar nele. Só grava em OK. */
     private fun transparencyDialog() {
-        val value = TextView(this).apply { text = "${100 - store.opacity}%"; textSize = 16f; gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(8)) }
+        val value = TextView(this).apply { text = (100 - store.opacity).toString(); textSize = 16f; gravity = Gravity.END; setPadding(0, dp(8), 0, dp(8)) }
         val bar = SeekBar(this).apply {
-            max = 50; progress = 100 - store.opacity; contentDescription = "Transparência da janela flutuante"
+            max = 50; progress = (100 - store.opacity).coerceIn(0, 50); contentDescription = "Transparência da janela flutuante"
+            progressTintList = android.content.res.ColorStateList.valueOf(B.PINK); thumbTintList = android.content.res.ColorStateList.valueOf(B.PINK)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(s: SeekBar, v: Int, fromUser: Boolean) {
-                    store.opacity = 100 - v; value.text = "$v%"; transparencyText?.text = "$v%"; pushOptions()
-                }
+                override fun onProgressChanged(s: SeekBar, v: Int, fromUser: Boolean) { value.text = v.toString() }
                 override fun onStartTrackingTouch(s: SeekBar) {}
                 override fun onStopTrackingTouch(s: SeekBar) {}
             })
         }
         AlertDialog.Builder(this).setTitle("Transparência da janela flutuante (%)")
             .setView(LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(12), dp(24), dp(4)); addView(value); addView(bar) })
-            .setPositiveButton("OK", null).show()
+            .setPositiveButton("OK") { _, _ ->
+                val v = bar.progress
+                store.opacity = 100 - v; transparencyText?.text = "$v %"; pushOptions()
+            }
+            .setNegativeButton("Cancelar", null).show()
     }
 }

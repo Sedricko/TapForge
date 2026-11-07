@@ -110,8 +110,7 @@ class ItemEditorActivity : Activity() {
     /** Lista de velocidades sem botões: tocar escolhe e fecha, como as ListPreference do base. */
     private fun speedRow(p: Prefs, title: String, list: List<Pair<String, Int>>, msg: String?, enabled: Boolean = true) {
         p.valueRow(title, list.firstOrNull { it.second == s.cycle }?.first ?: "${s.cycle} ms", enabled) {
-            AlertDialog.Builder(this).setTitle(title).apply { if (msg != null) setMessage(msg) }
-                .setSingleChoiceItems(list.map { it.first }.toTypedArray(), list.indexOfFirst { it.second == s.cycle }) { d, w -> s = s.copy(cycle = list[w].second); d.dismiss(); render() }.show()
+            choiceDialog(title, msg, list.map { it.first }.toTypedArray(), list.indexOfFirst { it.second == s.cycle }) { w -> s = s.copy(cycle = list[w].second); render() }.show() // com mensagem, o AlertDialog padrão esconderia a lista
         }
     }
 

@@ -59,8 +59,8 @@
         <activity android:name=".BackupActivity" android:exported="false" />
         <activity android:name=".FileManagerActivity" android:exported="false" />
         <activity android:name=".AddItemsActivity" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|fontScale|density|layoutDirection|locale" android:exported="false" />
-        <activity android:name=".AccessibilityAgreementActivity" android:theme="@android:style/Theme.DeviceDefault.Light.Dialog" android:exported="false" />
-        <activity android:name=".PanelSettingsActivity" android:theme="@android:style/Theme.DeviceDefault.Light.Dialog" android:launchMode="singleTask" android:taskAffinity="" android:excludeFromRecents="true" android:exported="false" />
+        <activity android:name=".AccessibilityAgreementActivity" android:label="Acessibilidade" android:theme="@android:style/Theme.DeviceDefault.Light.Dialog" android:exported="false" />
+        <activity android:name=".PanelSettingsActivity" android:theme="@android:style/Theme.DeviceDefault.Light.Dialog.NoActionBar" android:launchMode="singleTask" android:taskAffinity="" android:excludeFromRecents="true" android:exported="false" />
         <activity android:name=".DebugFileManagerActivity" android:exported="false" />
         <activity android:name=".BackupPickActivity" android:exported="false" />
         <activity android:name=".AboutActivity" android:exported="false" />

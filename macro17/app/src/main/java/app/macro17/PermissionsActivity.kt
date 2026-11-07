@@ -51,7 +51,6 @@ class PermissionsActivity : Activity() {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
         background = rounded(Color.WHITE, 2); elevation = dp(2).toFloat()
-        foreground = ripple(4, 0x1F00897B)
         setPadding(dp(16), dp(15), dp(16), dp(15))
         layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.setMargins(dp(5), dp(4), dp(5), dp(4)) }
         addView(label(title, 14f, 0xFF212121.toInt(), bold = true).apply { setPadding(0, 0, 0, dp(10)) })
@@ -70,17 +69,22 @@ class PermissionsActivity : Activity() {
         content.addView(option("Acessibilidade", "A permissão de acessibilidade deve ser concedida.") {
             // Como no base: escolhe o modo de controle (só existe o de acessibilidade) e volta à Home; o Acordo abre pelo cartão da Home.
             Store(this).controlMode = MODE_ACCESS
-            finish()
+            goHome()
         })
-        content.addView(option("Android Debug Bridge (ADB)", "Precisa ser configurado usando um computador.") { startActivityForResult(Intent(this, AdbSetupActivity::class.java), 1) })
-        content.addView(option("Root", "Disponível em smartphones com root.") { rootDialog() })
+        content.addView(option("Android Debug Bridge (ADB)", "Precisa ser configurado usando um computador.") {
+            // Como no base: só escolhe o modo ADB e volta à Home; o cartão da Home abre a configuração enquanto o ADB não estiver pronto.
+            Store(this).controlMode = MODE_ADB
+            goHome()
+        })
+        content.addView(option("Root", "Disponível em smartphones com root.") { testShell(MODE_ROOT, "Root") }) // base: testa na hora, sem diálogo
     }
 
     override fun onActivityResult(req: Int, res: Int, data: Intent?) { super.onActivityResult(req, res, data); if (res == RESULT_OK) finish() } // ADB configurado: volta à Home
 
-    private fun rootDialog() = AlertDialog.Builder(this).setTitle("Root")
-        .setMessage("Os toques e a captura passam a sair por `su`. O aparelho precisa de root; o gerenciador de root vai pedir permissão ao testar.")
-        .setPositiveButton("Testar e usar") { _, _ -> testShell(MODE_ROOT, "Root") }.setNegativeButton("Cancelar", null).show()
+    private fun goHome() {
+        startActivity(Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        finish()
+    }
 
     /** Escolhe o modo e testa o shell fora da thread principal; se falhar, volta para a acessibilidade. */
     private fun testShell(mode: Int, name: String) {
@@ -92,7 +96,7 @@ class PermissionsActivity : Activity() {
                 Diag.d("controle", "$name ok: ${out.take(60)}")
                 "$name pronto."
             } catch (e: Exception) { st.controlMode = if (before == mode) MODE_ACCESS else before; Diag.e("controle", "$name falhou", e); (if (mode == MODE_ROOT) "Falha ao obter permissão de root." else "$name indisponível: ${e.message ?: e.javaClass.simpleName}") }
-            runOnUiThread { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show(); if (st.controlMode == mode) finish() else refresh() }
+            runOnUiThread { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_LONG).show(); if (st.controlMode == mode) goHome() else refresh() }
         }, "macro17-shell-test").start()
     }
 }
