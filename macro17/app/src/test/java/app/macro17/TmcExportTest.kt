@@ -28,7 +28,7 @@ class TmcExportTest {
         assertEquals(null, m.validate())
         val r = back(m, images = mapOf("t1" to "t1.png"), tids = mapOf("t1.png" to "novo"))
         val s = r.macro.steps
-        assertEquals(4, r.macro.loops); assertEquals(8, s.size); assertTrue(r.notes.toString(), r.notes.isEmpty())
+        assertEquals(4, r.macro.loops); assertEquals(8, s.size); assertEquals(r.notes.toString(), 1, r.notes.size) // só o aviso do Esperar
         assertEquals(listOf(Type.TAP, Type.SWIPE, Type.IMAGE, Type.TAP, Type.GOTO, Type.GROUP, Type.TAP, Type.TAP), s.map { it.type })
         assertEquals(290, s[0].delay); assertEquals(100, s[0].x1); assertEquals("Toca", s[0].name)
         assertEquals(500, s[1].rndMin); assertEquals(1500, s[1].rnd); assertEquals(7, s[1].jitter); assertEquals(400, s[1].y2)
@@ -73,5 +73,42 @@ class TmcExportTest {
         val names = ArrayList<String>()
         ZipInputStream(ByteArrayInputStream(out.toByteArray())).use { z -> while (true) { names += (z.nextEntry ?: break).name } }
         assertTrue(names.toString(), names.containsAll(listOf("TouchMacroPro/A.tmc", "TouchMacroPro/B_ruim.tmc", "TouchMacroPro/image/A/t.png")))
+    }
+
+    private fun rows(text: String) = TmcImport.parseCsv(text).dropWhile { it.getOrNull(0) != "Title" || it.size < 20 }.drop(1)
+
+    @Test fun groupChildrenGetTabAndMonoGroupGetsCaptureItem() {
+        val steps = listOf(
+            Step(Type.GROUP, grp = 1, name = "G"), Step(Type.TAP, x1 = 1, y1 = 2, x2 = 1, y2 = 2, ms = 10, name = "f1"),
+            Step(Type.GROUP, grp = 1, mono = true, gms = 2000, name = "M"), Step(Type.TAP, x1 = 3, y1 = 4, x2 = 3, y2 = 4, ms = 10, name = "f2"),
+            Step(Type.TAP, x1 = 5, y1 = 6, x2 = 5, y2 = 6, ms = 10, name = "solto"),
+        )
+        val out = TmcExport.write(Macro("id", "G", 1, steps), emptyMap(), emptyMap())
+        val r = rows(out.text)
+        assertEquals(6, r.size) // 5 itens + captura do grupo de imagens
+        assertEquals("G", r[0][0]); assertEquals("1", r[0][13])
+        assertEquals("\tf1", r[1][0]); assertEquals("11", r[1][13])
+        assertEquals("M", r[2][0]); assertEquals("2", r[2][13])
+        assertEquals("16", r[3][7]); assertEquals("12", r[3][13]); assertEquals("\t", r[3][0])
+        assertEquals("\tf2", r[4][0]); assertEquals("12", r[4][13])
+        assertEquals("solto", r[5][0]); assertEquals("", r[5][13])
+        val s = TmcImport.parse(out.text, "G", "id", emptyMap(), emptyMap()).macro.steps
+        assertEquals(listOf(Type.GROUP, Type.TAP, Type.GROUP, Type.TAP, Type.TAP), s.map { it.type })
+        assertEquals(listOf(1, 0, 1, 0, 0), s.map { it.grp }); assertTrue(s[2].mono); assertEquals("f1", s[1].name)
+    }
+
+    @Test fun textImageAndChangeColumns() {
+        val steps = listOf(
+            Step(Type.TEXT, text = "oi", ms = 3000), Step(Type.IMAGE, text = "t1", ms = 3000), Step(Type.CHANGE, ms = 3000),
+            Step(Type.TAP, x1 = 1, y1 = 1, x2 = 1, y2 = 1, ms = 10, rnd = 700, rndMin = 700),
+        )
+        val out = TmcExport.write(Macro("id", "T", 1, steps), mapOf("t1" to "t1.png"), emptyMap())
+        val r = rows(out.text)
+        assertEquals("17", r[0][7]); assertEquals("1", r[0][38]); assertEquals("3", r[0][11])
+        assertEquals("6", r[1][7]); assertEquals("3", r[1][11])
+        assertEquals("19", r[2][7]); assertEquals("3", r[2][11])
+        assertEquals("0.7", r[3][3]); assertEquals("0", r[3][21]); assertEquals("", r[3][37]) // mín==máx: atraso fixo
+        val s = TmcImport.parse(out.text, "T", "id", mapOf("t1.png" to "novo"), emptyMap()).macro.steps
+        assertEquals(listOf(Type.TEXT, Type.IMAGE, Type.CHANGE, Type.TAP), s.map { it.type }); assertEquals(700, s[3].delay)
     }
 }

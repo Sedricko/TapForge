@@ -38,7 +38,9 @@ class MainActivity : Activity() {
         drawer = mainDrawer(0)
         // Sequência do base a cada abertura: notificações (Android 13+) e depois "Exibir sobre outros apps", enquanto faltarem.
         if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 113)
+            AlertDialog.Builder(this).setCancelable(false)
+                .setMessage("A permissão de notificação é necessária para informá-lo sobre o status operacional do aplicativo.")
+                .setPositiveButton("OK") { _, _ -> requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 113) }.show()
         } else askOverlay()
         // Primeira abertura: o base cria a macro "sample" e a seleciona.
         if (store.list().isEmpty()) runCatching { Macro(java.util.UUID.randomUUID().toString(), "sample", 1, emptyList()).also { store.save(it); store.selected = it.id } }
@@ -57,14 +59,13 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(req: Int, p: Array<out String>, r: IntArray) { if (req == 113) askOverlay() }
 
     private fun askOverlay() {
-        if (Settings.canDrawOverlays(this) || overlayAsked) return
-        overlayAsked = true
-        AlertDialog.Builder(this).setTitle("Permissão de sobreposição")
-            .setMessage("Para mostrar o painel sobre outros apps, permita “Exibir sobre outros apps” para o Macro17.")
-            .setPositiveButton("Ir para Configurações") { _, _ -> startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }
-            .setNegativeButton("Cancelar", null).show()
+        if (Settings.canDrawOverlays(this) || overlayDlg?.isShowing == true) return
+        // Como no base: só a mensagem e OK, sem cancelar; reaparece a cada abertura e ao tocar em Iniciar enquanto faltar.
+        overlayDlg = AlertDialog.Builder(this).setCancelable(false)
+            .setMessage("Por favor, ative o desenho sobre outros aplicativos.")
+            .setPositiveButton("OK") { _, _ -> startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }.show()
     }
-    private var overlayAsked = false
+    private var overlayDlg: AlertDialog? = null
 
     override fun onResume() { super.onResume(); refresh() }
 
@@ -78,6 +79,16 @@ class MainActivity : Activity() {
     }
 
     private fun refresh() {
+        if (store.controlMode != MODE_ADB) { render(true); return }
+        // Base: ADB só vale com a depuração ligada E a porta TCP definida (getprop roda fora da thread principal).
+        val port = store.adbPort.toString()
+        Thread({
+            val tcp = try { Runtime.getRuntime().exec(arrayOf("getprop", "service.adb.tcp.port")).inputStream.bufferedReader().readText().contains(port) } catch (e: Exception) { false }
+            runOnUiThread { if (!isDestroyed) render(tcp) }
+        }, "macro17-adb-port").start()
+    }
+
+    private fun render(adbTcp: Boolean) {
         macros = store.list()
         val cur = current()
         content.removeAllViews()
@@ -88,7 +99,7 @@ class MainActivity : Activity() {
             setPadding(dp(12), dp(18), dp(12), dp(18))
             // O cartão reflete o modo de controle escolhido em Permissões (acessibilidade, ADB ou root), como no base.
             val mode = store.controlMode
-            val adbOn = Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0) == 1
+            val adbOn = adbTcp && Settings.Global.getInt(contentResolver, Settings.Global.ADB_ENABLED, 0) == 1
             val ok = when (mode) { MODE_ADB -> adbOn; MODE_ROOT -> true; else -> MacroService.instance != null }
             val text = when (mode) {
                 MODE_ADB -> if (adbOn) "Não desligue. Você precisará configurá-lo novamente." else "ADB não ativado."
@@ -134,9 +145,10 @@ class MainActivity : Activity() {
     }
 
     private fun start() {
+        askOverlay() // base: também ao tocar em Iniciar enquanto faltar a permissão
         val svc = MacroService.instance
         if (svc == null) {
-            startActivity(Intent(this, AccessibilityAgreementActivity::class.java))
+            startActivity(Intent(this, if (store.controlMode == MODE_ADB) AdbSetupActivity::class.java else AccessibilityAgreementActivity::class.java))
             return
         }
         // Como no base: o botão alterna INICIAR/PARAR e o app continua na tela; o painel aparece por cima.

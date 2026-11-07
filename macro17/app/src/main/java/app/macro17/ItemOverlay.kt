@@ -72,15 +72,21 @@ class ItemOverlay(private val svc: MacroService, private val wm: WindowManager) 
             addView(svc.label(text, 14f, Color.BLACK, bold = true), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f)); right?.let { addView(it) }
         }
         fun divider() = View(svc).apply { setBackgroundColor(0xFFE0E0E0.toInt()); layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, dp(1)).also { it.topMargin = dp(12) } }
+        // chave desligada: o base não esconde as linhas, deixa-as desabilitadas a 20% de opacidade
+        fun dim(v: View, on: Boolean) { v.isEnabled = on; v.alpha = if (on) 1f else 0.2f; if (v is android.view.ViewGroup) for (i in 0 until v.childCount) dim(v.getChildAt(i), on) }
         fun secs(ms: Int) = (ms / 1000.0).toString()
         fun ms(txt: String) = txt.replace(',', '.').toDoubleOrNull()?.let { Math.round(it * 1000).toInt() }
+        // como no editor completo: Texto <-> Números (o modelo tem um tipo para cada)
+        fun toNumber(x: Step): Step { val dm = svc.resources.displayMetrics; val w = x.x2 <= x.x1
+            return x.copy(type = Type.NUMBER, cmp = 3, x1 = if (w) 0 else x.x1, y1 = if (w) 0 else x.y1, x2 = if (w) dm.widthPixels else x.x2, y2 = if (w) dm.heightPixels else x.y2) }
+        fun toText(x: Step): Step = x.copy(type = Type.TEXT, cycle = maxOf(x.cycle, 200), x1 = 0, y1 = 0, x2 = 0, y2 = 0)
         lateinit var render: () -> Unit
 
         fun areaPick(x1: Int, y1: Int, x2: Int, y2: Int, got: (IntArray) -> Unit) = svc.requestPick(PositionPickerActivity.AREA, intArrayOf(x1, y1, x2, y2), null, false, got)
 
         fun delayCard() = card(16) {
             addView(head("Tempo de Atraso", sw(s.delay > 0) { on -> s = s.copy(delay = if (on) 1000 else 0, rnd = 0, rndMin = 0); render() }))
-            if (s.delay > 0) addView(row("Tempo de Atraso", field(secs(s.delay), true) { t -> ms(t)?.let { s = s.copy(delay = it.coerceIn(0, MAX_DELAY_MS)) } }))
+            addView(row("Tempo de Atraso", field(secs(s.delay), true) { t -> ms(t)?.let { s = s.copy(delay = it.coerceIn(0, MAX_DELAY_MS)) } }).also { dim(it, s.delay > 0) })
         }
         fun rateBar(value: Int, change: (Int) -> Unit, label: String) = LinearLayout(svc).apply {
             orientation = LinearLayout.VERTICAL
@@ -112,7 +118,8 @@ class ItemOverlay(private val svc: MacroService, private val wm: WindowManager) 
                     col.addView(delayCard())
                     col.addView(card(16) {
                         addView(head("Correspondência de Imagem", sw(s.useImg && s.img.isNotBlank()) { on -> s = s.copy(useImg = on && s.img.isNotBlank()); render() }))
-                        if (s.useImg) {
+                        addView(LinearLayout(svc).apply {
+                            orientation = LinearLayout.VERTICAL
                             addView(row("Tempo de Pesquisa", field(secs(s.sms), true) { t -> ms(t)?.let { s = s.copy(sms = it.coerceIn(0, MAX_DELAY_MS)) } }))
                             addView(divider())
                             addView(rateBar(s.thr, { v -> s = s.copy(thr = v.coerceIn(20, 100)) }, "Taxa de correspondência de imagem (%)"))
@@ -131,7 +138,7 @@ class ItemOverlay(private val svc: MacroService, private val wm: WindowManager) 
                                 }
                             }))
                             if (idx >= 3) addView(row("${s.ax1},${s.ay1},${s.ax2},${s.ay2}", accent("Área Personalizada") { areaPick(s.ax1, s.ay1, s.ax2, s.ay2) { v -> s = s.copy(ax1 = v[0], ay1 = v[1], ax2 = v[2], ay2 = v[3]); render() } }))
-                        }
+                        }.also { dim(it, s.useImg) })
                     })
                 }
                 Type.GESTURE -> col.addView(delayCard())
@@ -142,19 +149,26 @@ class ItemOverlay(private val svc: MacroService, private val wm: WindowManager) 
                 })
                 else -> { // Texto, Número e Imagem: atraso, reconhecimento e opção de pesquisa (área e tempo)
                     col.addView(delayCard())
-                    if (s.type == Type.TEXT) col.addView(card(16) {
-                        addView(head("Reconhecimento de Texto", sw(true) { render() }.apply { isEnabled = false }))
-                        addView(field(s.text, false) { t -> s = s.copy(text = t.trim()) }.apply { inputType = InputType.TYPE_CLASS_TEXT; gravity = Gravity.START; layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(8) } })
+                    val ocr = s.type == Type.TEXT || s.type == Type.NUMBER
+                    if (ocr) col.addView(card(16) {
+                        addView(head("Reconhecimento de Texto", sw(s.type == Type.TEXT) { on ->
+                            if (!on && s.type == Type.TEXT) s = toNumber(s) else if (on && s.type == Type.NUMBER) s = toText(s)
+                            render()
+                        }))
+                        addView(field(s.text, false) { t -> s = s.copy(text = t.trim()) }.apply { inputType = InputType.TYPE_CLASS_TEXT; gravity = Gravity.START; hint = "Use uma vírgula como separador para pesquisar várias palavras simultaneamente. Ex: Maçã, Abacaxi"; layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).also { it.topMargin = dp(8) } }.also { dim(it, s.type == Type.TEXT) })
                     })
-                    if (s.type == Type.NUMBER) col.addView(card(16) {
-                        addView(head("Reconhecimento de Números", sw(true) { render() }.apply { isEnabled = false }))
+                    if (ocr) col.addView(card(16) {
+                        addView(head("Reconhecimento de Números", sw(s.type == Type.NUMBER) { on ->
+                            if (on && s.type == Type.TEXT) s = toNumber(s) else if (!on && s.type == Type.NUMBER) s = toText(s)
+                            render()
+                        }))
                         addView(row("Intervalo", LinearLayout(svc).apply {
                             addView(field(s.lo.toString(), false) { t -> t.toIntOrNull()?.let { s = s.copy(lo = it) } })
                             addView(field(s.hi.toString(), false) { t -> t.toIntOrNull()?.let { s = s.copy(hi = it) } })
-                        }))
+                        }).also { dim(it, s.type == Type.NUMBER) })
                     })
                     col.addView(card(16) {
-                        addView(head(if (s.type == Type.IMAGE) "Pesquisa de Imagem" else "Opção de Pesquisa", null))
+                        addView(head(if (s.type == Type.IMAGE) "Pesquisa de Imagem" else "Opção de Busca", null))
                         val whole = s.x2 <= s.x1
                         addView(row(if (whole) "Tela Cheia" else "Área Personalizada", accent("Área de Pesquisa") {
                             svc.chooseOverlay("Área de Pesquisa", arrayOf("Tela Cheia", "Área Personalizada"), if (whole) 0 else 1) { w ->

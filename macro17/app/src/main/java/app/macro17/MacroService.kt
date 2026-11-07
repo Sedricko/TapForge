@@ -62,6 +62,11 @@ class MacroService : AccessibilityService() {
         logPanel = LogPanel(this, wm) { engine.stop() }
         engine = Engine(this, { msg ->
             if (!testing) toast(if (msg.contains("macro vazia")) "Nenhuma macro." else "Macro encerrada."); ui.post { awake(false); if (!testing) bubble?.visibility = View.VISIBLE }; logPanel.setThrough(false); setPlayIcon(false)
+            if (!testing) {
+                // Como no base: erro abre um diálogo só com a mensagem; com "Depurar" o fim normal também (Macro encerrada. / Parar).
+                val txt = if (msg.startsWith("Erro")) msg.substringAfter(": ", msg).trim().ifEmpty { "Erro" } else if (store.debugOverlay && !msg.contains("macro vazia")) (if (msg == "Macro parada") "Parar" else "Macro encerrada.") else null
+                if (txt != null) ui.post { overlayCard("", label(txt, 16f, Color.BLACK), listOf("OK" to {})) }
+            }
             if (msg == "Macro concluída" && store.endAlarm && !testing) playEndAlarm() // só no fim natural, não em parada manual nem em erro
         }, ::toast, logPanel::captureHide)
         engine.onStatus = { t, ms -> instant(t, ms) }
@@ -363,7 +368,7 @@ class MacroService : AccessibilityService() {
             for (i in 1 until row2.childCount) row2.getChildAt(i).visibility = if (sched) View.GONE else View.VISIBLE
         }
         if (sched) { // estado "agendado" do base: linha 1 só com o próximo horário; linha 2 aberta só com o Agendar
-            row1.addView(label(scheduleText(), 12f, 0xFF607D8B.toInt()).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; maxWidth = dp(80); minHeight = dp(54); gravity = Gravity.CENTER_VERTICAL; setPadding(dp(4), 0, dp(8), 0) })
+            row1.addView(label(scheduleText().substringAfter(" • ", ""), 12f, 0xFF607D8B.toInt()).apply { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; maxWidth = dp(80); minWidth = dp(42); minHeight = dp(54); gravity = Gravity.CENTER; setPadding(dp(4), 0, dp(8), 0) }) // base: só a data, centralizada
             expanded = true; if (::row2.isInitialized) row2.visibility = View.VISIBLE
             return
         }
@@ -795,7 +800,7 @@ class MacroService : AccessibilityService() {
         if (guideWin != null) return
         fun row(res: Int, text: String) = android.widget.LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
-            addView(ImageView(this@MacroService).apply { setImageResource(res); setColorFilter(0xFF00574B.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(24), dp(24)).also { it.marginEnd = dp(4) })
+            addView(ImageView(this@MacroService).apply { setImageResource(res)}, android.widget.LinearLayout.LayoutParams(dp(24), dp(24)).also { it.marginEnd = dp(4) })
             addView(label(text, 14f, Color.BLACK))
             layoutParams = android.widget.LinearLayout.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = dp(8) }
         }
@@ -804,8 +809,8 @@ class MacroService : AccessibilityService() {
             orientation = android.widget.LinearLayout.VERTICAL; background = rounded(Color.WHITE, 8, 0xFFE0E0E0.toInt()); setPadding(dp(24), dp(16), dp(24), dp(8))
             addView(label("Guia para gravar locais de toque.", 20f, Color.BLACK, bold = true).apply { setPadding(0, 0, 0, dp(12)) })
             addView(row(R.drawable.bp_ic_target, "Mova o ícone para o local que deseja tocar."))
-            addView(row(R.drawable.bp_playlist_add, "Guarda a localização selecionada."))
-            addView(row(R.drawable.bp_ic_tap, "Muda o método de toque."))
+            addView(row(R.drawable.bp_playlist_add, "Salva o local selecionado."))
+            addView(row(R.drawable.bp_ic_tap, "Altera o método de toque."))
             addView(again)
             addView(label("OK", 14f, 0xFFD81B60.toInt(), bold = true).apply {
                 gravity = Gravity.CENTER; setPadding(dp(16), dp(12), dp(16), dp(12))
@@ -961,8 +966,8 @@ class MacroService : AccessibilityService() {
         val close = { win?.let { runCatching { wm.removeView(it) } }; win = null; Unit }
         val card = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL; background = rounded(Color.WHITE, 8, 0xFFE0E0E0.toInt()); setPadding(dp(24), dp(20), dp(16), dp(8))
-            addView(label(title, 20f, Color.BLACK, bold = true))
-            addView(content, android.widget.LinearLayout.LayoutParams(-1, -2).also { it.topMargin = dp(16) })
+            if (title.isNotEmpty()) addView(label(title, 20f, Color.BLACK, bold = true))
+            addView(content, android.widget.LinearLayout.LayoutParams(-1, -2).also { it.topMargin = if (title.isEmpty()) 0 else dp(16) })
             addView(android.widget.LinearLayout(this@MacroService).apply {
                 gravity = Gravity.END
                 buttons.forEach { (t, act) -> addView(label(t, 14f, 0xFFD81B60.toInt(), bold = true).apply { setPadding(dp(12), dp(12), dp(12), dp(12)); setOnClickListener { close(); act() } }) }
