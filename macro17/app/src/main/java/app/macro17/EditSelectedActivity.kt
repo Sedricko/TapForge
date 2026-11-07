@@ -47,6 +47,8 @@ class EditSelectedActivity : Activity() {
     private var names: Array<String> = emptyArray()
     private fun goLabel(n: Int) = if (n == 0) "0. Próximo" else "$n. ${names.getOrNull(n - 1).orEmpty()}".trim()
 
+    private fun goSummary(n: Int) = if (n == 0) "Próximo" else goLabel(n) // resumo do base (config_value_next); a lista mantém "0. Próximo"
+
     private fun render() {
         val p = Prefs(this)
         p.category("Editar Itens Selecionados", iconRes = R.drawable.bp_ic_menu_edit)
@@ -57,7 +59,7 @@ class EditSelectedActivity : Activity() {
             0 -> {
                 p.category("Atraso", iconRes = R.drawable.bp_alarm)
                 p.switchRow("Atraso", "Tocar/Deslizar será processado após o tempo de atraso.", delayOn) { delayOn = it; render() }
-                p.valueRow("Tempo de Atraso", secs(delayMs), delayOn) { numDialog("Tempo de Atraso (segundos)", delayMs / 1000.0) { delayMs = (it * 1000).toInt().coerceIn(0, MAX_DELAY_MS); render() } }
+                p.valueRow("Tempo de Atraso", secs(delayMs)) { numDialog("Tempo de Atraso", delayMs / 1000.0, plain = false) { delayMs = (it * 1000).toInt().coerceIn(0, MAX_DELAY_MS); render() } }
             }
             1 -> {
                 p.category("Correspondência de Imagem", iconRes = R.drawable.bp_outline_image_search_24)
@@ -80,7 +82,7 @@ class EditSelectedActivity : Activity() {
             3 -> {
                 p.category("Correspondência de Imagem", iconRes = R.drawable.bp_outline_image_search_24)
                 p.switchRow("Correspondência de Imagem", "Tocar/Deslizar será processado se a imagem corresponder.", true) // exibido como no base; o valor não é aplicado
-                p.valueRow("Taxa de correspondência de imagem (%)", "$thr%") { numDialog("Taxa de correspondência de imagem (%)", thr.toDouble()) { thr = it.toInt().coerceIn(0, 100); render() } }
+                p.valueRow("Taxa de correspondência de imagem (%)", "$thr %") { numDialog("Taxa de correspondência de imagem (%)", thr.toDouble()) { thr = it.toInt().coerceIn(0, 100); render() } }
             }
             4 -> {
                 p.category("Correspondência de Imagem", iconRes = R.drawable.bp_outline_image_search_24)
@@ -90,12 +92,12 @@ class EditSelectedActivity : Activity() {
             }
             5 -> {
                 p.category("Correspondência de Imagem", iconRes = R.drawable.bp_outline_image_search_24)
-                p.valueRow("Tempo de Pesquisa", if (sms == 0) "Infinito" else "${trim(sms)} Segundos") { numDialog("Tempo de Pesquisa (segundos)", sms / 1000.0) { sms = (it * 1000).toInt().coerceIn(0, MAX_DELAY_MS); render() } }
+                p.valueRow("Tempo de Pesquisa", "${trim(sms)} Sec") { numDialog("Tempo de Pesquisa", sms / 1000.0) { sms = (it * 1000).toInt().coerceIn(0, MAX_DELAY_MS); render() } }
             }
             6 -> {
                 p.category("Correspondência de Imagem", iconRes = R.drawable.bp_outline_image_search_24)
-                p.valueRow("Mover em Caso de Falha", goLabel(fail)) { pickStep("Mover em Caso de Falha") { fail = it; render() } }
-                p.valueRow("Mover em Caso de Sucesso", goLabel(ok)) { pickStep("Mover em Caso de Sucesso") { ok = it; render() } }
+                p.valueRow("Mover em Caso de Falha", goSummary(fail)) { pickStep("Mover em Caso de Falha") { fail = it; render() } }
+                p.valueRow("Mover em Caso de Sucesso", goSummary(ok)) { pickStep("Mover em Caso de Sucesso") { ok = it; render() } }
             }
             else -> {
                 p.category("Ação de Toque", iconRes = R.drawable.bp_click_traffic)
@@ -136,8 +138,8 @@ class EditSelectedActivity : Activity() {
         AlertDialog.Builder(this).setTitle(title).setItems(items) { _, w -> then(if (w < total) w + 1 else 0) }.show()
     }
 
-    private fun numDialog(title: String, init: Double, then: (Double) -> Unit) {
-        val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setText(init.toString()); setPadding(dp(24), dp(16), dp(24), dp(8)) }
+    private fun numDialog(title: String, init: Double, plain: Boolean = true, then: (Double) -> Unit) {
+        val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setText(if (plain && init % 1.0 == 0.0) init.toLong().toString() else init.toString()); setPadding(dp(24), dp(16), dp(24), dp(8)) }
         AlertDialog.Builder(this).setTitle(title).setView(et)
             .setPositiveButton("OK") { _, _ -> et.text.toString().toDoubleOrNull()?.let(then) }.setNegativeButton("Cancelar", null).show()
     }

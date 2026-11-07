@@ -21,7 +21,7 @@ class AddItemsActivity : Activity() {
     private val entries = listOf(
         Entry(Type.GROUP, Ic.REPEAT, "Grupo", "Loop dentro do grupo", res = R.drawable.bp_ic_loop),
         Entry(Type.GROUP, Ic.IMAGE_SEARCH, "Grupo de Pesquisa de Imagem", "Pesquisa por várias imagens ou texto na mesma imagem capturada. Pode ser usado para pesquisar várias imagens simultaneamente.", mono = true, res = R.drawable.bp_ic_loop_image),
-        Entry(Type.TEXT, Ic.NUM, "Reconhecimento de Texto", "Reconhece texto na tela e encontra o mesmo texto.", res = R.drawable.bp_format_text),
+        Entry(Type.TEXT, Ic.NUM, "Reconhecimento de Texto", "Reconhece o texto na tela e encontra o mesmo texto.", res = R.drawable.bp_format_text),
         Entry(Type.CHANGE, Ic.IMAGE_SEARCH, "Detecção de Mudança de Imagem", "Captura uma imagem na primeira execução e verifica continuamente se ela mudou da imagem previamente capturada.", res = R.drawable.bp_image_compare),
         Entry(Type.GOTO, Ic.JUMP, "Ir para", "Ir para uma macro específica", res = R.drawable.bp_action_goto),
         Entry(Type.COUNTER, Ic.REPEAT, "Contador de Execuções", "Conta as execuções da macro e aciona ações específicas quando a contagem de execuções excede um número definido.", res = R.drawable.bp_action_repeat_count),
@@ -42,7 +42,10 @@ class AddItemsActivity : Activity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        entries.forEach { e ->
+        val depth = intent.getIntExtra("depth", 0); val mg = intent.getIntExtra("macro_group", 0)
+        // Como no base: dentro de grupo some "Grupo"/"Grupo de Pesquisa de Imagem"; dentro de grupo de pesquisa de imagem só "Reconhecimento de Texto".
+        val shown = if ((mg and 2) != 0) entries.filter { it.type == Type.TEXT } else if (depth > 0 || mg != 0) entries.filter { it.type != Type.GROUP } else entries
+        shown.forEach { e ->
             col.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 foreground = ripple(0, 0x1F000000)

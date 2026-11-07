@@ -47,10 +47,10 @@ class StepOpsTest {
         assertFalse(listOf(grp(2), grp(2), tap(), tap()).groupsConsistent())
     }
 
-    @Test fun ungroupMovesMarkedAfterTheGroup() {
+    @Test fun ungroupAppendsMarkedAtTheEndOfTheParentList() {
         val l = listOf(grp(2), tap(), tap(), tap(goto = 2)).ungrouped(0, setOf(1))
         assertEquals(1, l[0].grp)
-        assertEquals(3, l[3].goto) // o antigo passo 2 agora é o 3º
+        assertEquals(4, l[2].goto) // o marcado (antigo passo 2) foi para o fim: agora é o 4º, e o item que saltava para ele acompanha
         assertTrue(l.groupsConsistent())
     }
 }

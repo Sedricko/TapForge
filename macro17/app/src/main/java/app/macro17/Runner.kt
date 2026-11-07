@@ -25,8 +25,12 @@ interface Ports {
 
     /** Vibração e/ou som de notificação do alerta de status. Padrão: nada. */
     fun alert(vib: Boolean, snd: Boolean) {}
-    /** Alerta de status completo (som escolhido, vibração, pop-up). Padrão: som/vibração + mensagem; o Engine sobrescreve. */
-    fun statusStep(s: Step) { if (s.vib || s.snd) alert(s.vib, s.snd); status(s.text, s.ms) }
+    /** Alerta de status completo (som escolhido, vibração, pop-up). Como no base: duração 0 não faz nada; sem pop-up não há aviso, só a espera. O Engine sobrescreve. */
+    fun statusStep(s: Step) {
+        if (s.ms <= 0) return
+        if (s.vib || s.snd) alert(s.vib, s.snd)
+        if (s.pop) status(s.text, s.ms) else sleep(s.ms.toLong())
+    }
     fun resolve(id: String): Macro?
 
     /** Quadro atual da tela em tons de cinza; null se esta captura falhou de forma passiva (ex.: intervalo mínimo). */
@@ -298,13 +302,15 @@ class Runner(private val p: Ports) {
         while (true) {
             attempt()?.let { return it }
             if (ms > 0 && p.now() - start >= ms) return null // ms = 0: sem limite (só a parada interrompe)
-            p.sleep(cycle.toLong())
+            p.sleep(maxOf(50, cycle).toLong()) // nunca laço sem pausa
         }
     }
 
     /** Toca em (x,y) mais o deslocamento do passo, sem sair da tela; clique duplo repete no mesmo ponto. */
     private fun tapAt(s: Step, x: Int, y: Int) {
-        val tx = (x + s.ox).coerceIn(0, maxOf(0, p.width - 1)); val ty = (y + s.oy).coerceIn(0, maxOf(0, p.height - 1))
+        val jx = if (s.jitter > 0) p.nextInt(2 * s.jitter + 1) - s.jitter else 0
+        val jy = if (s.jitter > 0) p.nextInt(2 * s.jitter + 1) - s.jitter else 0
+        val tx = (x + s.ox + jx).coerceIn(0, maxOf(0, p.width - 1)); val ty = (y + s.oy + jy).coerceIn(0, maxOf(0, p.height - 1))
         val g = listOf(Stroke(tx, ty, tx, ty))
         p.gesture(g, TAP_MS)
         if (s.dbl) { p.sleep(DOUBLE_GAP_MS); p.gesture(g, TAP_MS) }
@@ -331,7 +337,8 @@ class Runner(private val p: Ports) {
     }
 
     // Faixa aleatória substitui o atraso fixo (a tela do app de referência diz que o atraso acima é ignorado).
-    private fun delayOf(s: Step) = if (s.rnd > 0) s.rndMin + p.nextInt(s.rnd - s.rndMin + 1) else s.delay
+    // Ler número não tem atraso na tela (oculto): um atraso herdado de um item Texto convertido não vale.
+    private fun delayOf(s: Step) = if (s.type == Type.NUMBER) 0 else if (s.rnd > 0) s.rndMin + p.nextInt(s.rnd - s.rndMin + 1) else s.delay
 
     /** Soma 1 ao contador, escolhe o caso de maior limiar já alcançado e zera ao alcançar o último limiar (ciclo). */
     private fun counterJump(f: Frame, s: Step): Int {

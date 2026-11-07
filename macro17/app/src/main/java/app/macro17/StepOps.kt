@@ -88,11 +88,16 @@ fun List<Step>.movedBlock(i: Int, up: Boolean, blocked: Set<Int> = emptySet()): 
     return permuted(order) to order
 }
 
-/** "Reverter" da tela do grupo [g]: os [out] (0-based, filhos) vão para logo depois do grupo, no nível do pai; o grupo encolhe. */
+/**
+ * "Reverter" da tela do grupo [g]: os [out] (0-based, filhos, já com os filhos de subgrupos) saem do grupo e vão para o FIM da lista do pai
+ * (fim do grupo pai, ou da lista se [g] é de topo); o grupo encolhe. Os índices novos dos movidos são os últimos [out].size antes de `end`.
+ */
 fun List<Step>.ungrouped(g: Int, out: Set<Int>): List<Step> {
     val e = minOf(g + this[g].grp, lastIndex)
     val mk = out.filter { it in g + 1..e }.sorted()
     if (mk.isEmpty()) return this
-    val order = (0..e).filter { it !in mk } + mk + (e + 1..lastIndex)
+    val p = parentOf(g)
+    val end = if (p >= 0) minOf(p + this[p].grp, lastIndex) else lastIndex
+    val order = (0..end).filter { it !in mk } + mk + (end + 1..lastIndex)
     return permuted(order).mapIndexed { k, s -> if (k == g) s.copy(grp = s.grp - mk.size) else s }
 }

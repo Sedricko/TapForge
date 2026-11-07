@@ -240,7 +240,7 @@ class RunnerTest {
     }
 
     @Test fun keyAndStatus() {
-        val (_, f) = run(macro(Step(Type.KEY, x1 = 2), Step(Type.STATUS, ms = 10, text = "oi")))
+        val (_, f) = run(macro(Step(Type.KEY, x1 = 2), Step(Type.STATUS, ms = 10, text = "oi", pop = true)))
         assertEquals(listOf("k:2", "s:oi"), f.events)
     }
 
@@ -661,7 +661,7 @@ class RunnerTest {
 
     @Test fun statusAlertTriggersVibrationAndSoundBeforeTheMessage() {
         val f = Fake()
-        run(macro(Step(Type.STATUS, ms = 10, text = "oi", vib = true, snd = true)), f)
+        run(macro(Step(Type.STATUS, ms = 10, text = "oi", vib = true, snd = true, pop = true)), f)
         assertEquals(listOf("vib=true snd=true"), f.alerts)
         assertEquals(listOf("s:oi"), f.events)
     }
@@ -670,6 +670,46 @@ class RunnerTest {
         val f = Fake()
         run(macro(Step(Type.STATUS, ms = 10, text = "oi")), f)
         assertTrue(f.alerts.isEmpty())
+    }
+
+    @Test fun statusWithoutPopupShowsNoMessageButWaitsTheDuration() {
+        val f = Fake()
+        run(macro(Step(Type.STATUS, ms = 700, text = "oi", vib = true)), f)
+        assertTrue(f.events.isEmpty())
+        assertEquals(listOf("vib=true snd=false"), f.alerts)
+        assertTrue(f.sleeps.contains(700L))
+    }
+
+    @Test fun statusWithZeroDurationDoesNothing() {
+        val f = Fake()
+        run(macro(Step(Type.STATUS, ms = 0, text = "oi", vib = true, pop = true)), f)
+        assertTrue(f.events.isEmpty()); assertTrue(f.alerts.isEmpty())
+    }
+
+    @Test fun imageTapAppliesJitterAndRandomDelay() {
+        val f = Fake(frame = screenWith(50, 60), templates = mapOf("t" to needle), rolls = ArrayDeque(listOf(50, 0, 20)))
+        run(macro(image().copy(jitter = 10, rnd = 300, rndMin = 100)), f)
+        assertEquals(listOf("g:55,80>55,80@50"), f.events) // centro 65,70 + (0-10, 20-10)
+        assertTrue(f.sleeps.contains(150L))                 // 100 + 50
+    }
+
+    @Test fun numberIgnoresHiddenDelayFromConvertedText() {
+        val f = withNumber("1234")
+        run(macro(number(cmp = 3, lo = 1000, hi = 2000).copy(delay = 9999)), f)
+        assertTrue(f.sleeps.none { it == 9999L })
+    }
+
+    @Test fun numberIntervalUsesMaximum() {
+        val f = withNumber("1234")
+        assertEquals(2, gestures(run(macro(number(cmp = 3, lo = 1000, hi = 2000, goto = 2, fail = 3), tap(1), tap(2)), f).second).size) // dentro: vai ao passo 2
+        val g = withNumber("1234")
+        assertEquals(1, gestures(run(macro(number(cmp = 3, lo = 1000, hi = 1200, goto = 2, fail = 3, ms = 100), tap(1), tap(2)), g).second).size) // fora: falha vai ao passo 3
+    }
+
+    @Test fun pollNeverSleepsLessThan50ms() {
+        val f = Fake(frame = null)
+        run(macro(Step(Type.NODE, ms = 200, text = "x", cycle = 1)), f)
+        assertTrue(f.sleeps.filter { it > 1L }.all { it >= 50L })
     }
 
     @Test fun ocrReceivesTheMinimumConfidence() {

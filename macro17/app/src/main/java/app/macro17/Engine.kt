@@ -156,12 +156,21 @@ class Engine(
         }
         override fun statusStep(s: Step) {
             Diag.d("alerta", s.text)
+            if (s.ms <= 0) return // como no base: duração 0 não faz nada
+            var ring: android.media.Ringtone? = null
             runCatching {
-                if (s.snd) android.media.RingtoneManager.getRingtone(svc, if (s.snu.isNotBlank()) android.net.Uri.parse(s.snu) else android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)).play()
-                if (s.vib) svc.getSystemService(android.os.VibratorManager::class.java).defaultVibrator.vibrate(android.os.VibrationEffect.createOneShot(500, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                if (s.snd) {
+                    ring = android.media.RingtoneManager.getRingtone(svc, if (s.snu.isNotBlank()) android.net.Uri.parse(s.snu) else android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION))
+                    ring?.play()
+                }
+                if (s.vib) svc.getSystemService(android.os.VibratorManager::class.java).defaultVibrator.vibrate(android.os.VibrationEffect.createOneShot(s.ms.toLong(), android.os.VibrationEffect.DEFAULT_AMPLITUDE))
             }.onFailure { Diag.e("alerta", "som ou vibração falhou", it) }
-            if (s.pop) onStatus?.invoke(s.text, s.ms) else say(s.text)
-            sleep(s.ms.toLong())
+            try {
+                if (s.pop) { onStatus?.invoke(s.text, s.ms) ?: say(s.text) }
+                sleep(s.ms.toLong())
+            } finally {
+                runCatching { ring?.stop() } // o som acaba com a duração do alerta
+            }
         }
         override fun status(text: String, ms: Int) { Diag.d("alerta", text); onStatus?.invoke(text, ms) ?: say(text); sleep(ms.toLong()) }
 

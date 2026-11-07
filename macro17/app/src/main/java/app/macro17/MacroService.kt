@@ -61,7 +61,7 @@ class MacroService : AccessibilityService() {
         // Ao terminar (qualquer motivo) a tela volta a poder apagar.
         logPanel = LogPanel(this, wm) { engine.stop() }
         engine = Engine(this, { msg ->
-            if (!testing) toast(if (msg.contains("macro vazia")) "Nenhuma macro." else "Macro encerrada."); ui.post { awake(false); if (!testing) bubble?.visibility = View.VISIBLE }; logPanel.setThrough(false); setPlayIcon(false)
+            if (!testing) toast(if (msg.contains("macro vazia")) "Nenhuma macro." else "Macro encerrada."); ui.post { awake(false); if (!testing) { bubble?.visibility = View.VISIBLE; if (listWasOpen) { listWasOpen = false; showList() } } }; logPanel.setThrough(false); setPlayIcon(false)
             if (!testing) {
                 // Como no base: erro abre um diálogo só com a mensagem; com "Depurar" o fim normal também (Macro encerrada. / Parar).
                 val txt = if (msg.startsWith("Erro")) msg.substringAfter(": ", msg).trim().ifEmpty { "Erro" } else if (store.debugOverlay && !msg.contains("macro vazia")) (if (msg == "Macro parada") "Parar" else "Macro encerrada.") else null
@@ -294,7 +294,7 @@ class MacroService : AccessibilityService() {
                 if (engine.start(m)) {
                     logPanel.setThrough(true) // o base não mostra aviso ao iniciar
                     // Ocultar: o painel some durante a reprodução (a tecla de volume para a macro, ver onKeyEvent). Depurar: abre o registro.
-                    ui.post { bubble?.visibility = View.VISIBLE; openPanel(true); if (store.hidePopup) bubble?.visibility = View.INVISIBLE; if (store.debugOverlay && !logPanel.shown) logPanel.show() }
+                    ui.post { bubble?.visibility = View.VISIBLE; openPanel(true); if (store.hidePopup) { bubble?.visibility = View.INVISIBLE; listWasOpen = listWin != null; hideList() }; if (store.debugOverlay && !logPanel.shown) logPanel.show() }
                 } else { setPlayIcon(false); ui.post { awake(false) } }
             }
         }
@@ -435,7 +435,48 @@ class MacroService : AccessibilityService() {
     private var listSv: android.widget.ScrollView? = null
     private var listMacroId: String? = null
     private var lastStepIdx = -1
+    private var listWasOpen = false // "Ocultar janela pop-up" fecha a lista durante a execução e a reabre no fim, se estava aberta
     private var listX: Int? = null // posição X da lista nesta sessão (o Store não guarda o X)
+
+    // Nomes pt-BR e vetores por tipo: os mesmos tabelas do EditorActivity (titles/typeRes), para a lista flutuante.
+    private val listTitles = mapOf(
+        Type.TAP to "Tap", Type.SWIPE to "Swipe", Type.PINCH_IN to "Pinça para dentro", Type.PINCH_OUT to "Pinça para fora",
+        Type.WAIT to "Esperar", Type.KEY to "Evento de Teclado", Type.STATUS to "Alertas de status", Type.GOTO to "GOTO",
+        Type.COUNTER to "Contador de Execuções", Type.RESET to "Redefinir Contador de Execuções", Type.CALL to "Arquivo de Macro", Type.IMAGE to "Image",
+        Type.NODE to "Achar por texto", Type.TEXT to "Reconhecimento de Texto", Type.NUMBER to "Ler número", Type.STOP to "Parar Macro",
+        Type.CHANGE to "Detecção de Mudança de Imagem", Type.GESTURE to "Gesture", Type.GROUP to "Grupo",
+    )
+    private val listTypeRes = mapOf(
+        Type.TAP to R.drawable.bp_touch_app, Type.SWIPE to R.drawable.bp_touch_app, Type.PINCH_IN to R.drawable.bp_touch_app, Type.PINCH_OUT to R.drawable.bp_touch_app,
+        Type.IMAGE to R.drawable.bp_touch_app, Type.NODE to R.drawable.bp_format_text, Type.NUMBER to R.drawable.bp_format_text, Type.TEXT to R.drawable.bp_format_text,
+        Type.WAIT to R.drawable.bp_ic_timer, Type.KEY to R.drawable.bp_outline_keyboard_24, Type.STATUS to R.drawable.bp_outline_notifications_active,
+        Type.GOTO to R.drawable.bp_action_goto, Type.COUNTER to R.drawable.bp_action_repeat_count, Type.RESET to R.drawable.bp_action_repeat_counter_zero,
+        Type.CALL to R.drawable.bp_file_replace_outline, Type.STOP to R.drawable.bp_stop_macro, Type.CHANGE to R.drawable.bp_image_compare,
+        Type.GESTURE to R.drawable.bp_ic_gesture, Type.GROUP to R.drawable.bp_ic_loop,
+    )
+
+    private fun listSecs(ms: Int): String = if (ms >= 60000) "${ms / 60000}m ${((ms % 60000) / 1000f)}s" else "${ms / 1000f}s"
+    private fun listLimit(ms: Int): String = if (ms == 0) "Infinito" else listSecs(ms)
+
+    /** Informação curta do item (tv_string_info do base), igual à do editor. */
+    private fun listInfo(s: Step): String = when (s.type) {
+        Type.KEY -> mapOf(1 to "Voltar", 2 to "Início", 3 to "Recentes", 4 to "Notificações", KEY_SCREENSHOT to "Captura de tela")[s.x1] ?: ""
+        Type.STATUS -> s.text
+        Type.CALL -> store.get(s.text)?.name ?: "Nenhum arquivo alocado."
+        Type.COUNTER -> s.cases.joinToString(" ") { "${it.n}:${it.to}" }
+        Type.RESET -> "Contador ${s.counter}"
+        Type.TEXT, Type.NODE -> s.text.replace(",", ", ")
+        Type.NUMBER -> "${s.lo}"
+        Type.GROUP -> if (s.rep == 0) "Infinito" else "${s.rep} vezes"
+        Type.GESTURE -> "${gesturePoints(s.text).size} pontos"
+        else -> ""
+    }
+
+    /** Teste do item pela lista: o base mostra só "NN%" (ou "-" se não houve semelhança); mensagens de erro ficam como estão. */
+    private fun probeShort(r: String): String {
+        val n = Regex("(\\d+)%").find(r)?.groupValues?.get(1)?.toIntOrNull() ?: return r
+        return if (n <= 0) "-" else "$n%"
+    }
 
     private fun toggleList() {
         if (listWin != null) { hideList(); fillRow1(); return }
@@ -460,42 +501,57 @@ class MacroService : AccessibilityService() {
                 col.getChildAt(k * 2 + 1)?.visibility = if (hidden) View.GONE else View.VISIBLE
             }
         }
+        val grey = 0xFF9E9E9E.toInt()
         fun chip(res: Int, t: String) = android.widget.LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL
-            addView(ImageView(this@MacroService).apply { setImageResource(res); setColorFilter(0xFF9E9E9E.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(14), dp(14)))
-            addView(label(t, 14f, 0xFF9E9E9E.toInt()).apply { setPadding(dp(2), 0, dp(6), 0) })
+            addView(ImageView(this@MacroService).apply { setImageResource(res); setColorFilter(grey) }, android.widget.LinearLayout.LayoutParams(dp(14), dp(14)))
+            addView(label(t, 14f, grey).apply { setPadding(dp(2), 0, dp(6), 0); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
         }
+        val thumbCache = HashMap<String, Bitmap?>()
         m.steps.forEachIndexed { i, st ->
-            val nm = "${i + 1}. ${st.name.ifBlank { st.type.name.lowercase().replaceFirstChar { it.uppercase() } }}"
+            val par = m.steps.parentOf(i)
+            val child = par >= 0
+            val num = if (child) "${par + 1}-${i - par}" else "${i + 1}" // filhos: "pai-filho", como no base
+            val nm = "$num. ${st.name.ifBlank { if (st.type == Type.TAP && st.ms >= 500) "Press" else (listTitles[st.type] ?: st.type.name) }}"
             val search = st.type in Step.SEARCHES || st.useImg
-            val child = m.steps.indices.any { g -> m.steps[g].type == Type.GROUP && i > g && i <= g + m.steps[g].grp }
-            val typeIc = when (st.type) {
-                Type.TAP -> if (st.ms >= 500) R.drawable.bp_ic_tap_hold else R.drawable.bp_ic_tap
-                Type.SWIPE -> R.drawable.bp_ic_gesture_swipe; Type.PINCH_IN -> R.drawable.bp_ic_gesture_pinch_in; Type.PINCH_OUT -> R.drawable.bp_ic_gesture_pinch_out
-                Type.GESTURE -> R.drawable.bp_ic_gesture; Type.IMAGE -> R.drawable.bp_ic_image; Type.TEXT -> R.drawable.bp_ic_text_box_outline; Type.KEY -> R.drawable.bp_ic_keyboard_black_24dp
-                else -> 0
-            }
+            val thumbId = if (st.type == Type.IMAGE) st.text else st.img
+            val thumbBmp = if (thumbId.isNotEmpty()) thumbCache.getOrPut(thumbId) { runCatching { store.templateThumb(thumbId, 56) }.getOrNull() } else null
+            val typeIc = if (st.type == Type.GROUP && st.mono) R.drawable.bp_ic_loop_image else (listTypeRes[st.type] ?: 0)
+            val showGoto = (search || st.type == Type.GOTO || st.type == Type.COUNTER) && st.goto > 0
+            val showFail = search && st.fail > 0
+            val infoText = listInfo(st)
             col.addView(android.widget.LinearLayout(this).apply {
-                orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(8) + if (child) dp(12) else 0, dp(6), dp(6), dp(6))
-                if (child) setBackgroundColor(0xFFD6D7D7.toInt()) // filho de grupo, como no base
+                orientation = android.widget.LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(8), dp(6), dp(2), dp(6))
+                if (child) setBackgroundColor(0xFFD6D7D7.toInt()) // filho de grupo, como no base (mesma margem, sem recuo extra)
                 addView(android.widget.LinearLayout(this@MacroService).apply {
-                    gravity = Gravity.CENTER_VERTICAL
-                    addView(label(nm, 16f, if (child) 0xFF9E9E9E.toInt() else B.TEXT).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
-                    // contadores do base: destino de sucesso (azul) e de falha (vermelho)
-                    if (search && st.goto > 0) addView(label("${st.goto}", 16f, if (child) 0xFF2196F3.toInt() else 0xFF2121FF.toInt(), bold = true).apply { setPadding(dp(4), 0, 0, 0) })
-                    if (search && st.fail > 0) addView(label("${st.fail}", 16f, 0xFFF44336.toInt(), bold = true).apply { setPadding(dp(4), 0, 0, 0) })
-                })
-                addView(android.widget.LinearLayout(this@MacroService).apply {
-                    gravity = Gravity.CENTER_VERTICAL
-                    if (typeIc != 0) addView(chip(typeIc, ""))
-                    if (st.type == Type.GROUP) addView(chip(R.drawable.bp_repeat, if (st.rep == 0) "Infinito" else "${st.rep}"))
-                    if (search && st.ms > 0) addView(chip(R.drawable.bp_outline_image_search_24, "${st.ms / 1000f}s"))
-                    if (st.delay > 0) addView(chip(R.drawable.bp_ic_timer, "${st.delay / 1000f}s"))
-                    if (st.type == Type.STATUS && st.vib) addView(chip(R.drawable.bp_vibrate, "${st.ms / 1000f}s"))
-                    if (st.skip) addView(chip(R.drawable.bp_ic_do_not_touch_24px, ""))
-                })
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    addView(android.widget.LinearLayout(this@MacroService).apply {
+                        gravity = Gravity.CENTER_VERTICAL
+                        addView(label(nm, 16f, Color.BLACK).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
+                        // contadores do base: destino de sucesso (azul) e de falha (vermelho)
+                        if (showGoto) addView(label("${st.goto}", 16f, if (child) 0xFF2196F3.toInt() else 0xFF2121FF.toInt(), bold = true).apply { setPadding(dp(4), 0, 0, 0) })
+                        if (showFail) addView(label("${st.fail}", 16f, 0xFFF44336.toInt(), bold = true).apply { setPadding(dp(4), 0, 0, 0) })
+                    }, android.widget.LinearLayout.LayoutParams(-1, -2).also { it.marginEnd = dp(4) })
+                    addView(android.widget.LinearLayout(this@MacroService).apply {
+                        gravity = Gravity.CENTER_VERTICAL
+                        // miniatura (14dp) quando o item tem imagem; senão o vetor do tipo, sem tint (cores próprias)
+                        if (thumbBmp != null) addView(ImageView(this@MacroService).apply { setImageBitmap(thumbBmp); scaleType = ImageView.ScaleType.FIT_CENTER }, android.widget.LinearLayout.LayoutParams(dp(14), dp(14)).also { it.marginEnd = dp(6) })
+                        else if (typeIc != 0) addView(ImageView(this@MacroService).apply { setImageResource(typeIc) }, android.widget.LinearLayout.LayoutParams(dp(14), dp(14)).also { it.marginEnd = dp(6) })
+                        if (search) addView(chip(R.drawable.bp_outline_image_search_24, listLimit(if (st.type in Step.GESTURES) st.sms else st.ms)))
+                        if (st.delay > 0 || st.rnd > 0) addView(chip(R.drawable.bp_ic_timer, if (st.rnd > 0) "${listSecs(st.rnd)}~" else listSecs(st.delay)))
+                        if (st.type == Type.STATUS) {
+                            val alert = if (st.snd && st.vib) R.drawable.bp_volume_vibrate else if (st.snd) R.drawable.bp_volume_high else if (st.vib) R.drawable.bp_vibrate else 0
+                            if (alert != 0) addView(ImageView(this@MacroService).apply { setImageResource(alert) }, android.widget.LinearLayout.LayoutParams(dp(14), dp(14)))
+                            addView(label(listSecs(st.ms), 14f, grey).apply { setPadding(dp(2), 0, dp(6), 0) })
+                        }
+                        if (st.skip) addView(ImageView(this@MacroService).apply { setImageResource(R.drawable.bp_ic_do_not_touch_24px); setColorFilter(grey) }, android.widget.LinearLayout.LayoutParams(dp(14), dp(14)).also { it.setMargins(dp(2), 0, dp(2), 0) })
+                        if (infoText.isNotEmpty()) addView(label(infoText, 14f, grey).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(dp(2), 0, dp(6), 0) })
+                    })
+                }, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
+                if (st.off) addView(ImageView(this@MacroService).apply { setImageResource(R.drawable.bp_remove_circle) }, android.widget.LinearLayout.LayoutParams(dp(18), dp(18)).also { it.setMargins(dp(3), 0, dp(3), 0) })
                 // Como no base: toque curto edita o item numa janela por cima do app (só os tipos que o base permite; grupo recolhe/expande);
-                // toque longo testa o item (espera 500 ms, compara a imagem com a tela e mostra a semelhança).
+                // toque longo testa o item (espera 500 ms, compara a imagem com a tela e mostra "NN%"). Gravando, os dois só avisam.
                 setOnClickListener {
                     Diag.d("lista", "toque no item ${i + 1} (${st.type.name}); gravando=$recording")
                     if (recording) toast("A edição não é possível durante a gravação de uma macro.") // como no base
@@ -503,7 +559,8 @@ class MacroService : AccessibilityService() {
                     else if (ItemOverlay.editable(st.type)) editFromList(m, i)
                 }
                 setOnLongClickListener {
-                    if (st.type != Type.GROUP) Thread { Thread.sleep(500); instant(runCatching { engine.probeItem(st) }.getOrElse { "Falha ao testar o item" }, 2000) }.start()
+                    if (recording) toast("A edição não é possível durante a gravação de uma macro.")
+                    else if (st.type != Type.GROUP) Thread { Thread.sleep(500); instant(probeShort(runCatching { engine.probeItem(st) }.getOrElse { "Falha ao testar o item" }), 2000) }.start()
                     true
                 }
             })
@@ -512,7 +569,7 @@ class MacroService : AccessibilityService() {
         // Como no base: título de 36dp verde com o nome da macro (arrasta a lista na vertical) e corpo branco de 170x240dp na borda direita.
         val lp = WindowManager.LayoutParams(-2, -2, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT)
-            .apply { gravity = Gravity.TOP or Gravity.START; x = listX ?: (resources.displayMetrics.widthPixels - dp(171)); y = store.listY.coerceIn(0, resources.displayMetrics.heightPixels - dp(100)) }
+            .apply { gravity = Gravity.TOP or Gravity.START; x = listX ?: (resources.displayMetrics.widthPixels - dp(170)); y = store.listY.coerceIn(0, resources.displayMetrics.heightPixels - dp(100)) }
         val title = android.widget.LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(0xFF008577.toInt())
             addView(ImageView(this@MacroService).apply { setImageResource(R.drawable.bp_ic_move_resize_variant); setColorFilter(0xFFFAFAFA.toInt()) }, android.widget.LinearLayout.LayoutParams(dp(24), dp(24)).also { it.setMargins(dp(4), dp(4), dp(4), dp(4)) })
@@ -587,8 +644,8 @@ class MacroService : AccessibilityService() {
 
     private fun highlightStep(i: Int) {
         val col = listCol ?: return
-        for (k in 0 until col.childCount / 2) (((col.getChildAt(k * 2) as? android.widget.LinearLayout)?.getChildAt(0) as? android.widget.LinearLayout)?.getChildAt(0) as? android.widget.TextView)?.apply {
-            setTextColor(if (k == i) 0xFFD81B60.toInt() else B.TEXT); typeface = if (k == i) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        for (k in 0 until col.childCount / 2) ((((col.getChildAt(k * 2) as? android.widget.LinearLayout)?.getChildAt(0) as? android.widget.LinearLayout)?.getChildAt(0) as? android.widget.LinearLayout)?.getChildAt(0) as? android.widget.TextView)?.apply {
+            setTextColor(if (k == i) 0xFFD81B60.toInt() else Color.BLACK) // passo atual em rosa (colorAccent), sem negrito, como no base
         }
         col.getChildAt(i * 2)?.let { v -> listSv?.post { listSv?.smoothScrollTo(0, (v.top - dp(60)).coerceAtLeast(0)) } }
     }
@@ -838,7 +895,7 @@ class MacroService : AccessibilityService() {
         recBase = base; recBaseCount = base?.steps?.size ?: 0
         rec.clear(); base?.let { rec.addAll(it.steps) }
         recLast = SystemClock.elapsedRealtime()
-        recording = true; ui.post { awake(true); showList() } // gravando: a tela não apaga e a lista dos itens abre sozinha (como no base)
+        recording = true; ui.post { awake(true) } // gravando: a tela não apaga; a lista NÃO abre sozinha (como no base)
         recorder.show(Recorder.Mode.TAP)
         panelToFront()
         expanded = false; row2.visibility = View.GONE
@@ -937,7 +994,7 @@ class MacroService : AccessibilityService() {
         Diag.d("gravação", "fim (salvar=$save, itens=${rec.size - recBaseCount})")
         if (!recording) return
         recording = false; adding = false
-        ui.post { awake(false); hideList(); itemOverlay.dismiss() }
+        ui.post { awake(false); listWin?.alpha = 1f; itemOverlay.dismiss() } // a lista não fecha ao parar (como no base)
         runCatching { recorder.hide() }
         if (::panel.isInitialized) fillRow1()
         if (!save) return
