@@ -20,9 +20,9 @@ class EditSelectedActivity : Activity() {
         val OPTIONS = arrayOf("Tempo de atraso", "Pesquisa de imagem", "Pesquisa de imagem/Área de pesquisa", "Pesquisa de imagem/Taxa de correspondência",
             "Pesquisa de imagem/Velocidade de pesquisa", "Pesquisa de imagem/Duração da pesquisa", "Pesquisa de imagem/Mover", "Ação")
         val SPEEDS = listOf("Muito rápido" to 50, "Rápido" to 200, "1 Seg" to 1000, "2 Seg" to 2000, "3 Seg" to 3000)
-        // 5 áreas (o vídeo do base mostra as 5), cada uma com a 2ª linha de descrição (search_area_*_info do base)
-        val AREAS = arrayOf("Posição Fixa", "Tela Cheia", "Tela Cheia (Escala de Cinza)", "Área Personalizada", "Área Personalizada (Escala de Cinza)")
-        val AREA_INFO = arrayOf("Compara imagens em uma posição fixa.", "Procura imagens na tela cheia.", "Procura imagens na tela cheia. A velocidade de pesquisa de imagem é mais rápida.", "Pesquisa de imagem em área personalizada.", "Pesquisa de imagem em área personalizada. A velocidade de pesquisa de imagem é mais rápida.")
+        // 4 áreas na edição em lote (confirmado no código do base; o item individual tem 5), cada uma com a 2ª linha de descrição (search_area_*_info do base)
+        val AREAS = arrayOf("Posição Fixa", "Tela Cheia", "Tela Cheia (Escala de Cinza)", "Área Personalizada")
+        val AREA_INFO = arrayOf("Compara imagens em uma posição fixa.", "Procura imagens na tela cheia.", "Procura imagens na tela cheia. A velocidade de pesquisa de imagem é mais rápida.", "Pesquisa de imagem em área personalizada.")
     }
 
     private var opt = 0
@@ -85,8 +85,7 @@ class EditSelectedActivity : Activity() {
             4 -> {
                 p.category("Correspondência de Imagem", iconRes = R.drawable.bp_outline_image_search_24)
                 p.valueRow("Velocidade de Pesquisa de Imagem", SPEEDS.firstOrNull { it.second == cycle }?.first ?: "$cycle ms") {
-                    AlertDialog.Builder(this).setTitle("Velocidade de Pesquisa de Imagem").setMessage("Defina uma velocidade mais rápida para detectar imagens que mudam rapidamente.")
-                        .setSingleChoiceItems(SPEEDS.map { it.first }.toTypedArray(), SPEEDS.indexOfFirst { it.second == cycle }) { d, w -> cycle = SPEEDS[w].second; d.dismiss(); render() }.show()
+                    choiceDialog("Velocidade de Pesquisa de Imagem", "Defina uma velocidade mais rápida para detectar imagens que mudam rapidamente.", SPEEDS.map { it.first }.toTypedArray(), SPEEDS.indexOfFirst { it.second == cycle }) { w -> cycle = SPEEDS[w].second; render() }.show()
                 }
             }
             5 -> {

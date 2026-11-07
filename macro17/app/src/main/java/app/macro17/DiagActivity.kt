@@ -205,9 +205,7 @@ class DiagActivity : Activity() {
     private fun options() {
         val items = arrayOf("Registrar eventos em arquivo", "Incluir log do sistema no relatório (root)")
         val on = booleanArrayOf(store.diag, store.diagRoot)
-        AlertDialog.Builder(this).setTitle("Opções do monitor")
-            .setMultiChoiceItems(items, on) { _, i, v -> if (i == 0) store.diag = v else store.diagRoot = v }
-            .setMessage("O relatório com root roda “su” para juntar logcat completo, dmesg e a acessibilidade. Sem root: adb shell pm grant app.macro17 android.permission.READ_LOGS")
+        checkDialog("Opções do monitor", "O relatório com root roda “su” para juntar logcat completo, dmesg e a acessibilidade. Sem root: adb shell pm grant app.macro17 android.permission.READ_LOGS", items, on) { i, v -> if (i == 0) store.diag = v else store.diagRoot = v }
             .setPositiveButton("OK", null).show()
     }
 

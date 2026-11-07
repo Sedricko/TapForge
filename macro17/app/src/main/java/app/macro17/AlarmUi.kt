@@ -91,6 +91,7 @@ class AlarmListActivity : Activity() {
             list.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(8), dp(12))
                 background = rounded(Color.WHITE, 12, 0xFFE0E0E0.toInt()); alpha = if (a.enabled) 1f else 0.5f
+                setOnClickListener { startActivity(Intent(this@AlarmListActivity, AlarmEditActivity::class.java).putExtra("id", a.id)) } // como no base: o cartão inteiro abre a edição
                 addView(LinearLayout(this@AlarmListActivity).apply {
                     gravity = Gravity.CENTER_VERTICAL
                     addView(label(macro?.name ?: "(macro removida)", 18f, 0xFF000000.toInt()), LinearLayout.LayoutParams(0, WRAP_CONTENT, 1f))
@@ -98,7 +99,7 @@ class AlarmListActivity : Activity() {
                     isChecked = a.enabled
                     setOnCheckedChangeListener { _, on ->
                         val upd = all.map { if (it.id == a.id) it.copy(enabled = on) else it }
-                        if (on && Alarms.conflict(a, all)) { Toast.makeText(context, "Este horário se sobrepõe a outro. Ajuste a hora para ativá-lo.", Toast.LENGTH_SHORT).show(); isChecked = false; return@setOnCheckedChangeListener }
+                        if (on && Alarms.conflict(a, all)) { Toast.makeText(context, "Este cronograma se sobrepõe a outro. Ajuste o horário para ativá-lo.", Toast.LENGTH_SHORT).show(); isChecked = false; return@setOnCheckedChangeListener }
                         store.saveAlarms(upd); if (!Alarms.rearm(context)) permissionDialog(); render()
                     }
                 })
@@ -163,9 +164,9 @@ class AlarmEditActivity : Activity() {
                 val m = macroId
                 if (m == null) return@setOnClickListener Toast.makeText(context, "Nenhum arquivo de macro", Toast.LENGTH_SHORT).show()
                 if (u == null || u < 1 || u > 1440) return@setOnClickListener Toast.makeText(context, "Tempo de atividade: 1 a 1440 minutos", Toast.LENGTH_SHORT).show()
-                val a = (old ?: Alarm(macroId = m, start = start, uptime = u)).copy(macroId = m, start = start, uptime = u)
+                // Como no base: salvar sempre salva e reativa; conflito só pinta o horário de vermelho na lista.
+                val a = (old ?: Alarm(macroId = m, start = start, uptime = u)).copy(macroId = m, start = start, uptime = u, enabled = true)
                 val rest = store.alarms().filter { it.id != a.id }
-                if (a.enabled && Alarms.conflict(a, rest)) return@setOnClickListener Toast.makeText(context, "Este horário se sobrepõe a outro. Ajuste a hora para ativá-lo.", Toast.LENGTH_SHORT).show()
                 // edita no lugar (a lista ordena por próximo disparo)
                 store.saveAlarms(if (old != null) store.alarms().map { if (it.id == a.id) a else it } else rest + a)
                 if (!Alarms.rearm(context)) Toast.makeText(context, "Permita “Alarmes e lembretes” para o horário exato", Toast.LENGTH_LONG).show()

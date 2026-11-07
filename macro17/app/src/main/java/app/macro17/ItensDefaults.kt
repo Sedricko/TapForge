@@ -11,8 +11,8 @@ fun catalogDefault(type: Type, mono: Boolean, w: Int, h: Int): Step? = when (typ
     Type.GOTO -> Step(type, goto = 0)
     Type.RESET, Type.COUNTER -> Step(type, counter = 1)
     Type.CALL, Type.STOP -> Step(type)
-    // Reconhecimento de Texto: busca 5 s, ciclo 500 ms, Pular ligado (padrão do base). O base nasce com texto vazio; o Macro17 exige texto, então entra um marcador.
-    Type.TEXT -> Step(type, text = "texto", ms = 5000, cycle = 500, tap = false)
+    // Reconhecimento de Texto: busca 5 s, ciclo 200 ms (item "Rápido" da lista), Pular desligado (tap = true; padrão do base). O base nasce com texto vazio; o Macro17 exige texto, então entra um marcador.
+    Type.TEXT -> Step(type, text = "texto", ms = 5000, cycle = 200, tap = true)
     // Detecção de Mudança de Imagem: diferença 5% (A = 95), tempo 0 (infinito), área [w/3, h/3]–[2w/3, 2h/3]
     Type.CHANGE -> Step(type, w / 3, h / 3, (w / 3) * 2, (h / 3) * 2, ms = 0, thr = 95, cycle = 500)
     // Grupo comum entra vazio (o diálogo "Grupo" define nome e repetições; os membros vêm da lista); o de imagem tem duração 5 s

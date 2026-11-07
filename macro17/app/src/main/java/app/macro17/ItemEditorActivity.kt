@@ -67,11 +67,13 @@ class ItemEditorActivity : Activity() {
 
     private fun secs(ms: Int) = "%.1f Sec".format(java.util.Locale.US, ms / 1000.0)
     /** Resumo "N Segundos" / "Infinito" do base (Tempo de Pesquisa, duração do alerta e do grupo de imagem). */
-    private fun segs(ms: Int) = if (ms == 0) "Infinito" else "${if (ms % 1000 == 0) "${ms / 1000}" else "${ms / 1000.0}"} Segundos"
+    private fun segs(ms: Int) = if (ms == 0) "Infinito" else "${ms / 1000.0} Segundos"
     private fun areaSum(a: Int, b: Int, c: Int, d: Int) = "X:$a Y:$b W:${c - a} H:${d - b}"
     private fun devSum() = "X:${s.ox} Y:${s.oy}"
     private val rotNames = arrayOf("Retrato 0°", "Paisagem 90°", "Retrato 180°", "Paisagem 270°")
     private fun gotoLabel(n: Int) = if (n == 0) "0. Próximo" else "$n. ${names.getOrNull(n - 1).orEmpty()}".trim()
+    /** Resumo das linhas de destino: o base mostra "Próximo" no 0; "0. Próximo" fica só como último item da lista do diálogo. */
+    private fun gotoSummary(n: Int) = if (n == 0) "Próximo" else gotoLabel(n)
     private val speeds = listOf("Muito rápido" to 50, "Rápido" to 200, "1 Seg" to 1000, "2 Seg" to 2000, "3 Seg" to 3000) // shortcut: o base grava 0 em "Muito rápido"; aqui 50 ms para o laço não girar sem pausa
     private val searchMsg = "Definir o tempo de pesquisa como 0 significa pesquisa infinita. Definindo-o maior que 0 permite configurar para onde mover com base nos resultados da pesquisa. " +
         "Um tempo de pesquisa entre 0 e 1 segundo significa comparar imagens instantaneamente e usar imagens capturadas anteriormente."
@@ -99,10 +101,10 @@ class ItemEditorActivity : Activity() {
         p.column.addView(r, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
     }
 
-    private fun nameRow(p: Prefs, title: String, icon: Int? = null) {
+    private fun nameRow(p: Prefs, title: String, icon: Int? = null, thumb: android.graphics.Bitmap? = null) {
         val click = { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
         val shown = s.name.ifBlank { title }
-        if (icon != null) iconRow(p, icon, "Nome", shown, true, click = click) else p.valueRow("Nome", shown) { click() }
+        if (icon != null) iconRow(p, icon, "Nome", shown, true, thumb, click) else p.valueRow("Nome", shown) { click() }
     }
 
     /** Lista de velocidades sem botões: tocar escolhe e fecha, como as ListPreference do base. */
@@ -115,14 +117,14 @@ class ItemEditorActivity : Activity() {
 
     /** "Tempo de Pesquisa": 0 = infinito; ao pôr 0 só o destino de falha é zerado (o de sucesso continua valendo, como no base). */
     private fun timeRow(p: Prefs, ms: Int, enabled: Boolean = true, set: (Int) -> Step) {
-        p.valueRow("Tempo de Pesquisa", segs(ms), enabled) { secDialog("Tempo de Pesquisa (segundos)", searchMsg, ms) { v -> s = set(v); render() } }
+        p.valueRow("Tempo de Pesquisa", segs(ms), enabled) { secDialog("Tempo de Pesquisa", searchMsg, ms) { v -> s = set(v); render() } }
     }
     private fun timeRow(p: Prefs, enabled: Boolean = true) = timeRow(p, s.ms, enabled) { v -> if (v == 0) s.copy(ms = 0, fail = 0) else s.copy(ms = v) }
 
     /** "Mover em Caso de Falha" só com tempo ≠ 0; "Mover em Caso de Sucesso" sempre (busca infinita e depois salta). */
     private fun moveRows(p: Prefs, ms: Int, enabled: Boolean = true) {
-        p.valueRow("Mover em Caso de Falha", gotoLabel(s.fail), enabled && ms > 0) { gotoDialog("Mover em Caso de Falha", s.fail) { v -> s = s.copy(fail = v); render() } }
-        p.valueRow("Mover em Caso de Sucesso", gotoLabel(s.goto), enabled) { gotoDialog("Mover em Caso de Sucesso", s.goto) { v -> s = s.copy(goto = v); render() } }
+        p.valueRow("Mover em Caso de Falha", gotoSummary(s.fail), enabled && ms > 0) { gotoDialog("Mover em Caso de Falha", s.fail) { v -> s = s.copy(fail = v); render() } }
+        p.valueRow("Mover em Caso de Sucesso", gotoSummary(s.goto), enabled) { gotoDialog("Mover em Caso de Sucesso", s.goto) { v -> s = s.copy(goto = v); render() } }
     }
 
     private fun areaPick(init: IntArray, set: (IntArray) -> Unit) = pick(PositionPickerActivity.AREA, init, ok = set)
@@ -152,7 +154,7 @@ class ItemEditorActivity : Activity() {
         if (s.type == Type.KEY) nameRow(p, title, R.drawable.bp_outline_keyboard_24)
         else if (s.type != Type.STATUS) nameRow(p, title)
         when (s.type) {
-            Type.WAIT -> p.valueRow("Tempo de Espera", secs(s.ms)) { secDialog("Tempo de Espera (segundos)", null, s.ms) { v -> s = s.copy(ms = v); render() } }
+            Type.WAIT -> p.valueRow("Tempo de Espera", secs(s.ms)) { secDialog("Tempo de Espera", null, s.ms) { v -> s = s.copy(ms = v); render() } }
             Type.KEY -> p.valueRow("Evento de Teclado", keyNames[s.x1] ?: "Tecla Voltar") {
                 AlertDialog.Builder(this).setTitle("Evento de Teclado").setSingleChoiceItems(keyChoices.map { keyNames.getValue(it) }.toTypedArray(), keyChoices.indexOf(if (s.x1 == 4) 1 else s.x1)) { d, w ->
                     s = s.copy(x1 = keyChoices[w]); d.dismiss(); render()
@@ -163,16 +165,16 @@ class ItemEditorActivity : Activity() {
                 p.note("Receba notificações sobre o progresso e o status de execução da macro.")
                 p.valueRow("Nome", s.name.ifBlank { "Alerta de status" }) { textDialog("Nome", s.name) { v -> s = s.copy(name = v.replace(',', '_').trim()); render() } }
                 // inteiro em segundos; 0 = Infinito (resumo "N Segundos")
-                p.valueRow("Duração do alerta", segs(s.ms)) { numDialog("Duração do alerta (segundos)", null, s.ms / 1000) { v -> s = s.copy(ms = v * 1000); render() } }
+                p.valueRow("Duração do alerta", if (s.ms == 0) "Infinito" else "${s.ms / 1000} Segundos") { numDialog("Duração do alerta", null, s.ms / 1000) { v -> s = s.copy(ms = v * 1000); render() } }
                 p.category("Som e vibração", iconRes = R.drawable.bp_music_cast_24px)
                 p.switchRow("Vibração", "", s.vib) { v -> s = s.copy(vib = v); render() }
                 p.switchRow("Som", "", s.snd) { v -> s = s.copy(snd = v); render() }
-                p.valueRow("Selecionar Som", if (s.snu.isBlank()) "Padrão" else soundTitle(s.snu), s.snd) { soundDialog() }
+                p.valueRow("Selecionar Som", if (s.snu.isBlank()) "Som Padrão" else soundTitle(s.snu)) { soundDialog() }
                 p.category("Caixa de diálogo", iconRes = R.drawable.bp_dialogs_24px)
                 p.switchRow("Mostrar pop-up", "", s.pop) { v -> s = s.copy(pop = v); render() }
                 p.valueRow("Texto da mensagem", s.text.ifBlank { "Alerta de status" }) { textDialog("Texto da mensagem", s.text) { v -> s = s.copy(text = v.trim()); render() } }
             }
-            Type.GOTO -> p.valueRow("Ir para o item selecionado", gotoLabel(s.goto)) { gotoDialog("Ir para o item selecionado", s.goto) { v -> s = s.copy(goto = v); render() } }
+            Type.GOTO -> p.valueRow("Ir para o item selecionado", gotoSummary(s.goto)) { gotoDialog("Ir para o item selecionado", s.goto) { v -> s = s.copy(goto = v); render() } }
             Type.RESET -> p.valueRow("Contador de Execuções", "Contador ${s.counter}") {
                 AlertDialog.Builder(this).setTitle("Contador de Execuções").setSingleChoiceItems(Array(MAX_COUNTERS) { "Contador ${it + 1}" }, (s.counter - 1).coerceIn(0, MAX_COUNTERS - 1)) { d, w ->
                     s = s.copy(counter = w + 1); d.dismiss(); render()
@@ -183,12 +185,12 @@ class ItemEditorActivity : Activity() {
                 s.cases.forEachIndexed { k, c ->
                     p.category("Caso ${k + 1}", iconRes = if (k < 2) R.drawable.bp_ic_route_24dp_case else R.drawable.bp_ic_delete_24px)
                     p.valueRow("Contador de Execuções", "N ≥ ${c.n}") { numDialog("Contador de Execuções", null, c.n) { v -> s = s.copy(cases = s.cases.mapIndexed { j, x -> if (j == k) x.copy(n = v) else x }); render() } }
-                    p.valueRow("Ir para o item selecionado", gotoLabel(c.to)) { gotoDialog("Ir para o item selecionado", c.to) { v -> s = s.copy(cases = s.cases.mapIndexed { j, x -> if (j == k) x.copy(to = v) else x }); render() } }
+                    p.valueRow("Ir para o item selecionado", gotoSummary(c.to)) { gotoDialog("Ir para o item selecionado", c.to) { v -> s = s.copy(cases = s.cases.mapIndexed { j, x -> if (j == k) x.copy(to = v) else x }); render() } }
                     if (k >= 2) p.valueRow("Remover caso", "Excluir o caso ${k + 1}") { s = s.copy(cases = s.cases.filterIndexed { j, _ -> j != k }); render() }
                 }
                 if (s.cases.size < MAX_CASES) iconRow(p, R.drawable.bp_icn_add_plus, "Adicionar", "") { s = s.copy(cases = s.cases + Case((s.cases.maxOfOrNull { it.n } ?: 0) + 1, 0)); render() }
                 p.category("Outro Caso", iconRes = R.drawable.bp_ic_route_24dp_default)
-                p.valueRow("Ir para o item selecionado", gotoLabel(s.goto)) { gotoDialog("Ir para o item selecionado", s.goto) { v -> s = s.copy(goto = v); render() } }
+                p.valueRow("Ir para o item selecionado", gotoSummary(s.goto)) { gotoDialog("Ir para o item selecionado", s.goto) { v -> s = s.copy(goto = v); render() } }
                 p.valueRow("Contador usado", "Contador ${s.counter}") {
                     AlertDialog.Builder(this).setTitle("Contador usado").setSingleChoiceItems(Array(MAX_COUNTERS) { "Contador ${it + 1}" }, (s.counter - 1).coerceIn(0, MAX_COUNTERS - 1)) { d, w ->
                         s = s.copy(counter = w + 1); d.dismiss(); render()
@@ -213,7 +215,7 @@ class ItemEditorActivity : Activity() {
                     areaPick(intArrayOf(s.x1, s.y1, s.x2, s.y2)) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]) }
                 }
                 // o base guarda a diferença; o modelo guarda a semelhança exigida (100 - diferença)
-                p.valueRow("Diferença de Imagens", "${100 - s.thr}%") { numDialog("Diferença de Imagens (%)", "A imagem é considerada mudada quando a diferença passa deste valor. De 0 a 99.", 100 - s.thr) { v -> s = s.copy(thr = (100 - v).coerceIn(1, 100)); render() } }
+                p.valueRow("Diferença de Imagens", "${100 - s.thr} %") { numDialog("Diferença de Imagens", null, 100 - s.thr, "0~100") { v -> s = s.copy(thr = (100 - v).coerceIn(1, 100)); render() } }
                 speedRow(p, "Velocidade de Pesquisa de Imagem", speeds, speedMsg)
                 timeRow(p)
                 moveRows(p, s.ms)
@@ -269,7 +271,7 @@ class ItemEditorActivity : Activity() {
         if (!whole) p.valueRow("Área Personalizada", areaSum(s.x1, s.y1, s.x2, s.y2)) {
             areaPick(intArrayOf(s.x1, s.y1, s.x2, s.y2)) { v -> s = s.copy(x1 = v[0], y1 = v[1], x2 = v[2], y2 = v[3]) }
         }
-        p.valueRow("Taxa de correspondência de imagem (%)", "${s.thr}%") { numDialog("Taxa de correspondência de imagem (%)", null, s.thr) { v -> s = s.copy(thr = v.coerceIn(0, 100)); render() } }
+        p.valueRow("Taxa de correspondência de imagem (%)", "${s.thr} %") { numDialog("Taxa de correspondência de imagem (%)", null, s.thr, "Intervalo:0~100") { v -> s = s.copy(thr = v.coerceIn(0, 100)); render() } }
         speedRow(p, "Velocidade de Pesquisa de Imagem", speeds, speedMsg)
         timeRow(p)
         moveRows(p, s.ms)
@@ -298,7 +300,7 @@ class ItemEditorActivity : Activity() {
             if (on && num) s = s.copy(type = Type.TEXT, cycle = maxOf(s.cycle, 200), x1 = 0, y1 = 0, x2 = 0, y2 = 0)
             render()
         }
-        p.valueRow("Texto", s.text.ifBlank { "(vazio)" }, !num) { textDialog("Texto", s.text, "Use uma vírgula como separador para procurar várias palavras simultaneamente. ex.) Maçã, Abacaxi") { v -> s = s.copy(text = v.trim()); render() } }
+        p.valueRow("Texto", s.text.ifBlank { "(vazio)" }, !num) { textDialog("Texto", s.text, "Use uma vírgula como separador para pesquisar várias palavras simultaneamente. Ex: Maçã, Abacaxi") { v -> s = s.copy(text = v.trim()); render() } }
         p.valueRow("Idioma", "English", false)
         if (!num) p.switchRow("Texto exato", "Só vale se o texto for igual, e não apenas contido.", s.exact) { v -> s = s.copy(exact = v); render() }
         p.category("Reconhecimento de Números", iconRes = R.drawable.bp_icn_number_24px)
@@ -347,9 +349,9 @@ class ItemEditorActivity : Activity() {
     private fun buildImageGroup(p: Prefs) {
         nameRow(p, "Grupo de Pesquisa de Imagem", R.drawable.bp_ic_loop_image)
         iconRow(p, R.drawable.bp_outline_image_search_24, "Duração do Grupo de Pesquisa de Imagens", segs(s.gms)) {
-            secDialog("Duração do Grupo de Pesquisa de Imagens (segundos)", "0 significa infinito. Ao expirar, o grupo é abandonado.", s.gms) { v -> s = s.copy(gms = v); render() }
+            secDialog("Duração do Grupo de Pesquisa de Imagens", null, s.gms, infinite = true) { v -> s = s.copy(gms = v); render() }
         }
-        iconRow(p, R.drawable.bp_arrow_right_default, "Script quando a duração da pesquisa expira", gotoLabel(s.gfail), s.gms > 0) {
+        iconRow(p, R.drawable.bp_arrow_right_default, "Script quando a duração da pesquisa expira", gotoSummary(s.gfail), s.gms > 0) {
             gotoDialog("Script quando a duração da pesquisa expira", s.gfail) { v -> s = s.copy(gfail = v); render() }
         }
     }
@@ -371,7 +373,7 @@ class ItemEditorActivity : Activity() {
         val delayOn = s.delay > 0
         if (s.type != Type.KEY) p.category("Atraso", iconRes = if (s.type == Type.GOTO) R.drawable.bp_ic_timer else R.drawable.bp_alarm)
         if (s.type != Type.KEY) p.switchRow(if (s.type == Type.GOTO) "Realizar ação após o tempo de atraso." else "Atraso", if (s.type == Type.GOTO) "" else "Tocar/Deslizar será processado após o tempo de atraso.", delayOn) { on -> s = s.copy(delay = if (on) 1000 else 0, rnd = 0, rndMin = 0); render() }
-        p.valueRow("Tempo de Atraso", secs(s.delay), s.type == Type.KEY || s.type == Type.GESTURE || delayOn) { secDialog("Tempo de Atraso (segundos)", null, s.delay) { v -> s = s.copy(delay = v); render() } }
+        p.valueRow("Tempo de Atraso", secs(s.delay), s.type == Type.KEY || s.type == Type.GESTURE || delayOn) { secDialog("Tempo de Atraso", null, s.delay) { v -> s = s.copy(delay = v); render() } }
     }
 
     /** Categoria "Atraso" do Toque/Imagem; devolve se o atraso está ligado. */
@@ -382,7 +384,7 @@ class ItemEditorActivity : Activity() {
             s = if (on) s.copy(delay = if (s.delay > 0) s.delay else 1000) else s.copy(delay = 0, rnd = 0, rndMin = 0); render()
         }
         p.valueRow("Tempo de Atraso", secs(s.delay), delayOn) {
-            secDialog("Tempo de Atraso (segundos)", null, s.delay) { v -> s = s.copy(delay = v); render() }
+            secDialog("Tempo de Atraso", null, s.delay) { v -> s = s.copy(delay = v); render() }
         }
         return delayOn
     }
@@ -390,7 +392,7 @@ class ItemEditorActivity : Activity() {
     /** Categoria "Evasão de Detecção" (coordenadas aleatórias e atraso aleatório). */
     private fun evasionBlock(p: Prefs, delayOn: Boolean) {
         p.category("Evasão de Detecção", iconRes = R.drawable.bp_icn_hide_source_24px)
-        p.valueRow("Coordenadas Aleatórias (Coordenadas ± Valor de Pixel Aleatório)", "${s.jitter} pixels") {
+        p.valueRow("Coordenadas Aleatórias (Coordenadas ± Valor de Pixel Aleatório)", if (s.jitter == 0) "Desabilitado" else "${s.jitter} Pixel") {
             // pref_pixel_range_slider_dialog: texto + controle deslizante de 0 a 100 px
             val vt = TextView(this).apply { text = "${s.jitter.coerceIn(0, 100)} px"; textSize = 16f; gravity = android.view.Gravity.END }
             val sb = android.widget.SeekBar(this).apply {
@@ -404,9 +406,9 @@ class ItemEditorActivity : Activity() {
             AlertDialog.Builder(this).setTitle("Coordenadas Aleatórias").setView(column("Raio para clicar aleatoriamente. Defina como 0 para desativar.", sb, vt))
                 .setPositiveButton("OK") { _, _ -> s = s.copy(jitter = sb.progress); render() }.setNegativeButton("Cancelar", null).show()
         }
-        p.valueRow("Atraso Aleatório", if (s.rnd > 0) "${secs(s.rndMin)} a ${secs(s.rnd)}" else "Desligado", delayOn) {
+        p.valueRow("Atraso Aleatório", if (s.rnd > 0) "${s.rndMin / 1000.0} ~ ${s.rnd / 1000.0} Segundos" else "Desabilitado", delayOn) {
             fieldsDialog(
-                "Atraso Aleatório (segundos)",
+                "Atraso Aleatório",
                 "A ação será realizada após o atraso aleatório especificado. O atraso acima será ignorado.",
                 listOf("Atraso Mínimo", "Atraso Máximo"), listOf(s.rndMin, s.rnd), signed = false, decimal = true,
             ) { v -> s = if (v[1] == 0) s.copy(rnd = 0, rndMin = 0) else s.copy(rndMin = v[0], rnd = v[1]); render() }
@@ -416,13 +418,14 @@ class ItemEditorActivity : Activity() {
     private fun build(p: Prefs) {
         if (s.type in simple) return buildSimple(p)
         val swipe = s.type in twoPoint
-        nameRow(p, kind())
+        val nameThumb = if (s.useImg && s.img.isNotBlank()) store.templateThumb(s.img, dp(80)) else null
+        nameRow(p, kind(), if (nameThumb != null) R.drawable.bp_ic_tap else null, nameThumb)
 
         p.category(kind(), iconRes = R.drawable.bp_ic_gesture_swipe)
         p.valueRow("Posição do Toque", (if (swipe) "(${s.x1},${s.y1}) (${s.x2},${s.y2})" else "(${s.x1},${s.y1})") + " " + rotNames[s.rot.coerceIn(0, 3)]) { positionDialog() }
         // em segundos, como no base; oculta em Tocar (Pressionar = Toque com 0,5 s ou mais: aqui o Toque e o Pressionar são o mesmo tipo)
         if (s.type != Type.TAP || s.ms >= 500) p.valueRow("Duração do Gesto", secs(s.ms)) {
-            secDialog("Duração do Gesto (segundos)", "De 0,1 a 30 s.", s.ms) { v -> s = s.copy(ms = v.coerceIn(100, 30_000)); render() }
+            secDialog("Duração do Gesto", null, s.ms, label = "Intervalo:0.1~30.0", helper = "Segundos") { v -> s = s.copy(ms = v.coerceIn(100, 30_000)); render() }
         }
 
         val delayOn = touchDelay(p)
@@ -451,8 +454,8 @@ class ItemEditorActivity : Activity() {
         if (!whole && !s.fx) p.valueRow("Área Personalizada", areaSum(s.ax1, s.ay1, s.ax2, s.ay2), on) {
             areaPick(intArrayOf(s.ax1, s.ay1, s.ax2, s.ay2)) { v -> s = s.copy(ax1 = v[0], ay1 = v[1], ax2 = v[2], ay2 = v[3]) }
         }
-        p.valueRow("Taxa de correspondência de imagem (%)", "${s.thr}%", on) {
-            numDialog("Taxa de correspondência de imagem (%)", null, s.thr) { v -> s = s.copy(thr = v.coerceIn(0, 100)); render() }
+        p.valueRow("Taxa de correspondência de imagem (%)", "${s.thr} %", on) {
+            numDialog("Taxa de correspondência de imagem (%)", null, s.thr, "Intervalo:0~100") { v -> s = s.copy(thr = v.coerceIn(0, 100)); render() }
         }
         speedRow(p, "Velocidade de Pesquisa de Imagem", speeds, speedMsg, on)
         timeRow(p, s.sms, on) { v -> if (v == 0) s.copy(sms = 0, fail = 0) else s.copy(sms = v) }
@@ -499,16 +502,16 @@ class ItemEditorActivity : Activity() {
         return LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(et); addView(foot); setPadding(0, 0, 0, dp(8)) } to et
     }
 
-    private fun numDialog(title: String, msg: String?, init: Int, ok: (Int) -> Unit) {
-        val (v, et) = mfield(title, init.toString(), InputType.TYPE_CLASS_NUMBER, null)
+    private fun numDialog(title: String, msg: String?, init: Int, hint: String = title, ok: (Int) -> Unit) {
+        val (v, et) = mfield(hint, init.toString(), InputType.TYPE_CLASS_NUMBER, null)
         AlertDialog.Builder(this).setTitle(title).setView(column(msg, v))
             .setPositiveButton("OK") { _, _ -> et.text.toString().toIntOrNull()?.let(ok) ?: toast("Número inválido") }.setNegativeButton("Cancelar", null).show()
     }
 
     /** Segundos com casas decimais na tela, milissegundos no modelo (hint "Segundos" e faixa 0.0~300.0, como no base). */
-    private fun secDialog(title: String, msg: String?, initMs: Int, ok: (Int) -> Unit) {
-        val infinite = msg?.contains("infinit") == true // tempo de pesquisa: "0 significa infinito", sem contador
-        val (v, et) = mfield(if (infinite) "0 significa infinito" else "Segundos", (initMs / 1000.0).toString(), InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL, if (infinite) null else "0.0~${MAX_DELAY_MS / 1000.0}", counter = !infinite)
+    private fun secDialog(title: String, msg: String?, initMs: Int, infinite: Boolean = msg?.contains("infinit") == true, label: String = "Segundos", helper: String? = null, ok: (Int) -> Unit) {
+        // tempo de pesquisa e duração do grupo: "0 significa infinito", sem contador
+        val (v, et) = mfield(if (infinite) "0 significa infinito" else label, (initMs / 1000.0).toString(), InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL, if (infinite) null else helper, counter = !infinite)
         AlertDialog.Builder(this).setTitle(title).setView(column(msg, v))
             .setPositiveButton("OK") { _, _ -> et.text.toString().replace(',', '.').toDoubleOrNull()?.let { ok(Math.round(it * 1000).toInt()) } ?: toast("Número inválido") }
             .setNegativeButton("Cancelar", null).show()
@@ -562,7 +565,7 @@ class ItemEditorActivity : Activity() {
         }
         list.setOnItemClickListener { _, _, i, _ -> chosen = i; (list.adapter as android.widget.BaseAdapter).notifyDataSetChanged() }
         AlertDialog.Builder(this).setTitle("Selecionar Som").setView(list)
-            .setPositiveButton("OK") { _, _ -> if (chosen >= 0) { s = s.copy(snu = uris[chosen]); render() } }
+            .setPositiveButton("Selecionar") { _, _ -> if (chosen >= 0) { s = s.copy(snu = uris[chosen]); render() } }
             .setNegativeButton("Cancelar", null).setOnDismissListener { playing?.stop() }.show()
     }
 
