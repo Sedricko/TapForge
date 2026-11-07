@@ -46,6 +46,8 @@ class EditorActivity : Activity() {
     private var groupIdx = -1 // >= 0: tela do grupo (cabeçalho em steps[groupIdx]); a lista é a mesma e volta inteira ao editor da raiz
     private var vis: List<Int> = emptyList() // índices de steps mostrados nesta tela
     private lateinit var list: ListView
+    private lateinit var headLabel: TextView
+    private lateinit var headIcon: ImageView
     private lateinit var emptyHint: TextView
     private var steps: List<Step> = emptyList()
 
@@ -184,18 +186,18 @@ class EditorActivity : Activity() {
         val head = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE); setPadding(dp(16), dp(6), dp(16), dp(6))
             addView(name.apply { setPadding(0, 0, 0, 0) })
-            val loopsLabel = TextView(this@EditorActivity).apply { textSize = 14f; setTextColor(0xDE000000.toInt()); setPadding(dp(2), 0, 0, 0) }
-            fun showLoops() { loopsLabel.text = if (loops.text.toString() == "0") "Infinito" else loops.text.toString() }
+            headLabel = TextView(this@EditorActivity).apply { textSize = 14f; setTextColor(0xDE000000.toInt()); setPadding(dp(2), 0, 0, 0) }
+            headIcon = ImageView(this@EditorActivity).apply { setImageResource(R.drawable.bp_repeat) }
             loops.addTextChangedListener(object : android.text.TextWatcher {
-                override fun afterTextChanged(e: android.text.Editable?) { showLoops() }
+                override fun afterTextChanged(e: android.text.Editable?) { updateHead() }
                 override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                 override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             })
-            showLoops()
+            updateHead()
             addView(LinearLayout(this@EditorActivity).apply {
                 gravity = Gravity.CENTER_VERTICAL
-                addView(ImageView(this@EditorActivity).apply { setImageResource(R.drawable.bp_repeat) }, LinearLayout.LayoutParams(dp(14), dp(14)))
-                addView(loopsLabel)
+                addView(headIcon, LinearLayout.LayoutParams(dp(14), dp(14)))
+                addView(headLabel)
             }, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).also { it.topMargin = dp(2) })
             setOnClickListener { loopsDialog() } // o cabeçalho inteiro abre o diálogo, como o addHeaderView do base
         }
@@ -220,6 +222,7 @@ class EditorActivity : Activity() {
             addView(fab)
         })
         saved = snapshot()
+        collapseAll() // como o ExpandableListView do base: os grupos abrem recolhidos
         refresh()
     }
 
@@ -228,7 +231,17 @@ class EditorActivity : Activity() {
         selAll.setImageResource(if (selected.isNotEmpty()) R.drawable.bp_icn_check_circle_sel else R.drawable.bp_icn_check_circle)
     }
 
+    /** Cabeçalho: repetição do grupo/macro; no grupo de pesquisa de imagem, ícone de busca e a duração da busca (toque abre a edição do item). */
+    private fun updateHead() {
+        val g = if (groupIdx >= 0) steps.getOrNull(groupIdx) else null
+        if (g != null && g.mono) { headIcon.setImageResource(R.drawable.bp_outline_image_search_24); headLabel.text = limit(g.gms) }
+        else { headIcon.setImageResource(R.drawable.bp_repeat); headLabel.text = if (loops.text.toString() == "0") "Infinito" else loops.text.toString() }
+    }
+
+    private fun collapseAll() { collapsed.clear(); steps.forEachIndexed { k, st -> if (st.type == Type.GROUP) collapsed.add(k) } }
+
     private fun refresh() {
+        if (::headLabel.isInitialized) updateHead()
         vis = if (groupIdx >= 0) (groupIdx + 1..minOf(groupIdx + steps[groupIdx].grp, steps.lastIndex)).toList() else steps.indices.toList()
         selected.retainAll(vis.filter { groupIdx >= 0 || !inGroup(it) }.toSet()) // na raiz os filhos de grupo não são selecionáveis
         collapsed.retainAll { steps.getOrNull(it)?.type == Type.GROUP }
@@ -251,11 +264,19 @@ class EditorActivity : Activity() {
         startActivityForResult(Intent(this, EditorActivity::class.java).putExtra("id", id).putExtra("group", i).putExtra("steps", arr.toString()).putExtra("macroName", name.text.toString()), REQ_GROUP)
     }
 
-    /** Reverter do base: os marcados saem do grupo e voltam ao nível do pai. */
+    /** Devolve a lista inteira ao editor que abriu esta tela do grupo e fecha; [sel] = índices a deixar marcados lá. */
+    private fun finishGroup(sel: IntArray? = null) {
+        val arr = org.json.JSONArray(); steps.forEach { arr.put(it.toJson()) }
+        setResult(RESULT_OK, Intent().putExtra("steps", arr.toString()).also { if (sel != null) it.putExtra("sel", sel) }); finish()
+    }
+
+    /** Reverter do base: os marcados saem do grupo, vão para o fim da lista do pai (marcados) e a tela do grupo fecha; sem marcados não faz nada. */
     private fun revertSelected() {
-        val idx = needSelection() ?: return
-        steps = steps.ungrouped(groupIdx, idx.toSet())
-        selected.clear(); refresh()
+        val mk = marked().takeIf { it.isNotEmpty() }?.let { expandMarked(it) } ?: return
+        val p = steps.parentOf(groupIdx)
+        val end = if (p >= 0) minOf(p + steps[p].grp, steps.lastIndex) else steps.lastIndex
+        steps = steps.ungrouped(groupIdx, mk.toSet())
+        finishGroup((end - mk.size + 1..end).toList().toIntArray())
     }
 
     /** Diálogo "Grupo" (toque no cabeçalho da tela do grupo): nome e repetições. */
@@ -279,7 +300,7 @@ class EditorActivity : Activity() {
     private fun onRow(i: Int) {
         val st = steps.getOrNull(i) ?: return
         Diag.d("editor", "toque no item ${i + 1} (${st.type.name})")
-        if (st.type == Type.GROUP && !st.mono) openGroup(i) else if (st.type != Type.STOP) openItem(st.type, st, i)
+        if (st.type == Type.GROUP) openGroup(i) else if (st.type != Type.STOP) openItem(st.type, st, i)
     }
 
     private fun onRowLong(i: Int): Boolean {
@@ -306,7 +327,13 @@ class EditorActivity : Activity() {
     override fun onActivityResult(req: Int, res: Int, data: android.content.Intent?) {
         super.onActivityResult(req, res, data)
         if (req == REQ_ADD && res == RESULT_OK) { data?.getStringExtra("type")?.let { addOfType(Type.valueOf(it), data.getBooleanExtra("mono", false)) }; return }
-        if (req == REQ_GROUP) { if (res == RESULT_OK && data != null) runCatching { org.json.JSONArray(data.getStringExtra("steps") ?: return).let { a -> steps = (0 until a.length()).map { Step.fromJson(a.getJSONObject(it)) } } }; refresh(); return }
+        if (req == REQ_GROUP) {
+            if (res == RESULT_OK && data != null) {
+                runCatching { org.json.JSONArray(data.getStringExtra("steps") ?: return).let { a -> steps = (0 until a.length()).map { Step.fromJson(a.getJSONObject(it)) } } }
+                data.getIntArrayExtra("sel")?.let { sl -> selected.clear(); selected.addAll(sl.toList()) } // Reverter: os devolvidos chegam marcados
+            }
+            collapseAll(); refresh(); return
+        }
         if (req == 79) { if (res == RESULT_OK && data != null) data.getIntArrayExtra("v")?.let { applyBatchResult(data.getIntExtra("opt", 0), it) }; return }
         if (req != REQ_ITEM || res != RESULT_OK || data == null) return
         val st = runCatching { Step.fromJson(org.json.JSONObject(data.getStringExtra("step") ?: return)) }.getOrNull() ?: return
@@ -321,9 +348,9 @@ class EditorActivity : Activity() {
     private fun marked(): List<Int> = selected.filter { it in steps.indices }.sorted()
 
     /** Marcados, com os filhos de cada cabeçalho de grupo marcado (o grupo é um bloco, como no base). */
-    private fun needSelection(): List<Int>? = marked().takeIf { it.isNotEmpty() }?.let { m ->
+    private fun expandMarked(m: List<Int>): List<Int> =
         m.flatMap { i -> if (steps[i].type == Type.GROUP) (i..minOf(i + steps[i].grp, steps.lastIndex)).toList() else listOf(i) }.distinct().sorted()
-    } ?: run { toast("Nenhum item selecionado."); null }
+    private fun needSelection(): List<Int>? = marked().takeIf { it.isNotEmpty() }?.let { expandMarked(it) } ?: run { toast("Nenhum item selecionado."); null }
 
     private fun toggleAll() {
         if (selected.isNotEmpty()) selected.clear() else selected.addAll(vis.filter { groupIdx >= 0 || !inGroup(it) })
@@ -332,9 +359,10 @@ class EditorActivity : Activity() {
 
     /** Move cada item marcado uma posição; um bloco encostado na borda ou em outro marcado fica onde está. */
     private fun moveSelected(up: Boolean) {
-        val idx = needSelection() ?: return
+        collapseAll() // como no base, Subir/Descer/Excluir recolhem todos os grupos antes
+        val idx = needSelection() ?: return refresh()
         // Como no base: se o primeiro item do sentido do movimento já está na borda, nenhum se move.
-        if (if (up) idx.first() == 0 else idx.last() == steps.lastIndex) return
+        if (if (up) idx.first() == 0 else idx.last() == steps.lastIndex) return refresh()
         val all = idx.toSet()
         // Um grupo marcado anda inteiro; filhos de grupo marcado não andam sozinhos.
         var roots = idx.filter { i -> generateSequence(steps.parentOf(i)) { steps.parentOf(it) }.takeWhile { it >= 0 }.none { it in all } }
@@ -345,9 +373,9 @@ class EditorActivity : Activity() {
             val inv = IntArray(steps.size); order.forEachIndexed { k, old -> inv[old] = k }
             steps = out; cur = cur.map { inv[it] }.toSet(); roots = roots.map { inv[it] }; moved = true
         }
-        if (!moved) return toast("Não é possível mover nesse sentido.")
+        if (!moved) { refresh(); return toast("Não é possível mover nesse sentido.") }
         selected.clear(); selected.addAll(cur)
-        refresh()
+        collapseAll(); refresh()
     }
 
     private fun duplicateSelected() {
@@ -358,9 +386,10 @@ class EditorActivity : Activity() {
     }
 
     private fun deleteSelected() {
-        val idx = needSelection() ?: return
+        collapseAll()
+        val idx = needSelection() ?: return refresh()
         steps = steps.deleted(idx.toSet()) // sem confirmação, como no base
-        selected.clear(); refresh()
+        selected.clear(); collapseAll(); refresh()
     }
 
     private fun overflow(anchor: View) {
@@ -393,6 +422,7 @@ class EditorActivity : Activity() {
     /** Reordena [marked] para o fim do grupo [target] (cabeçalho; -1 = novo grupo no fim) e recalcula os destinos de salto e os tamanhos dos grupos. */
     private fun moveToGroup(marked: List<Int>, target: Int) {
         val mk = marked.toSet()
+        if (mk.any { steps[it].type == Type.CHANGE }) return toast("Há um script que não ativa a detecção de imagem.")
         if (target == -1 && steps.size + 1 > MAX_STEPS) return toast("Limite de passos atingido.")
         val order = ArrayList<Int>() // índice antigo de cada posição nova; -1 = cabeçalho novo
         val kids = HashMap<Int, Int>() // cabeçalho antigo -> filhos que continuam nele
@@ -414,7 +444,7 @@ class EditorActivity : Activity() {
                 g.copy(goto = map(g.goto), fail = map(g.fail), cases = g.cases.map { it.copy(to = map(it.to)) })
             }
         }
-        steps = out; selected.clear(); refresh()
+        steps = out; selected.clear(); collapseAll(); refresh()
     }
 
     /** Cabeçalhos de grupo recolhidos (botão expandir/recolher do base, expander_ic_*). */
@@ -442,7 +472,7 @@ class EditorActivity : Activity() {
         fun img(f: (Step) -> Step): (Step) -> Step = { if (it.type in Step.GESTURES) f(it) else it }
         val gest: (Step) -> Boolean = { it.type in Step.GESTURES }
         val change: (Step) -> Step = when (opt) {
-            0 -> { st -> if (st.type in Step.GESTURES) st.copy(delay = if (v[0] == 1) v[1] else 0) else st }
+            0 -> { st -> if (st.type !in Step.GESTURES) st else if (v[0] == 1) st.copy(delay = v[1]) else st.copy(delay = 0, useImg = st.useImg || st.img.isNotEmpty()) } // sem atraso liga a busca por imagem, como no base
             1 -> img { it.copy(useImg = v[0] == 1 && it.img.isNotEmpty()) }
             2 -> img { st -> when (v[0]) {
                 0 -> st.copy(fx = true, ax1 = 0, ay1 = 0, ax2 = 0, ay2 = 0)
@@ -470,7 +500,7 @@ class EditorActivity : Activity() {
         val names = h.map { runCatching { out.format(fmt.parse(it)!!) }.getOrDefault(it) }.toTypedArray()
         AlertDialog.Builder(this).setTitle("Selecionar Histórico de Edição").setItems(names) { _, w ->
             val m = store.loadHistory(existingId, h[w]) ?: return@setItems toast("Cópia ilegível")
-            steps = m.steps; loops.setText(m.loops.toString()); selected.clear(); refresh()
+            steps = m.steps; loops.setText(m.loops.toString()); selected.clear(); collapseAll(); refresh()
         }.show()
     }
 
@@ -504,12 +534,15 @@ class EditorActivity : Activity() {
         addView(label(text, 14f, 0xDE000000.toInt()).apply { setPadding(dp(2), 0, 0, 0) })
     }
 
+    /** Tipos sem chip de atraso na linha, como no base (Tecla sempre mostra). */
+    private val noDelayChip = setOf(Type.STOP, Type.CALL, Type.COUNTER, Type.RESET, Type.TEXT, Type.STATUS, Type.GROUP)
+
     private fun limit(ms: Int) = if (ms == 0) "Infinito" else secs(ms)
 
     /** Informação curta do item (tv_string_info do base). */
     private fun info(s: Step): String = when (s.type) {
         Type.KEY -> mapOf(1 to "Voltar", 2 to "Início", 3 to "Recentes", 4 to "Notificações", KEY_SCREENSHOT to "Captura de tela")[s.x1] ?: ""
-        Type.STATUS -> s.text
+        Type.STATUS -> "Som Padrão" // o base mostra o nome do som; o Macro17 só tem o padrão
         Type.CALL -> store.get(s.text)?.name ?: "Nenhum arquivo alocado."
         Type.COUNTER -> s.cases.joinToString(" ") { "${it.n}:${it.to}" }
         Type.RESET -> "Contador ${s.counter}"
@@ -554,7 +587,7 @@ class EditorActivity : Activity() {
                     gravity = Gravity.CENTER_VERTICAL
                     // Cada valor só aparece quando está ligado: busca (tempo ou Infinito), atraso, ação pulada e a informação do tipo.
                     if (search) addView(chip(R.drawable.bp_outline_image_search_24, limit(if (s.type in Step.GESTURES) s.sms else s.ms)))
-                    if (s.delay > 0 || s.rnd > 0) addView(chip(R.drawable.bp_ic_timer, delayText))
+                    if (s.type == Type.KEY || (s.type !in noDelayChip && (s.delay > 0 || s.rnd > 0))) addView(chip(R.drawable.bp_ic_timer, delayText))
                     if (gestureLike && s.skip) addView(resIcon(R.drawable.bp_ic_do_not_touch_24px, 14, 0xFF000000.toInt()))
                     if (s.type == Type.STATUS) {
                         val mode = if (s.snd && s.vib) R.drawable.bp_volume_vibrate else if (s.snd) R.drawable.bp_volume_high else if (s.vib) R.drawable.bp_vibrate else 0
@@ -622,7 +655,7 @@ class EditorActivity : Activity() {
 
     private fun pickType() {
         if (steps.size >= MAX_STEPS) return toast("Limite de $MAX_STEPS passos")
-        startActivityForResult(android.content.Intent(this, AddItemsActivity::class.java).putExtra("depth", if (groupIdx >= 0) 1 else 0), REQ_ADD)
+        startActivityForResult(android.content.Intent(this, AddItemsActivity::class.java).putExtra("depth", if (groupIdx >= 0) 1 else 0).putExtra("macro_group", if (groupIdx >= 0 && steps[groupIdx].mono) 2 else 0), REQ_ADD)
     }
 
     private fun addOfType(type: Type, mono: Boolean = false) {
@@ -749,15 +782,14 @@ class EditorActivity : Activity() {
 
     override fun onBackPressed() {
         if (groupIdx >= 0) { // sai sem perguntar e devolve a lista ao editor da raiz
-            val arr = org.json.JSONArray(); steps.forEach { arr.put(it.toJson()) }
-            setResult(RESULT_OK, Intent().putExtra("steps", arr.toString())); finish(); return
+            finishGroup(); return
         }
         AlertDialog.Builder(this).setMessage("Deseja sair da edição?")
             .setPositiveButton("Sim") { _, _ -> finish() }.setNegativeButton("Não", null).show()
     }
 
     private fun loopsDialog() {
-        if (groupIdx >= 0) return groupDialog()
+        if (groupIdx >= 0) return if (steps[groupIdx].mono) openItem(Type.GROUP, steps[groupIdx], groupIdx) else groupDialog() // grupo de imagem: o cabeçalho abre a edição do item
         val et = EditText(this).apply { inputType = InputType.TYPE_CLASS_NUMBER; setText(loops.text); setPadding(dp(16), dp(16), dp(16), dp(16)) }
         et.hint = "0 significa infinito"
         val box = FrameLayout(this).apply { addView(et, FrameLayout.LayoutParams(MATCH_PARENT, dp(48)).also { it.setMargins(dp(5), dp(5), dp(5), dp(5)) }) }

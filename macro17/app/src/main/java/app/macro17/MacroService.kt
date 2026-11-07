@@ -232,11 +232,11 @@ class MacroService : AccessibilityService() {
             gravity = Gravity.CENTER_VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)); alpha = 0.8f
             background = rounded(Color.WHITE, 8, 0xFFBBBBBB.toInt())
             addView(ImageView(this@MacroService).apply { setImageDrawable(packageManager.getApplicationIcon(packageName)) }, android.widget.LinearLayout.LayoutParams(dp(24), dp(24)).also { it.marginEnd = dp(8) })
-            addView(label(text, 14f, 0xFF111827.toInt()))
+            addView(label(text, 14f, 0xFF111827.toInt()), android.widget.LinearLayout.LayoutParams(0, -2, 1f))
         }
-        val lp = WindowManager.LayoutParams(-2, -2, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+        val lp = WindowManager.LayoutParams(-1, -2, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE, PixelFormat.TRANSLUCENT)
-            .apply { gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL; y = 100 }
+            .apply { gravity = Gravity.BOTTOM; y = 100 } // barra de largura total (raiz match_parent do base); segue sem receber toque para não cobrir a macro
         runCatching { wm.addView(v, lp) }.onSuccess {
             instantWin = v
             ui.postDelayed({ if (instantWin === v) { runCatching { wm.removeView(v) }; instantWin = null } }, ms.coerceAtLeast(500).toLong())
@@ -246,11 +246,17 @@ class MacroService : AccessibilityService() {
     /** Contagem do vídeo do base: dígito vermelho de 80sp com sombra, no centro, sem toque. O vídeo já está "running" aqui, então o ícone do painel troca. */
     private fun showCountdown(n: String) {
         if (::row1.isInitialized && !recording) fillRow1()
-        val v = label(n, 80f, Color.RED).apply { setShadowLayer(4f, 0f, 0f, Color.BLACK); gravity = Gravity.CENTER }
+        val v = label(n, 80f, Color.RED).apply { setShadowLayer(5f, 0f, 0f, Color.BLACK); gravity = Gravity.CENTER }
         val lp = WindowManager.LayoutParams(-2, -2, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE, PixelFormat.TRANSLUCENT)
             .apply { gravity = Gravity.CENTER }
-        runCatching { wm.addView(v, lp) }.onSuccess { instantWin = v; ui.postDelayed({ if (instantWin === v) { runCatching { wm.removeView(v) }; instantWin = null } }, 900) }
+        runCatching { wm.addView(v, lp) }.onSuccess {
+            instantWin = v
+            // animação do base a cada dígito: escala 2->1, alpha 0.3->1, 400 ms, overshoot
+            v.scaleX = 2f; v.scaleY = 2f; v.alpha = 0.3f
+            v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(400).setInterpolator(android.view.animation.OvershootInterpolator()).start()
+            ui.postDelayed({ if (instantWin === v) { runCatching { wm.removeView(v) }; instantWin = null } }, 900)
+        }
     }
 
     fun toast(msg: String) { ui.post { Toast.makeText(this, msg, Toast.LENGTH_SHORT).show() } }

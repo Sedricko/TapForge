@@ -31,6 +31,7 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
     private class Win(val view: View, val lp: WindowManager.LayoutParams)
     private val wins = ArrayList<Win>()
     private val dot = ctx.dp(40) // marcador de 40dp, como no base
+    private val baseAlpha get() = if (Store(ctx).opacity < 100) 0.7f else 1f // base: 0.7 só com transparência > 0
     private val screen get() = wm.maximumWindowMetrics.bounds // relido a cada uso: a tela pode girar
     private val pts = ArrayList<Pair<Int, Int>>(); private var drawStart = 0L; private var drawEnd = 0L
     private var p1: Win? = null; private var p2: Win? = null; private var box: Win? = null; private var handle: Win? = null
@@ -45,12 +46,12 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
     private fun add(v: View, lp: WindowManager.LayoutParams): Win { wm.addView(v, lp); return Win(v, lp).also { wins += it } }
 
     /** Marcador do base: 40dp, oval #D81B60 com traço de 2dp (round_button), ícone esticado sem padding. */
-    private fun marker(res: Int, tint: Int, x: Int, y: Int, onMove: () -> Unit): Win {
+    private fun marker(res: Int, tint: Int, x: Int, y: Int, inset: Int = 0, onMove: () -> Unit): Win {
         val v = ImageView(ctx).apply {
             setImageResource(res); scaleType = ImageView.ScaleType.FIT_XY; setColorFilter(tint)
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFFD81B60.toInt()); setStroke(ctx.dp(2), 0xFFD81B60.toInt()) }
-            setPadding(0, 0, 0, 0)
-            alpha = 0.7f
+            setPadding(inset, inset, inset, inset)
+            alpha = baseAlpha
         }
         val lp = params(dot, dot, true).apply { this.x = x - dot / 2; this.y = y - dot / 2 }
         val w = add(v, lp)
@@ -118,7 +119,8 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
                 var line: LineView? = null
                 p1 = marker(R.drawable.bp_ic_target, 0xFFFAFAFA.toInt(), cx, cy) { line?.invalidate(); rotateArrow() }
                 val e = sp2 ?: ((cx + ctx.dp(40)) to cy) // o fim nasce 40dp à direita do início
-                p2 = marker(R.drawable.bp_ic_navigation, Color.WHITE, e.first, e.second) { line?.invalidate(); rotateArrow() }
+                p2 = marker(R.drawable.bp_ic_navigation, Color.WHITE, e.first, e.second, ctx.dp(8)) { // seta de 24dp (tamanho natural) dentro do círculo de 40dp
+                     line?.invalidate(); rotateArrow() }
                 line = LineView().also { add(it, params(-1, -1, false)) } // a linha vem depois: fica acima dos marcadores
                 rotateArrow(); line?.invalidate()
             }
@@ -145,17 +147,17 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
                 add(v, params(-1, -1, true))
             }
             Mode.IMAGE -> {
-                val side = ctx.dp(140); val hs = ctx.dp(38) // alça quadrada de 38dp no canto da caixa
+                val side = ctx.dp(140); val hs = ctx.dp(40) // alça de 40dp, por fora do canto inferior direito da caixa
                 val r0 = sbox
-                val b = add(BoxView(), params(r0?.width() ?: side, r0?.height() ?: side, true).apply { x = r0?.left ?: (cx - side / 2); y = r0?.top ?: (cy - side / 2) })
+                val b = add(BoxView().also { it.alpha = baseAlpha }, params(r0?.width() ?: side, r0?.height() ?: side, true).apply { x = r0?.left ?: (cx - side / 2); y = r0?.top ?: (cy - side / 2) })
                 box = b
                 val hv = ImageView(ctx).apply {
                     setImageResource(R.drawable.bp_ic_move_resize_variant); scaleType = ImageView.ScaleType.FIT_XY; setColorFilter(0xFFFAFAFA.toInt())
-                    setBackgroundColor(0xFFD81B60.toInt()); alpha = 0.7f
+                    setBackgroundColor(0xFFD81B60.toInt()); alpha = baseAlpha
                 }
                 val h = add(hv, params(hs, hs, true))
                 handle = h
-                fun place() { h.lp.x = b.lp.x + b.lp.width - hs / 2; h.lp.y = b.lp.y + b.lp.height - hs / 2; runCatching { wm.updateViewLayout(h.view, h.lp) } }
+                fun place() { h.lp.x = b.lp.x + b.lp.width; h.lp.y = b.lp.y + b.lp.height; runCatching { wm.updateViewLayout(h.view, h.lp) } }
                 drag(b) { place() } // arrastar o corpo move a caixa e leva a alça junto
                 // A alça redimensiona: o canto da caixa acompanha a alça, com o mínimo de 38 px do base.
                 var sx = 0f; var sy = 0f; var sw = 0; var sh = 0
@@ -163,8 +165,8 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
                     when (e.actionMasked) {
                         MotionEvent.ACTION_DOWN -> { sx = e.rawX; sy = e.rawY; sw = b.lp.width; sh = b.lp.height }
                         MotionEvent.ACTION_MOVE -> {
-                            b.lp.width = (sw + (e.rawX - sx).toInt()).coerceIn(38, maxOf(38, screen.width() - b.lp.x))
-                            b.lp.height = (sh + (e.rawY - sy).toInt()).coerceIn(38, maxOf(38, screen.height() - b.lp.y))
+                            b.lp.width = (sw + (e.rawX - sx).toInt()).coerceIn(38, maxOf(38, screen.width() - b.lp.x - hs))
+                            b.lp.height = (sh + (e.rawY - sy).toInt()).coerceIn(38, maxOf(38, screen.height() - b.lp.y - hs))
                             runCatching { wm.updateViewLayout(b.view, b.lp) }
                             place()
                         }
@@ -193,7 +195,7 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
         val (x1, y1) = center(a)
         return when (mode) {
             Mode.TAP -> Step(Type.TAP, x1, y1, ms = 5, delay = delay)
-            Mode.PRESS -> Step(Type.TAP, x1, y1, ms = 1000, delay = delay, name = "Pressionar")    // pressionar = toque longo, 1 s como no base
+            Mode.PRESS -> Step(Type.TAP, x1, y1, ms = 1000, delay = delay, name = "Press")    // pressionar = toque longo, 1 s como no base
             Mode.SWIPE -> p2?.let { val (x2, y2) = center(it); Step(Type.SWIPE, x1, y1, x2, y2, ms = 1000, delay = delay) }
             Mode.GESTURE -> null
             Mode.IMAGE -> null
@@ -201,7 +203,7 @@ class Recorder(private val ctx: Context, private val wm: WindowManager) {
     }
 
     /** Centro do marcador principal, em pixels da tela. */
-    fun point(): Pair<Int, Int>? = p1?.let { center(it) }
+    fun point(): Pair<Int, Int>? = if (mode == Mode.GESTURE) pts.firstOrNull() else p1?.let { center(it) }
 
     /** Área da caixa em pixels da tela (modo Imagem). */
     fun region(): Rect? = box?.let { Rect(it.lp.x, it.lp.y, it.lp.x + it.lp.width, it.lp.y + it.lp.height) }
