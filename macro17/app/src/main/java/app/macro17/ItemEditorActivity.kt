@@ -433,7 +433,11 @@ class ItemEditorActivity : Activity() {
         val on = s.useImg
         p.switchRow("Correspondência de Imagem", "Tocar/Deslizar será processado se a imagem corresponder.", on) { v ->
             if (v && s.img.isEmpty()) { toast("Este item não tem imagem: grave-o pelo painel (REC)."); render() }
-            else { s = s.copy(useImg = v); render() }
+            else {
+                // Como no base: ao ligar, a área padrão é "Posição Fixa" (compara só em volta do toque; a tela cheia custa ~300 ms por busca no aparelho)
+                val noArea = listOf(s.ax1, s.ay1, s.ax2, s.ay2).all { it == 0 } && !s.mono
+                s = s.copy(useImg = v, fx = if (v && noArea) true else s.fx); render()
+            }
         }
         val whole = listOf(s.ax1, s.ay1, s.ax2, s.ay2).all { it == 0 }
         val areaNames = arrayOf("Posição Fixa", "Tela Cheia", "Tela Cheia (Escala de Cinza)", "Área Personalizada", "Área Personalizada (Escala de Cinza)")
